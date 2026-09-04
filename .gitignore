@@ -1,0 +1,40 @@
+# ==========================================
+# Compilados y binarios (REGLA DE ORO)
+# ==========================================
+build/
+.gradle/
+bin/
+*.class
+*.jar
+*.war
+
+# ==========================================
+# Variables de entorno y secretos
+# Ninguna clave ni credencial se versiona (evaluable)
+# ==========================================
+.env
+application-local.properties
+
+# ==========================================
+# Configuración propia de IntelliJ IDEA
+# ==========================================
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ==========================================
+# Configuración propia de Spring Tools / Eclipse
+# ==========================================
+.settings/
+.project
+.classpath
+.factorypath
+
+
+# ==========================================
+# Archivos del Sistema Operativo
+# ==========================================
+.DS_Store
+Thumbs.db

@@ -1,0 +1,66 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'co.edu.uniquindio'
+version = '0.0.1-SNAPSHOT'
+description = 'SGA - Sistema de Gestión de Alojamiento'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// Consola web de H2, disponible en /h2-console
+    implementation 'org.springframework.boot:spring-boot-h2console'
+
+    // Acceso a la base de datos mediante JPA e Hibernate
+    // Base de los adaptadores de persistencia del SGA
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // Validación de los datos que entran al sistema (formato de la petición)
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Servidor web y API REST. En Spring Boot 4 este starter se llama
+    // 'webmvc'; en versiones anteriores se llamaba 'web'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+    // Generación automática de getters, setters y constructores en tiempo de compilación
+    compileOnly 'org.projectlombok:lombok'
+
+    // Motor de la base de datos H2
+    runtimeOnly 'com.h2database:h2'
+
+    // Procesador de anotaciones para Lombok durante la compilación del código principal
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Soporte de pruebas para persistencia (JPA)
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+
+    // Soporte de pruebas para las validaciones de entrada
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+
+    // Soporte de pruebas para controladores y endpoints de la API REST (WebMVC)
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
+    // Permite usar Lombok en las clases que están dentro del paquete src/test/java al compilar
+    testCompileOnly 'org.projectlombok:lombok'
+
+    // Lanzador de JUnit necesario para ejecutar las pruebas desde Gradle
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Procesador de anotaciones para Lombok durante la compilación de las clases de prueba
+    testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
