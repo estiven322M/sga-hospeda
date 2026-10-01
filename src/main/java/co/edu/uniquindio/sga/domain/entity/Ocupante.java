@@ -4,9 +4,9 @@ import java.time.LocalDate;
 import java.time.Period;
 
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
-import co.edu.uniquindio.sga.ValueObject.DocumentoIdentidad;
-import co.edu.uniquindio.sga.ValueObject.Estancia;
-import co.edu.uniquindio.sga.ValueObject.UmbralEdadFacturable;
+import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
+import co.edu.uniquindio.sga.domain.valueobject.Estancia;
+import co.edu.uniquindio.sga.domain.valueobject.UmbralEdadFacturable;
 
 /**
  * Entidad local que representa a una persona que se aloja.

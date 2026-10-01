@@ -1,4 +1,4 @@
-package co.edu.uniquindio.sga.ValueObject;
+package co.edu.uniquindio.sga.domain.valueobject;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

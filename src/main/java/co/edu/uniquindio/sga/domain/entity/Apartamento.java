@@ -1,8 +1,8 @@
 package co.edu.uniquindio.sga.domain.entity;
 
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
-import co.edu.uniquindio.sga.ValueObject.EstadoOperativo;
-import co.edu.uniquindio.sga.ValueObject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 
 /**
  * Raíz de Agregado que representa una unidad autónoma que se alquila.

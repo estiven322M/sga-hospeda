@@ -1,4 +1,8 @@
-package co.edu.uniquindio.sga.ValueObject;
+package co.edu.uniquindio.sga.domain.valueobject;
+
+/**
+ * Estados del ciclo de vida de una reserva (sección 8 del proyecto).
+ */
 
 public enum EstadoReserva {
 	
@@ -21,12 +25,12 @@ public enum EstadoReserva {
 	}
 	
 	
-	
-	// Consulta estado terminal para FINALIZADA, CANCELADA, NO_SHOW
+	/** FINALIZADA, CANCELADA y NO_SHOW son estados terminales. */
 	public boolean esTerminal() {
 		return !activa;
 	}
 	
+	/** RN-12: en este dominio solo las reservas activas retienen noches. */
 	public boolean retieneDisponibilidad() {
 		return activa;
 	}

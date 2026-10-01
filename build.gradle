@@ -63,4 +63,5 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	jvmArgs('-XX:+EnableDynamicAgentLoading') // Autoriza a Mockito en Java 25
 }

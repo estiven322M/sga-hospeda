@@ -1,4 +1,4 @@
-package co.edu.uniquindio.sga.ValueObject;
+package co.edu.uniquindio.sga.domain.valueobject;
 
 /**
  * Condición física presente del apartamento (definición 3.3 del proyecto).
@@ -28,6 +28,7 @@ public enum EstadoOperativo {
             case EN_PREPARACION        -> siguiente == PREPARADO
                                        || siguiente == FUERA_DE_SERVICIO;
             case FUERA_DE_SERVICIO     -> siguiente == PENDIENTE_PREPARACION;
+            default -> false;
         };
     }
 

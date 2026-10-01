@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
-import co.edu.uniquindio.sga.ValueObject.*;
+import co.edu.uniquindio.sga.domain.valueobject.*;
 
 /**
  * Raíz del agregado Reserva.
@@ -26,12 +26,12 @@ import co.edu.uniquindio.sga.ValueObject.*;
 
 public class Reserva {
 	
-	private final CodigoReserva codigo;                      // Identidad
-    private final CanalOrigen canalOrigen;                   // Por dónde entró: no cambia nunca
+	private final CodigoReserva codigo;                      
+    private final CanalOrigen canalOrigen;                   
     private final LocalDateTime creadaEn;
     private final Ocupante titular;
-    private final IdentificacionApartamento apartamento;     // Referencia a OTRO agregado (por ID)
-    private final VersionPolitica politica;                  // RN-13: congelada de por vida
+    private final IdentificacionApartamento apartamento;     // Referencia a OTRO agregado
+    private final VersionPolitica politica;                  // RN-13, RN-22: congelada de por vida
     private final List<EventoReserva> historial = new ArrayList<>();
 
     private Estancia estancia;
@@ -48,7 +48,7 @@ public class Reserva {
         this.apartamento = apartamento;
         this.estancia = estancia;
         this.titular = titular;
-        this.ocupantes = List.copyOf(ocupantes); // Copia inmutable: nadie la altera por fuera
+        this.ocupantes = List.copyOf(ocupantes); // Copia inmutable inicial
         this.canalOrigen = canalOrigen;
         this.valor = valor;
         this.politica = politica;
@@ -56,18 +56,18 @@ public class Reserva {
         this.estado = EstadoReserva.PENDIENTE;   // Toda reserva nace PENDIENTE
     }
 
-    /**
-     * Única puerta de entrada para crear una reserva.
-     * El valor ya llega calculado y la disponibilidad ya fue verificada externamente.
-     */
     public static Reserva crear(CodigoReserva codigo, IdentificacionApartamento apartamento,
                                 Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
                                 CanalOrigen canalOrigen, ValorCongelado valor,
                                 VersionPolitica politica, LocalDateTime ahora) {
-        
-        if (codigo == null || apartamento == null || estancia == null || titular == null 
-            || canalOrigen == null || valor == null || politica == null) {
-            throw new ReglaDominioException("Faltan datos obligatorios para crear la reserva");
+
+        if (codigo == null) throw new ReglaDominioException("La reserva debe tener un código");
+        if (apartamento == null) throw new ReglaDominioException("La reserva debe indicar el apartamento");
+        if (estancia == null) throw new ReglaDominioException("La reserva debe tener una estancia");
+        if (titular == null) throw new ReglaDominioException("La reserva debe tener un titular");
+        if (canalOrigen == null) throw new ReglaDominioException("La reserva debe indicar su canal de origen");
+        if (valor == null || politica == null) {
+            throw new ReglaDominioException("La reserva debe nacer con su valor y su política congelados");
         }
         if (ocupantes == null || ocupantes.isEmpty()) {
             throw new ReglaDominioException("La reserva debe tener al menos un ocupante");
@@ -75,103 +75,174 @@ public class Reserva {
         if (!ocupantes.contains(titular)) {
             throw new ReglaDominioException("El titular debe ser uno de los ocupantes");
         }
-        // RN-04: No se crean reservas hacia el pasado
+        if (ocupantes.stream().distinct().count() != ocupantes.size()) {
+            throw new ReglaDominioException("No se puede repetir un ocupante en la reserva");
+        }
+        
+        // RN-04: no se crean reservas hacia el pasado
         if (estancia.fechaEntrada().isBefore(ahora.toLocalDate())) {
-            throw new ReglaDominioException("La fecha de entrada no puede ser anterior a la actual");
+            throw new ReglaDominioException("La fecha de entrada no puede ser anterior a la fecha actual");
+        }
+        
+        if (valor.noches() != estancia.noches()) {
+            throw new ReglaDominioException("El desglose del valor no corresponde al número de noches de la estancia");
         }
 
-        Reserva reserva = new Reserva(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, valor, politica, ahora);
-        reserva.registrarEvento("Creación", titular.getNombre(), ahora, null, EstadoReserva.PENDIENTE, "Reserva creada");
+        Reserva reserva = new Reserva(codigo, apartamento, estancia, titular, ocupantes,
+                                      canalOrigen, valor, politica, ahora);
+        reserva.registrarEvento("CREACION", titular.getNombre(), null,
+                EstadoReserva.PENDIENTE, "Reserva creada por el canal " + canalOrigen, ahora);
         return reserva;
     }
 
+    // --- MÉTODOS DE NEGOCIO (Comportamiento) ---
+
     public void indicarHoraEstimadaLlegada(LocalTime hora, String autor, LocalDateTime ahora) {
-        verificarQueNoSeaTerminal();
+        verificarQueNoEsteTerminada();
+        if (hora == null) throw new ReglaDominioException("Debe indicarse la hora estimada de llegada");
+        
         this.horaEstimadaLlegada = hora;
-        registrarEvento("Indicar hora de llegada", autor, ahora, this.estado, this.estado, "Hora estimada: " + hora);
+        registrarEvento("HORA_LLEGADA", autor, this.estado, this.estado,
+                "Hora estimada de llegada: " + hora, ahora);
     }
 
     public void confirmar(String autor, LocalDateTime ahora) {
-        // RN-09: No se confirma sin hora de llegada
+        verificarQueNoEsteTerminada();
         if (this.horaEstimadaLlegada == null) {
             throw new ReglaDominioException("No se puede confirmar una reserva sin hora estimada de llegada");
         }
-        cambiarEstado(EstadoReserva.CONFIRMADA, "Confirmar reserva", autor, ahora, "Reserva confirmada");
-    }
 
-    public void registrarLlegada(String autor, LocalDateTime ahora) {
-        // RN-10: No se registra llegada antes de la fecha de entrada
-        if (ahora.toLocalDate().isBefore(this.estancia.fechaEntrada())) {
-            throw new ReglaDominioException("No se puede registrar la llegada antes de la fecha de entrada");
-        }
-        cambiarEstado(EstadoReserva.EN_CURSO, "Check-in", autor, ahora, "Llegada registrada");
-    }
+        EstadoReserva anterior = this.estado;
+        verificarTransicion(EstadoReserva.CONFIRMADA);
 
-    public void registrarSalida(String autor, LocalDateTime ahora) {
-        cambiarEstado(EstadoReserva.FINALIZADA, "Check-out", autor, ahora, "Salida registrada");
+        this.estado = EstadoReserva.CONFIRMADA;
+        registrarEvento("CONFIRMACION", autor, anterior, this.estado, "Reserva confirmada", ahora);
     }
 
     public void cancelar(String motivo, String autor, LocalDateTime ahora) {
+        verificarQueNoEsteTerminada();
         if (motivo == null || motivo.isBlank()) {
-            throw new ReglaDominioException("Se requiere un motivo para cancelar la reserva");
+            throw new ReglaDominioException("Toda cancelación debe registrar un motivo");
         }
-        cambiarEstado(EstadoReserva.CANCELADA, "Cancelar reserva", autor, ahora, motivo);
+
+        EstadoReserva anterior = this.estado;
+        verificarTransicion(EstadoReserva.CANCELADA);
+
+        this.estado = EstadoReserva.CANCELADA;
+        registrarEvento("CANCELACION", autor, anterior, this.estado,
+                motivo + " | política aplicada: versión " + politica.numero(), ahora);
     }
 
-    public void declararNoShow(String autor, LocalDateTime ahora) {
-        cambiarEstado(EstadoReserva.NO_SHOW, "Declarar No-Show", autor, ahora, "El grupo no se presentó");
-    }
-
-    private void cambiarEstado(EstadoReserva nuevoEstado, String accion, String autor, LocalDateTime ahora, String observacion) {
-        // RN-08: Verifica transiciones válidas antes de aplicar el cambio
-        if (!this.estado.puedeTransicionarA(nuevoEstado)) {
-            throw new ReglaDominioException("No se puede pasar de " + this.estado + " a " + nuevoEstado);
+    public void vencer(PlazoConfirmacion plazo, LocalDateTime ahora) {
+        if (this.estado != EstadoReserva.PENDIENTE) {
+            throw new ReglaDominioException("Solo vence una reserva PENDIENTE");
         }
-        EstadoReserva estadoAnterior = this.estado;
-        this.estado = nuevoEstado;
-        registrarEvento(accion, autor, ahora, estadoAnterior, nuevoEstado, observacion);
+        if (!plazo.venceAntesDe(this.creadaEn, ahora)) {
+            throw new ReglaDominioException("La reserva todavía está dentro del plazo de confirmación");
+        }
+
+        EstadoReserva anterior = this.estado;
+        this.estado = EstadoReserva.CANCELADA;
+        registrarEvento("VENCIMIENTO", "SISTEMA", anterior, this.estado,
+                "Cancelada por vencimiento del plazo de confirmación", ahora);
     }
 
-    private void registrarEvento(String accion, String autor, LocalDateTime ahora, EstadoReserva anterior, EstadoReserva nuevo, String obs) {
-        this.historial.add(new EventoReserva(ahora, accion, autor, anterior, nuevo, obs));
+    public void registrarLlegada(String autor, LocalDateTime ahora) {
+        verificarQueNoEsteTerminada();
+        if (ahora.toLocalDate().isBefore(estancia.fechaEntrada())) {
+            throw new ReglaDominioException("No se puede registrar la llegada antes de la fecha de entrada");
+        }
+
+        EstadoReserva anterior = this.estado;
+        verificarTransicion(EstadoReserva.EN_CURSO);
+
+        this.estado = EstadoReserva.EN_CURSO;
+        registrarEvento("REGISTRO", autor, anterior, this.estado, "El grupo tomó el apartamento", ahora);
     }
 
-    private void verificarQueNoSeaTerminal() {
+    public void registrarSalida(String autor, LocalDateTime ahora) {
+        verificarQueNoEsteTerminada();
+        EstadoReserva anterior = this.estado;
+        verificarTransicion(EstadoReserva.FINALIZADA);
+
+        this.estado = EstadoReserva.FINALIZADA;
+        registrarEvento("SALIDA", autor, anterior, this.estado, "El grupo salió del apartamento", ahora);
+    }
+
+    public void declararNoShow(LocalTime horaLimite, String autor, LocalDateTime ahora) {
+        verificarQueNoEsteTerminada();
+        if (horaLimite == null) throw new ReglaDominioException("Debe indicarse la hora límite de no-show");
+        
+        LocalDateTime limite = estancia.fechaEntrada().atTime(horaLimite);
+        if (ahora.isBefore(limite)) {
+            throw new ReglaDominioException("No se puede declarar no-show antes de la hora límite del día de entrada");
+        }
+
+        EstadoReserva anterior = this.estado;
+        verificarTransicion(EstadoReserva.NO_SHOW);
+
+        this.estado = EstadoReserva.NO_SHOW;
+        registrarEvento("NO_SHOW", autor, anterior, this.estado,
+                "El titular no se presentó | política aplicada: versión " + politica.numero(), ahora);
+    }
+
+    public Dinero modificarEstancia(Estancia nuevaEstancia, ValorCongelado nuevoValor, List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
+        verificarQueNoEsteTerminada();
+        if (nuevoValor.noches() != nuevaEstancia.noches()) {
+             throw new ReglaDominioException("El desglose del valor no corresponde al número de noches de la estancia");
+        }
+        
+        Dinero valorAnterior = this.valor.total();
+        this.estancia = nuevaEstancia;
+        this.valor = nuevoValor;
+        this.ocupantes = List.copyOf(nuevosOcupantes);
+        
+        Dinero diferencia = nuevoValor.total().menos(valorAnterior);
+        
+        registrarEvento("MODIFICACION", autor, this.estado, this.estado, 
+                "Estancia/Ocupantes modificados. Ajuste generado: " + diferencia.valor(), ahora);
+        
+        return diferencia;
+    }
+
+    // --- UTILIDADES PRIVADAS ---
+
+    private void verificarQueNoEsteTerminada() {
         if (this.estado.esTerminal()) {
-            throw new ReglaDominioException("Una reserva en estado terminal no admite modificaciones");
+            throw new ReglaDominioException("Una reserva en estado terminal (" + this.estado + ") no admite modificaciones");
         }
     }
 
-    // Getters
+    private void verificarTransicion(EstadoReserva siguiente) {
+        if (!this.estado.puedeTransicionarA(siguiente)) {
+            throw new ReglaDominioException("No se puede pasar de " + this.estado + " a " + siguiente);
+        }
+    }
+
+    private void registrarEvento(String accion, String autor, EstadoReserva estadoAnterior, 
+                                 EstadoReserva estadoNuevo, String observacion, LocalDateTime ahora) {
+        this.historial.add(new EventoReserva(ahora, accion, autor, estadoAnterior, estadoNuevo, observacion));
+    }
+
+    // --- GETTERS PROTEGIDOS ---
+
     public CodigoReserva getCodigo() { return codigo; }
+    public EstadoReserva getEstado() { return estado; }
+    public Estancia getEstancia() { return estancia; }
+    public IdentificacionApartamento getApartamento() { return apartamento; }
     public CanalOrigen getCanalOrigen() { return canalOrigen; }
     public LocalDateTime getCreadaEn() { return creadaEn; }
     public Ocupante getTitular() { return titular; }
-    public IdentificacionApartamento getApartamento() { return apartamento; }
     public VersionPolitica getPolitica() { return politica; }
-    public Estancia getEstancia() { return estancia; }
-    public EstadoReserva getEstado() { return estado; }
-    public LocalTime getHoraEstimadaLlegada() { return horaEstimadaLlegada; }
     public ValorCongelado getValor() { return valor; }
+    public LocalTime getHoraEstimadaLlegada() { return horaEstimadaLlegada; }
 
     public List<Ocupante> getOcupantes() {
-        return Collections.unmodifiableList(ocupantes); // Protege la colección interna
+        return List.copyOf(ocupantes); // Retorna copia inmutable
     }
 
-    public List<EventoReserva> obtenerHistorial() {
-        return Collections.unmodifiableList(historial); // Protege el historial
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Reserva otra)) return false;
-        return this.codigo.equals(otra.codigo);
-    }
-
-    @Override
-    public int hashCode() {
-        return codigo.hashCode();
+    public List<EventoReserva> getHistorial() {
+        return List.copyOf(historial); // Retorna copia inmutable
     }
 
 }
