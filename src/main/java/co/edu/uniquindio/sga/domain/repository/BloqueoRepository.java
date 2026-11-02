@@ -8,4 +8,8 @@ public interface BloqueoRepository {
 	
 	List<Bloqueo> buscarVigentesPorApartamento(IdentificacionApartamento apartamento);
 
+	Bloqueo guardar(Bloqueo bloqueo);
+
+	Pagina<Bloqueo> listarPorApartamento(IdentificacionApartamento apartamento, SolicitudPagina pagina);
+
 }

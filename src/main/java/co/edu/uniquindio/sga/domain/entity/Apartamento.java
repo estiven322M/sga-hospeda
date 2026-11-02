@@ -87,6 +87,25 @@ private final IdentificacionApartamento identificacion; // Identidad única
         this.capacidad = nuevaCapacidad;
     }
 
+    /**
+     * Alta lógica. La regla "solo con tarifas completas" (7.4) la verifica ActivacionApartamentoService,
+     * porque requiere conocer temporadas y tarifas, que son otros agregados.
+     */
+    public void activar() {
+        if (activo) {
+            throw new ReglaDominioException("El apartamento ya está activo");
+        }
+        this.activo = true;
+    }
+
+    /** Baja lógica (regla 11): el apartamento deja de venderse pero nunca se elimina físicamente. */
+    public void darDeBaja() {
+        if (!activo) {
+            throw new ReglaDominioException("El apartamento ya está dado de baja");
+        }
+        this.activo = false;
+    }
+
     private void verificarTransicionOperativa(EstadoOperativo siguiente) {
         if (!this.estadoOperativo.puedeTransicionarA(siguiente)) {
             throw new ReglaDominioException(

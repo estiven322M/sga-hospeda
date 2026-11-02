@@ -20,4 +20,7 @@ public interface ApartamentoRepository {
     /** Apartamentos que siguen activos (no dados de baja lógicamente). */
     List<Apartamento> listarActivos();
 
+    /** Listado paginado de los apartamentos activos. */
+    Pagina<Apartamento> listarActivos(SolicitudPagina pagina);
+
 }
