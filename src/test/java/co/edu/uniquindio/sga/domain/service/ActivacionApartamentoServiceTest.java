@@ -23,10 +23,9 @@ class ActivacionApartamentoServiceTest {
     private final TemporadaRepository temporadas = mock(TemporadaRepository.class);
     private final ActivacionApartamentoService servicio = new ActivacionApartamentoService(tarifario, temporadas);
 
+    /** Un apartamento recién creado: nace inactivo (7.4). */
     private Apartamento apartamentoDadoDeBaja() {
-        Apartamento apt = new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
-        apt.darDeBaja();
-        return apt;
+        return new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
     }
 
     @Test

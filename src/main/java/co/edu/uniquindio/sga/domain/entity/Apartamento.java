@@ -39,7 +39,43 @@ private final IdentificacionApartamento identificacion; // Identidad única
         this.dormitorios = dormitorios;
         this.capacidad = capacidad;
         this.estadoOperativo = EstadoOperativo.PREPARADO; // Estado inicial por defecto
-        this.activo = true;
+        // 7.4: nace inactivo; solo se activa con tarifas completas (ActivacionApartamentoService)
+        this.activo = false;
+    }
+
+    /**
+     * Edición de los datos del apartamento (7.3: cambiar la capacidad no afecta las reservas ya creadas).
+     * Aplica las mismas validaciones que la creación; si alguna falla, no se modifica nada.
+     */
+    public void actualizarDatos(String nuevoNombre, int nuevosDormitorios, int nuevaCapacidad) {
+        if (nuevoNombre == null || nuevoNombre.isBlank()) {
+            throw new ReglaDominioException("El apartamento debe tener un nombre");
+        }
+        if (nuevosDormitorios < 1) {
+            throw new ReglaDominioException("El apartamento debe tener al menos un dormitorio");
+        }
+        if (nuevaCapacidad < 1) {
+            throw new ReglaDominioException("La capacidad debe ser al menos de 1 persona");
+        }
+        this.nombre = nuevoNombre;
+        this.dormitorios = nuevosDormitorios;
+        this.capacidad = nuevaCapacidad;
+    }
+
+    /**
+     * Restaura un apartamento que ya existía, en el estado operativo y de actividad en que se guardó (la usa el
+     * adaptador de persistencia). Aplica las mismas validaciones de datos que el constructor; no es una operación de
+     * negocio, así que no revisa transiciones.
+     */
+    public static Apartamento reconstruir(IdentificacionApartamento identificacion, String nombre, int dormitorios,
+                                          int capacidad, EstadoOperativo estadoOperativo, boolean activo) {
+        if (estadoOperativo == null) {
+            throw new ReglaDominioException("El apartamento debe tener un estado operativo");
+        }
+        Apartamento apartamento = new Apartamento(identificacion, nombre, dormitorios, capacidad);
+        apartamento.estadoOperativo = estadoOperativo;
+        apartamento.activo = activo;
+        return apartamento;
     }
 
     /** RN-02: Verifica si el apartamento puede alojar a un grupo específico. */
@@ -71,7 +107,16 @@ private final IdentificacionApartamento identificacion; // Identidad única
         this.estadoOperativo = EstadoOperativo.PREPARADO;
     }
 
-    /** Decisión administrativa. */
+    /** Vuelve al servicio tras una baja operativa: FUERA_DE_SERVICIO → PENDIENTE_PREPARACION. */
+    public void reincorporarAlServicio() {
+        if (this.estadoOperativo != EstadoOperativo.FUERA_DE_SERVICIO) {
+            throw new ReglaDominioException("Solo se reincorpora un apartamento que está fuera de servicio");
+        }
+        verificarTransicionOperativa(EstadoOperativo.PENDIENTE_PREPARACION);
+        this.estadoOperativo = EstadoOperativo.PENDIENTE_PREPARACION;
+    }
+
+    /** Decisión administrativa: desde cualquier estado no ocupado. */
     public void declararFueraDeServicio() {
         verificarTransicionOperativa(EstadoOperativo.FUERA_DE_SERVICIO);
         this.estadoOperativo = EstadoOperativo.FUERA_DE_SERVICIO;

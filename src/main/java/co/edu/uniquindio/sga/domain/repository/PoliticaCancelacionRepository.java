@@ -13,6 +13,9 @@ public interface PoliticaCancelacionRepository {
     /** La versión que rige en esa fecha (la de mayor vigenteDesde que no supere la fecha). */
     Optional<PoliticaCancelacion> vigenteEn(LocalDate fecha);
 
+    /** La versión más reciente registrada (la de mayor número), si existe alguna. */
+    Optional<PoliticaCancelacion> ultimaVersion();
+
     /** La versión congelada en una reserva (RN-13). */
     Optional<PoliticaCancelacion> porVersion(VersionPolitica version);
 }

@@ -10,8 +10,11 @@ import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 /** Regla 11: la baja es lógica, nunca física. */
 class ApartamentoBajaLogicaTest {
 
+    /** Un apartamento ya activo (los nuevos nacen inactivos, 7.4). */
     private Apartamento apartamento() {
-        return new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        Apartamento apt = new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        apt.activar();
+        return apt;
     }
 
     @Test

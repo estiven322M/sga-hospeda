@@ -23,4 +23,10 @@ public interface ApartamentoRepository {
     /** Listado paginado de los apartamentos activos. */
     Pagina<Apartamento> listarActivos(SolicitudPagina pagina);
 
+    /**
+     * Listado paginado de todos los apartamentos, activos o no (los nuevos nacen inactivos hasta tener tarifas
+     * completas, y los dados de baja siguen existiendo: la baja es lógica). Ordenado por identificación.
+     */
+    Pagina<Apartamento> listarTodos(SolicitudPagina pagina);
+
 }

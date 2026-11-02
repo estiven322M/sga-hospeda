@@ -95,6 +95,49 @@ public class Reserva {
         return reserva;
     }
 
+    /**
+     * Restaura una reserva que ya existía (la usa el adaptador de persistencia para reconstruirla desde la base de
+     * datos). No es una operación de negocio: no genera eventos ni valida RN-04, porque restaurar una reserva
+     * histórica no es crearla. Sí protege las invariantes que deben cumplirse en cualquier momento de su vida:
+     * datos obligatorios, titular entre los ocupantes, desglose acorde a las noches y hora estimada de llegada en
+     * toda reserva que alguna vez estuvo confirmada (RN-09).
+     */
+    public static Reserva reconstruir(CodigoReserva codigo, IdentificacionApartamento apartamento,
+                                      Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
+                                      CanalOrigen canalOrigen, ValorCongelado valor, VersionPolitica politica,
+                                      LocalDateTime creadaEn, EstadoReserva estado, LocalTime horaEstimadaLlegada,
+                                      List<EventoReserva> historial) {
+        if (codigo == null || apartamento == null || estancia == null || titular == null || canalOrigen == null
+                || valor == null || politica == null || creadaEn == null || estado == null || historial == null) {
+            throw new ReglaDominioException("Faltan datos para reconstruir la reserva");
+        }
+        if (ocupantes == null || ocupantes.isEmpty()) {
+            throw new ReglaDominioException("La reserva debe tener al menos un ocupante");
+        }
+        if (!ocupantes.contains(titular)) {
+            throw new ReglaDominioException("El titular debe ser uno de los ocupantes");
+        }
+        if (ocupantes.stream().distinct().count() != ocupantes.size()) {
+            throw new ReglaDominioException("No se puede repetir un ocupante en la reserva");
+        }
+        if (valor.noches() != estancia.noches()) {
+            throw new ReglaDominioException("El desglose del valor no corresponde al número de noches de la estancia");
+        }
+        boolean estuvoConfirmada = estado == EstadoReserva.CONFIRMADA || estado == EstadoReserva.EN_CURSO
+                || estado == EstadoReserva.FINALIZADA || estado == EstadoReserva.NO_SHOW;
+        if (estuvoConfirmada && horaEstimadaLlegada == null) {
+            throw new ReglaDominioException(
+                    "Una reserva en estado " + estado + " debe tener hora estimada de llegada");
+        }
+
+        Reserva reserva = new Reserva(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, valor,
+                politica, creadaEn);
+        reserva.estado = estado;
+        reserva.horaEstimadaLlegada = horaEstimadaLlegada;
+        reserva.historial.addAll(historial);
+        return reserva;
+    }
+
     // --- MÉTODOS DE NEGOCIO (Comportamiento) ---
 
     public void indicarHoraEstimadaLlegada(LocalTime hora, String autor, LocalDateTime ahora) {
@@ -186,8 +229,31 @@ public class Reserva {
                 "El titular no se presentó | política aplicada: versión " + politica.numero(), ahora);
     }
 
+    /**
+     * Modificación de fechas u ocupantes (7.4, RN-14). Solo mientras la reserva no haya iniciado
+     * (PENDIENTE o CONFIRMADA) y repitiendo las invariantes de la creación. La política congelada no cambia.
+     * Devuelve la diferencia de valor (positiva o negativa) para registrarla como ajuste en el folio.
+     */
     public Dinero modificarEstancia(Estancia nuevaEstancia, ValorCongelado nuevoValor, List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
         verificarQueNoEsteTerminada();
+        if (this.estado == EstadoReserva.EN_CURSO) {
+            throw new ReglaDominioException("No se puede modificar una reserva cuya estancia ya inició");
+        }
+        if (nuevaEstancia == null) throw new ReglaDominioException("La reserva debe tener una estancia");
+        if (nuevoValor == null) throw new ReglaDominioException("La modificación debe traer el nuevo valor");
+        if (nuevosOcupantes == null || nuevosOcupantes.isEmpty()) {
+            throw new ReglaDominioException("La reserva debe tener al menos un ocupante");
+        }
+        if (!nuevosOcupantes.contains(titular)) {
+            throw new ReglaDominioException("El titular debe ser uno de los ocupantes");
+        }
+        if (nuevosOcupantes.stream().distinct().count() != nuevosOcupantes.size()) {
+            throw new ReglaDominioException("No se puede repetir un ocupante en la reserva");
+        }
+        // RN-04 se revalida al modificar (RN-14)
+        if (nuevaEstancia.fechaEntrada().isBefore(ahora.toLocalDate())) {
+            throw new ReglaDominioException("La fecha de entrada no puede ser anterior a la fecha actual");
+        }
         if (nuevoValor.noches() != nuevaEstancia.noches()) {
              throw new ReglaDominioException("El desglose del valor no corresponde al número de noches de la estancia");
         }
