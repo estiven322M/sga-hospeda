@@ -33,6 +33,13 @@ dependencies {
     // 'webmvc'; en versiones anteriores se llamaba 'web'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 
+    // Documentación de la API: genera /v3/api-docs y la interfaz Swagger UI en /swagger-ui.html.
+    // La línea 3.x de springdoc es la compatible con Spring Boot 4
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
+
+    // MapStruct: genera en compilación los mappers DTO <-> dominio y JPA <-> dominio
+    implementation 'org.mapstruct:mapstruct:1.6.3'
+
     // Generación automática de getters, setters y constructores en tiempo de compilación
     compileOnly 'org.projectlombok:lombok'
 
@@ -41,6 +48,12 @@ dependencies {
 
     // Procesador de anotaciones para Lombok durante la compilación del código principal
     annotationProcessor 'org.projectlombok:lombok'
+
+    // Procesador de MapStruct que escribe la implementación de cada mapper
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+
+    // Hace que MapStruct espere a que Lombok genere los getters antes de usarlos
+    annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
     // Soporte de pruebas para persistencia (JPA)
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
