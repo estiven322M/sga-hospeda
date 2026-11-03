@@ -176,6 +176,11 @@ public class Reserva {
                 motivo + " | política aplicada: versión " + politica.numero(), ahora);
     }
 
+    /** RN-21: ¿esta reserva está PENDIENTE y ya superó el plazo de confirmación? Solo consulta; no cambia nada. */
+    public boolean haVencido(PlazoConfirmacion plazo, LocalDateTime ahora) {
+        return this.estado == EstadoReserva.PENDIENTE && plazo.venceAntesDe(this.creadaEn, ahora);
+    }
+
     public void vencer(PlazoConfirmacion plazo, LocalDateTime ahora) {
         if (this.estado != EstadoReserva.PENDIENTE) {
             throw new ReglaDominioException("Solo vence una reserva PENDIENTE");
