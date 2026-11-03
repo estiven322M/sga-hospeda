@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,7 +32,21 @@ public class DisponibilidadApartamentoServiceTest {
 
     // -- Métodos auxiliares --
     private Apartamento apartamentoBase() {
-        return new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        Apartamento apt = new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        apt.activar(); // los apartamentos nuevos nacen inactivos (7.4)
+        return apt;
+    }
+
+    @Test
+    void noDebeVenderUnApartamentoInactivo() {
+        Apartamento inactivo = new Apartamento(new IdentificacionApartamento("APT-102"), "Patio", 1, 2);
+        Estancia estancia = new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12));
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class, () ->
+                servicio.verificarDisponible(inactivo, estancia, 1, null));
+
+        assertEquals("El apartamento no está disponible para la venta", ex.getMessage());
+        verifyNoInteractions(reservaRepoMock, bloqueoRepoMock);
     }
 
     private Ocupante titular() {
@@ -98,13 +113,85 @@ public class DisponibilidadApartamentoServiceTest {
 
         when(reservaRepoMock.buscarActivasPorApartamento(apt.getIdentificacion()))
                 .thenReturn(List.of(reservaExistente));
-        when(configMock.tiempoPreparacion()).thenReturn(new TiempoPreparacion(24)); 
+        when(configMock.tiempoPreparacion()).thenReturn(new TiempoPreparacion(5));
+        when(configMock.horaSalida()).thenReturn(LocalTime.of(11, 0));
+        when(configMock.horaEntrada()).thenReturn(LocalTime.of(15, 0)); // ventana de 4 h < 5 h
 
         ReglaDominioException ex = assertThrows(ReglaDominioException.class, () ->
                 servicio.verificarDisponible(apt, nuevaEstancia, 2, null));
 
         // Revisa que este mensaje coincida con el que pusiste en DisponibilidadApartamentoService
         assertEquals("No se respeta el tiempo de preparación configurado entre reservas", ex.getMessage());
+    }
+
+    @Test
+    void debePermitirEntradaMismoDiaSiLaPreparacionCabeEnLaVentanaRN20() {
+        Apartamento apt = apartamentoBase();
+        Estancia nuevaEstancia = new Estancia(LocalDate.of(2026, 12, 12), LocalDate.of(2026, 12, 15));
+
+        when(reservaRepoMock.buscarActivasPorApartamento(apt.getIdentificacion()))
+                .thenReturn(List.of(reservaDel10al12(apt)));
+        when(bloqueoRepoMock.buscarVigentesPorApartamento(apt.getIdentificacion())).thenReturn(List.of());
+        when(configMock.tiempoPreparacion()).thenReturn(new TiempoPreparacion(3));
+        when(configMock.horaSalida()).thenReturn(LocalTime.of(11, 0));
+        when(configMock.horaEntrada()).thenReturn(LocalTime.of(15, 0)); // ventana de 4 h >= 3 h
+
+        assertDoesNotThrow(() -> servicio.verificarDisponible(apt, nuevaEstancia, 2, null));
+    }
+
+    @Test
+    void noDebePermitirQueLaNuevaEstanciaTermineElDiaQueEmpiezaOtraSiNoHayPreparacionRN20() {
+        Apartamento apt = apartamentoBase();
+        // La nueva estancia termina el 10, el mismo día en que empieza la reserva existente (10 al 12)
+        Estancia nuevaEstancia = new Estancia(LocalDate.of(2026, 12, 7), LocalDate.of(2026, 12, 10));
+
+        when(reservaRepoMock.buscarActivasPorApartamento(apt.getIdentificacion()))
+                .thenReturn(List.of(reservaDel10al12(apt)));
+        when(configMock.tiempoPreparacion()).thenReturn(new TiempoPreparacion(5));
+        when(configMock.horaSalida()).thenReturn(LocalTime.of(11, 0));
+        when(configMock.horaEntrada()).thenReturn(LocalTime.of(15, 0));
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class, () ->
+                servicio.verificarDisponible(apt, nuevaEstancia, 2, null));
+
+        assertEquals("No se respeta el tiempo de preparación configurado entre reservas", ex.getMessage());
+    }
+
+    private Reserva reservaDel10al12(Apartamento apt) {
+        return Reserva.crear(
+                new CodigoReserva("RES-2026-00001"), apt.getIdentificacion(),
+                new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)),
+                titular(), List.of(titular()), CanalOrigen.PORTAL,
+                valorValido(), new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0));
+    }
+
+    @Test
+    void noDebePermitirVenderNochesConBloqueoVigenteRN07() {
+        Apartamento apt = apartamentoBase();
+        Estancia estancia = new Estancia(LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 23));
+        when(reservaRepoMock.buscarActivasPorApartamento(apt.getIdentificacion())).thenReturn(List.of());
+        when(configMock.tiempoPreparacion()).thenReturn(new TiempoPreparacion(0));
+        when(bloqueoRepoMock.buscarVigentesPorApartamento(apt.getIdentificacion())).thenReturn(List.of(
+                new Bloqueo(apt.getIdentificacion(),
+                        new Estancia(LocalDate.of(2026, 12, 22), LocalDate.of(2026, 12, 25)), "Mantenimiento")));
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class, () ->
+                servicio.verificarDisponible(apt, estancia, 2, null));
+
+        assertEquals("El apartamento tiene un bloqueo vigente en las fechas solicitadas: Mantenimiento", ex.getMessage());
+    }
+
+    @Test
+    void unBloqueoQueEmpiezaElDiaDeSalidaNoAfectaLaEstanciaRN07() {
+        Apartamento apt = apartamentoBase();
+        Estancia estancia = new Estancia(LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 23));
+        when(reservaRepoMock.buscarActivasPorApartamento(apt.getIdentificacion())).thenReturn(List.of());
+        when(configMock.tiempoPreparacion()).thenReturn(new TiempoPreparacion(0));
+        when(bloqueoRepoMock.buscarVigentesPorApartamento(apt.getIdentificacion())).thenReturn(List.of(
+                new Bloqueo(apt.getIdentificacion(),
+                        new Estancia(LocalDate.of(2026, 12, 23), LocalDate.of(2026, 12, 25)), "Pintura")));
+
+        assertDoesNotThrow(() -> servicio.verificarDisponible(apt, estancia, 2, null));
     }
 
     @Test

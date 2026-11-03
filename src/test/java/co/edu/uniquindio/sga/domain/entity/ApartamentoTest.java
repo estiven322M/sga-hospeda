@@ -38,11 +38,37 @@ public class ApartamentoTest {
     }
 
     @Test
-    void debeNacerActivoYPreparado() {
+    void debeNacerInactivoYPreparado() {
         Apartamento apt = apartamentoBase();
 
-        assertTrue(apt.isActivo());
+        // 7.4: nace inactivo y solo se activa con tarifas completas (ActivacionApartamentoService)
+        assertFalse(apt.isActivo());
         assertEquals(EstadoOperativo.PREPARADO, apt.getEstadoOperativo());
+    }
+
+    @Test
+    void actualizarDatosCambiaNombreDormitoriosYCapacidad() {
+        Apartamento apt = apartamentoBase();
+
+        apt.actualizarDatos("Nuevo nombre", 3, 6);
+
+        assertEquals("Nuevo nombre", apt.getNombre());
+        assertEquals(3, apt.getDormitorios());
+        assertEquals(6, apt.getCapacidad());
+    }
+
+    @Test
+    void actualizarDatosInvalidosNoModificaNada() {
+        Apartamento apt = apartamentoBase();
+        String nombre = apt.getNombre();
+        int capacidad = apt.getCapacidad();
+
+        assertThrows(ReglaDominioException.class, () -> apt.actualizarDatos(" ", 2, 4));
+        assertThrows(ReglaDominioException.class, () -> apt.actualizarDatos("X", 0, 4));
+        assertThrows(ReglaDominioException.class, () -> apt.actualizarDatos("X", 2, 0));
+
+        assertEquals(nombre, apt.getNombre());
+        assertEquals(capacidad, apt.getCapacidad());
     }
 
     @Test

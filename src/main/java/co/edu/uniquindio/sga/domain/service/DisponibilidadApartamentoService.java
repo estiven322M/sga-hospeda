@@ -49,9 +49,11 @@ public class DisponibilidadApartamentoService {
 			if (otra.getEstancia().seSolapaCon(estancia)) {
 				throw new ReglaDominioException("El apartamento ya tiene una reserva activa que solapa esas noches");
 			}
-// RN-20: tiempo de preparación entre reservas
-			if (!tiempoPreparacion.permiteEntradaElMismoDia()
-					&& otra.getEstancia().fechaSalida().equals(estancia.fechaEntrada())) {
+// RN-20: tiempo de preparación entre reservas (en ambos sentidos del contacto)
+			boolean contactoMismoDia = otra.getEstancia().fechaSalida().equals(estancia.fechaEntrada())
+					|| estancia.fechaSalida().equals(otra.getEstancia().fechaEntrada());
+			if (contactoMismoDia && !tiempoPreparacion
+					.permiteEntradaElMismoDia(configuracion.horaSalida(), configuracion.horaEntrada())) {
 				throw new ReglaDominioException("No se respeta el tiempo de preparación configurado entre reservas");
 			}
 		}

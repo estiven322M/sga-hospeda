@@ -28,9 +28,10 @@ public class Reserva {
 	
 	private final CodigoReserva codigo;                      
     private final CanalOrigen canalOrigen;                   
+    private final IdentificadorExterno identificadorExterno;     // RN-19: solo las reservas de canales externos
     private final LocalDateTime creadaEn;
     private final Ocupante titular;
-    private final IdentificacionApartamento apartamento;     // Referencia a OTRO agregado
+    private IdentificacionApartamento apartamento;           // Referencia a OTRO agregado; solo cambia por RN-14
     private final VersionPolitica politica;                  // RN-13, RN-22: congelada de por vida
     private final List<EventoReserva> historial = new ArrayList<>();
 
@@ -43,8 +44,10 @@ public class Reserva {
     private Reserva(CodigoReserva codigo, IdentificacionApartamento apartamento,
                     Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
                     CanalOrigen canalOrigen, ValorCongelado valor,
-                    VersionPolitica politica, LocalDateTime creadaEn) {
+                    VersionPolitica politica, LocalDateTime creadaEn,
+                    IdentificadorExterno identificadorExterno) {
         this.codigo = codigo;
+        this.identificadorExterno = identificadorExterno;
         this.apartamento = apartamento;
         this.estancia = estancia;
         this.titular = titular;
@@ -56,16 +59,26 @@ public class Reserva {
         this.estado = EstadoReserva.PENDIENTE;   // Toda reserva nace PENDIENTE
     }
 
+    /** Reserva de un canal que no lleva identificador externo (PORTAL, DIRECTO). */
     public static Reserva crear(CodigoReserva codigo, IdentificacionApartamento apartamento,
                                 Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
                                 CanalOrigen canalOrigen, ValorCongelado valor,
                                 VersionPolitica politica, LocalDateTime ahora) {
+        return crear(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, null, valor, politica, ahora);
+    }
+
+    /** RN-19: las reservas de canales externos nacen con el identificador del canal; las demás, sin él. */
+    public static Reserva crear(CodigoReserva codigo, IdentificacionApartamento apartamento,
+                                Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
+                                CanalOrigen canalOrigen, IdentificadorExterno identificadorExterno,
+                                ValorCongelado valor, VersionPolitica politica, LocalDateTime ahora) {
 
         if (codigo == null) throw new ReglaDominioException("La reserva debe tener un código");
         if (apartamento == null) throw new ReglaDominioException("La reserva debe indicar el apartamento");
         if (estancia == null) throw new ReglaDominioException("La reserva debe tener una estancia");
         if (titular == null) throw new ReglaDominioException("La reserva debe tener un titular");
         if (canalOrigen == null) throw new ReglaDominioException("La reserva debe indicar su canal de origen");
+        verificarIdentificadorExterno(canalOrigen, identificadorExterno);
         if (valor == null || politica == null) {
             throw new ReglaDominioException("La reserva debe nacer con su valor y su política congelados");
         }
@@ -89,9 +102,55 @@ public class Reserva {
         }
 
         Reserva reserva = new Reserva(codigo, apartamento, estancia, titular, ocupantes,
-                                      canalOrigen, valor, politica, ahora);
+                                      canalOrigen, valor, politica, ahora, identificadorExterno);
         reserva.registrarEvento("CREACION", titular.getNombre(), null,
-                EstadoReserva.PENDIENTE, "Reserva creada por el canal " + canalOrigen, ahora);
+                EstadoReserva.PENDIENTE, "Reserva creada por el canal " + canalOrigen
+                        + (identificadorExterno == null ? "" : " (identificador externo " + identificadorExterno.valor() + ")"),
+                ahora);
+        return reserva;
+    }
+
+    /**
+     * Restaura una reserva que ya existía (la usa el adaptador de persistencia para reconstruirla desde la base de
+     * datos). No es una operación de negocio: no genera eventos ni valida RN-04, porque restaurar una reserva
+     * histórica no es crearla. Sí protege las invariantes que deben cumplirse en cualquier momento de su vida:
+     * datos obligatorios, titular entre los ocupantes, desglose acorde a las noches y hora estimada de llegada en
+     * toda reserva que alguna vez estuvo confirmada (RN-09).
+     */
+    public static Reserva reconstruir(CodigoReserva codigo, IdentificacionApartamento apartamento,
+                                      Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
+                                      CanalOrigen canalOrigen, ValorCongelado valor, VersionPolitica politica,
+                                      LocalDateTime creadaEn, EstadoReserva estado, LocalTime horaEstimadaLlegada,
+                                      List<EventoReserva> historial, IdentificadorExterno identificadorExterno) {
+        if (codigo == null || apartamento == null || estancia == null || titular == null || canalOrigen == null
+                || valor == null || politica == null || creadaEn == null || estado == null || historial == null) {
+            throw new ReglaDominioException("Faltan datos para reconstruir la reserva");
+        }
+        verificarIdentificadorExterno(canalOrigen, identificadorExterno);
+        if (ocupantes == null || ocupantes.isEmpty()) {
+            throw new ReglaDominioException("La reserva debe tener al menos un ocupante");
+        }
+        if (!ocupantes.contains(titular)) {
+            throw new ReglaDominioException("El titular debe ser uno de los ocupantes");
+        }
+        if (ocupantes.stream().distinct().count() != ocupantes.size()) {
+            throw new ReglaDominioException("No se puede repetir un ocupante en la reserva");
+        }
+        if (valor.noches() != estancia.noches()) {
+            throw new ReglaDominioException("El desglose del valor no corresponde al número de noches de la estancia");
+        }
+        boolean estuvoConfirmada = estado == EstadoReserva.CONFIRMADA || estado == EstadoReserva.EN_CURSO
+                || estado == EstadoReserva.FINALIZADA || estado == EstadoReserva.NO_SHOW;
+        if (estuvoConfirmada && horaEstimadaLlegada == null) {
+            throw new ReglaDominioException(
+                    "Una reserva en estado " + estado + " debe tener hora estimada de llegada");
+        }
+
+        Reserva reserva = new Reserva(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, valor,
+                politica, creadaEn, identificadorExterno);
+        reserva.estado = estado;
+        reserva.horaEstimadaLlegada = horaEstimadaLlegada;
+        reserva.historial.addAll(historial);
         return reserva;
     }
 
@@ -131,6 +190,11 @@ public class Reserva {
         this.estado = EstadoReserva.CANCELADA;
         registrarEvento("CANCELACION", autor, anterior, this.estado,
                 motivo + " | política aplicada: versión " + politica.numero(), ahora);
+    }
+
+    /** RN-21: ¿esta reserva está PENDIENTE y ya superó el plazo de confirmación? Solo consulta; no cambia nada. */
+    public boolean haVencido(PlazoConfirmacion plazo, LocalDateTime ahora) {
+        return this.estado == EstadoReserva.PENDIENTE && plazo.venceAntesDe(this.creadaEn, ahora);
     }
 
     public void vencer(PlazoConfirmacion plazo, LocalDateTime ahora) {
@@ -186,13 +250,49 @@ public class Reserva {
                 "El titular no se presentó | política aplicada: versión " + politica.numero(), ahora);
     }
 
+    /**
+     * Modificación de fechas u ocupantes (7.4, RN-14). Solo mientras la reserva no haya iniciado
+     * (PENDIENTE o CONFIRMADA) y repitiendo las invariantes de la creación. La política congelada no cambia.
+     * Devuelve la diferencia de valor (positiva o negativa) para registrarla como ajuste en el folio.
+     */
     public Dinero modificarEstancia(Estancia nuevaEstancia, ValorCongelado nuevoValor, List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
+        return modificarEstancia(this.apartamento, nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora);
+    }
+
+    /**
+     * Modificación que además puede cambiar de apartamento (RN-14). Las mismas condiciones aplican: la reserva no
+     * debe haber iniciado ni estar terminada. El valor que llega ya está calculado con las tarifas del apartamento
+     * destino; la política congelada se conserva. El cambio queda registrado en el historial.
+     */
+    public Dinero modificarEstancia(IdentificacionApartamento nuevoApartamento, Estancia nuevaEstancia, ValorCongelado nuevoValor,
+                                    List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
         verificarQueNoEsteTerminada();
+        if (nuevoApartamento == null) throw new ReglaDominioException("La reserva debe indicar el apartamento");
+        if (this.estado == EstadoReserva.EN_CURSO) {
+            throw new ReglaDominioException("No se puede modificar una reserva cuya estancia ya inició");
+        }
+        if (nuevaEstancia == null) throw new ReglaDominioException("La reserva debe tener una estancia");
+        if (nuevoValor == null) throw new ReglaDominioException("La modificación debe traer el nuevo valor");
+        if (nuevosOcupantes == null || nuevosOcupantes.isEmpty()) {
+            throw new ReglaDominioException("La reserva debe tener al menos un ocupante");
+        }
+        if (!nuevosOcupantes.contains(titular)) {
+            throw new ReglaDominioException("El titular debe ser uno de los ocupantes");
+        }
+        if (nuevosOcupantes.stream().distinct().count() != nuevosOcupantes.size()) {
+            throw new ReglaDominioException("No se puede repetir un ocupante en la reserva");
+        }
+        // RN-04 se revalida al modificar (RN-14)
+        if (nuevaEstancia.fechaEntrada().isBefore(ahora.toLocalDate())) {
+            throw new ReglaDominioException("La fecha de entrada no puede ser anterior a la fecha actual");
+        }
         if (nuevoValor.noches() != nuevaEstancia.noches()) {
              throw new ReglaDominioException("El desglose del valor no corresponde al número de noches de la estancia");
         }
         
         Dinero valorAnterior = this.valor.total();
+        IdentificacionApartamento apartamentoAnterior = this.apartamento;
+        this.apartamento = nuevoApartamento;
         this.estancia = nuevaEstancia;
         this.valor = nuevoValor;
         this.ocupantes = List.copyOf(nuevosOcupantes);
@@ -200,12 +300,25 @@ public class Reserva {
         Dinero diferencia = nuevoValor.total().menos(valorAnterior);
         
         registrarEvento("MODIFICACION", autor, this.estado, this.estado, 
-                "Estancia/Ocupantes modificados. Ajuste generado: " + diferencia.valor(), ahora);
+                "Estancia/Ocupantes modificados"
+                        + (apartamentoAnterior.equals(nuevoApartamento) ? ""
+                                : " | apartamento: " + apartamentoAnterior.valor() + " -> " + nuevoApartamento.valor())
+                        + ". Ajuste generado: " + diferencia.valor(), ahora);
         
         return diferencia;
     }
 
     // --- UTILIDADES PRIVADAS ---
+
+    /** RN-19: solo los canales externos llevan identificador, y lo llevan siempre. */
+    private static void verificarIdentificadorExterno(CanalOrigen canal, IdentificadorExterno identificador) {
+        if (canal.exigeIdentificadorExterno() && identificador == null) {
+            throw new ReglaDominioException("Una reserva del canal " + canal + " debe traer su identificador externo");
+        }
+        if (!canal.exigeIdentificadorExterno() && identificador != null) {
+            throw new ReglaDominioException("Una reserva del canal " + canal + " no lleva identificador externo");
+        }
+    }
 
     private void verificarQueNoEsteTerminada() {
         if (this.estado.esTerminal()) {
@@ -231,6 +344,8 @@ public class Reserva {
     public Estancia getEstancia() { return estancia; }
     public IdentificacionApartamento getApartamento() { return apartamento; }
     public CanalOrigen getCanalOrigen() { return canalOrigen; }
+    /** Nulo en las reservas de canales que no lo usan (RN-19). */
+    public IdentificadorExterno getIdentificadorExterno() { return identificadorExterno; }
     public LocalDateTime getCreadaEn() { return creadaEn; }
     public Ocupante getTitular() { return titular; }
     public VersionPolitica getPolitica() { return politica; }
