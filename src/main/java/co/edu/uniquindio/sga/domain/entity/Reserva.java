@@ -30,7 +30,7 @@ public class Reserva {
     private final CanalOrigen canalOrigen;                   
     private final LocalDateTime creadaEn;
     private final Ocupante titular;
-    private final IdentificacionApartamento apartamento;     // Referencia a OTRO agregado
+    private IdentificacionApartamento apartamento;           // Referencia a OTRO agregado; solo cambia por RN-14
     private final VersionPolitica politica;                  // RN-13, RN-22: congelada de por vida
     private final List<EventoReserva> historial = new ArrayList<>();
 
@@ -240,7 +240,18 @@ public class Reserva {
      * Devuelve la diferencia de valor (positiva o negativa) para registrarla como ajuste en el folio.
      */
     public Dinero modificarEstancia(Estancia nuevaEstancia, ValorCongelado nuevoValor, List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
+        return modificarEstancia(this.apartamento, nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora);
+    }
+
+    /**
+     * Modificación que además puede cambiar de apartamento (RN-14). Las mismas condiciones aplican: la reserva no
+     * debe haber iniciado ni estar terminada. El valor que llega ya está calculado con las tarifas del apartamento
+     * destino; la política congelada se conserva. El cambio queda registrado en el historial.
+     */
+    public Dinero modificarEstancia(IdentificacionApartamento nuevoApartamento, Estancia nuevaEstancia, ValorCongelado nuevoValor,
+                                    List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
         verificarQueNoEsteTerminada();
+        if (nuevoApartamento == null) throw new ReglaDominioException("La reserva debe indicar el apartamento");
         if (this.estado == EstadoReserva.EN_CURSO) {
             throw new ReglaDominioException("No se puede modificar una reserva cuya estancia ya inició");
         }
@@ -264,6 +275,8 @@ public class Reserva {
         }
         
         Dinero valorAnterior = this.valor.total();
+        IdentificacionApartamento apartamentoAnterior = this.apartamento;
+        this.apartamento = nuevoApartamento;
         this.estancia = nuevaEstancia;
         this.valor = nuevoValor;
         this.ocupantes = List.copyOf(nuevosOcupantes);
@@ -271,7 +284,10 @@ public class Reserva {
         Dinero diferencia = nuevoValor.total().menos(valorAnterior);
         
         registrarEvento("MODIFICACION", autor, this.estado, this.estado, 
-                "Estancia/Ocupantes modificados. Ajuste generado: " + diferencia.valor(), ahora);
+                "Estancia/Ocupantes modificados"
+                        + (apartamentoAnterior.equals(nuevoApartamento) ? ""
+                                : " | apartamento: " + apartamentoAnterior.valor() + " -> " + nuevoApartamento.valor())
+                        + ". Ajuste generado: " + diferencia.valor(), ahora);
         
         return diferencia;
     }

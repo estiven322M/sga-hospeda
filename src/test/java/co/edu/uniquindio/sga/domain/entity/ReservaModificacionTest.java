@@ -134,4 +134,75 @@ class ReservaModificacionTest {
                 valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1), List.of(titular), "Juan", AHORA));
         assertEquals(2, r.getEstancia().noches()); // sin efectos parciales
     }
+
+    // --- RN-14: cambio de apartamento ---
+
+    private final IdentificacionApartamento otroApartamento = new IdentificacionApartamento("APT-202");
+
+    @Test
+    void permiteCambiarDeApartamentoConElValorDelNuevoYConservaLaPolitica() {
+        Reserva r = confirmada();
+
+        Dinero diferencia = r.modificarEstancia(otroApartamento, r.getEstancia(),
+                valor(LocalDate.of(2026, 12, 10), 2, 150_000, 1), List.of(titular), "Juan", AHORA);
+
+        assertEquals(otroApartamento, r.getApartamento());
+        assertEquals(Dinero.de(100_000), diferencia);
+        assertEquals(EstadoReserva.CONFIRMADA, r.getEstado());
+        assertEquals(new VersionPolitica(2), r.getPolitica());
+        EventoReserva ultimo = r.getHistorial().get(r.getHistorial().size() - 1);
+        assertEquals("MODIFICACION", ultimo.accion());
+        assertTrue(ultimo.observacion().contains("APT-101 -> APT-202"));
+    }
+
+    @Test
+    void sinCambiarDeApartamentoElHistorialNoMencionaUnCambio() {
+        Reserva r = reservaDel10al12();
+
+        r.modificarEstancia(r.getApartamento(), r.getEstancia(), r.getValor(), List.of(titular), "Juan", AHORA);
+
+        assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
+        assertFalse(r.getHistorial().get(r.getHistorial().size() - 1).observacion().contains("apartamento:"));
+    }
+
+    @Test
+    void noSePuedeCambiarDeApartamentoSinIndicarElNuevo() {
+        Reserva r = reservaDel10al12();
+
+        assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(null, r.getEstancia(), r.getValor(),
+                List.of(titular), "Juan", AHORA));
+        assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
+    }
+
+    @Test
+    void noSePuedeCambiarDeApartamentoUnaReservaEnCursoRN14() {
+        Reserva r = confirmada();
+        r.registrarLlegada("Recepción", LocalDateTime.of(2026, 12, 10, 16, 0));
+
+        assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(otroApartamento, r.getEstancia(),
+                r.getValor(), List.of(titular), "Juan", AHORA));
+        assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
+    }
+
+    @Test
+    void siLaModificacionEsInvalidaElApartamentoNoCambia() {
+        Reserva r = reservaDel10al12();
+        Estancia pasada = new Estancia(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 3));
+
+        assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(otroApartamento, pasada,
+                valor(LocalDate.of(2026, 10, 1), 2, 100_000, 1), List.of(titular), "Juan", AHORA));
+
+        assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
+    }
+
+
+    @Test
+    void noSePuedeCambiarDeApartamentoUnaReservaTerminada() {
+        Reserva r = reservaDel10al12();
+        r.cancelar("Cambio de planes", "Juan", AHORA);
+
+        assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(otroApartamento, r.getEstancia(),
+                r.getValor(), List.of(titular), "Juan", AHORA));
+        assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
+    }
 }

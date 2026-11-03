@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -279,7 +280,7 @@ class ReservaControllerTest {
 
     @Test
     void modificarResponde200() throws Exception {
-        when(modificar.ejecutar(eq(codigo), any(), any(), eq("Juan"), any())).thenReturn(reserva());
+        when(modificar.ejecutar(eq(codigo), isNull(), any(), any(), eq("Juan"), any())).thenReturn(reserva());
 
         mvc.perform(put("/api/reservas/RES-2026-00001/modificar").contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -288,6 +289,33 @@ class ReservaControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.codigo").value("RES-2026-00001"));
+    }
+
+    @Test
+    void modificarConNuevoApartamentoSeLoEntregaAlCasoDeUso() throws Exception {
+        when(modificar.ejecutar(eq(codigo), eq(new co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento("APT-202")),
+                any(), any(), eq("Juan"), any())).thenReturn(reserva());
+
+        mvc.perform(put("/api/reservas/RES-2026-00001/modificar").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identificacionApartamento":"APT-202","fechaEntrada":"2026-12-10","fechaSalida":"2026-12-13",
+                                 "autor":"Juan",
+                                 "ocupantes":[{"documento":"CC-100","nombre":"Juan","fechaNacimiento":"1990-01-01"}]}
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void modificarConApartamentoEnBlancoLoTrataComoSinCambio() throws Exception {
+        when(modificar.ejecutar(eq(codigo), isNull(), any(), any(), eq("Juan"), any())).thenReturn(reserva());
+
+        mvc.perform(put("/api/reservas/RES-2026-00001/modificar").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identificacionApartamento":"  ","fechaEntrada":"2026-12-10","fechaSalida":"2026-12-13",
+                                 "autor":"Juan",
+                                 "ocupantes":[{"documento":"CC-100","nombre":"Juan","fechaNacimiento":"1990-01-01"}]}
+                                """))
+                .andExpect(status().isOk());
     }
 
     @Test

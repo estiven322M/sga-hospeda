@@ -22,10 +22,11 @@ import co.edu.uniquindio.sga.domain.valueobject.Ajuste;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 import co.edu.uniquindio.sga.domain.valueobject.ValorCongelado;
 
 /**
- * CU-04 Modificar reserva (fechas u ocupantes; el apartamento no cambia). Orquesta, no decide:
+ * CU-04 Modificar reserva (fechas, ocupantes y, opcionalmente, el apartamento). Orquesta, no decide:
  *  - la disponibilidad se revalida con DisponibilidadApartamentoService excluyendo la propia reserva,
  *    para que no compita consigo misma (RN-01, RN-02, RN-07, RN-20; RN-14 repite las condiciones de creación);
  *  - el nuevo valor se recalcula con las tarifas vigentes (RN-05, RN-06);
@@ -55,20 +56,28 @@ public class ModificarReservaUseCase {
         this.cotizador = cotizador;
     }
 
-    @Transactional
+    /** Modificación sin cambio de apartamento. */
     public Reserva ejecutar(CodigoReserva codigo, Estancia nuevaEstancia, List<Ocupante> nuevosOcupantes,
                             String autor, LocalDateTime ahora) {
+        return ejecutar(codigo, null, nuevaEstancia, nuevosOcupantes, autor, ahora);
+    }
+
+    /** {@code nuevoApartamento} nulo significa que la reserva conserva su apartamento (RN-14). */
+    @Transactional
+    public Reserva ejecutar(CodigoReserva codigo, IdentificacionApartamento nuevoApartamento, Estancia nuevaEstancia,
+                            List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
         Reserva reserva = reservaRepository.buscarPorCodigo(codigo)
                 .orElseThrow(() -> new ReservaNoEncontradaException(codigo));
         Folio folio = folioRepository.buscarPorReserva(codigo)
                 .orElseThrow(() -> new FolioNoEncontradoException(codigo));
-        Apartamento apartamento = apartamentoRepository.buscarPorIdentificacion(reserva.getApartamento())
-                .orElseThrow(() -> new ApartamentoNoEncontradoException(reserva.getApartamento()));
+        IdentificacionApartamento destino = nuevoApartamento != null ? nuevoApartamento : reserva.getApartamento();
+        Apartamento apartamento = apartamentoRepository.buscarPorIdentificacion(destino)
+                .orElseThrow(() -> new ApartamentoNoEncontradoException(destino));
 
         disponibilidadService.verificarDisponible(apartamento, nuevaEstancia, nuevosOcupantes.size(), codigo);
-        ValorCongelado nuevoValor = cotizador.cotizar(reserva.getApartamento(), nuevaEstancia, nuevosOcupantes);
+        ValorCongelado nuevoValor = cotizador.cotizar(destino, nuevaEstancia, nuevosOcupantes);
 
-        Dinero diferencia = reserva.modificarEstancia(nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora);
+        Dinero diferencia = reserva.modificarEstancia(destino, nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora);
         if (!diferencia.esCero()) {
             folio.registrarAjuste(new Ajuste(CONCEPTO_AJUSTE, diferencia));
         }

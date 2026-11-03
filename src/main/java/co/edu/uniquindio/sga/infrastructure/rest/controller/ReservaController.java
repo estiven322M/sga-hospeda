@@ -140,6 +140,8 @@ public class ReservaController {
         LocalDateTime ahora = LocalDateTime.now(reloj);
         Reserva reserva = modificarReserva.ejecutar(
                 solicitud.aCodigo(codigo),
+                request.identificacionApartamento() == null || request.identificacionApartamento().isBlank()
+                        ? null : solicitud.aApartamento(request.identificacionApartamento()),
                 solicitud.aEstancia(request.fechaEntrada(), request.fechaSalida()),
                 solicitud.aOcupantes(request.ocupantes(), ahora.toLocalDate()),
                 request.autor(),

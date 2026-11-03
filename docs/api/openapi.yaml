@@ -779,11 +779,12 @@ paths:
   /api/reservas/{codigo}/modificar:
     put:
       tags: [Reservas]
-      summary: Modificar fechas u ocupantes de una reserva (CU-04)
+      summary: Modificar fechas, ocupantes o apartamento de una reserva (CU-04)
       description: |
         Solo mientras la reserva esté PENDIENTE o CONFIRMADA y no haya iniciado. Repite las validaciones de la creación
         (RN-14), recalcula el valor con las tarifas vigentes y registra la diferencia como ajuste en el folio, positivo
-        o negativo. La política congelada no se recalcula. El apartamento de la reserva no cambia.
+        o negativo. La política congelada no se recalcula. Si se envía `identificacionApartamento`, la reserva se pasa a ese
+        apartamento: se revalida disponibilidad, capacidad y bloqueos contra él y se recotiza con sus tarifas (RN-14). Si se omite, conserva el actual.
         Mapea a: `ModificarReservaUseCase`
       operationId: modificarReserva
       parameters:
@@ -1459,6 +1460,9 @@ components:
       type: object
       required: [fechaEntrada, fechaSalida, ocupantes, autor]
       properties:
+        identificacionApartamento:
+          type: string
+          description: Opcional. Apartamento destino; si se omite la reserva conserva el suyo (RN-14).
         fechaEntrada:
           type: string
           format: date

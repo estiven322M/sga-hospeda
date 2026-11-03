@@ -8,8 +8,9 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.Valid;
 
-/** CU-04. Cambia las fechas y/o los ocupantes; el apartamento de la reserva no cambia. */
+/** CU-04. Cambia las fechas y/o los ocupantes y, si se indica, el apartamento (RN-14); si no, conserva el actual. */
 public record ModificarReservaRequest(
+        String identificacionApartamento,
         @NotNull(message = "La fecha de entrada es obligatoria")
         LocalDate fechaEntrada,
         @NotNull(message = "La fecha de salida es obligatoria")

@@ -167,4 +167,61 @@ class ModificarReservaUseCaseTest {
         verify(reservaRepository, never()).guardar(any());
         verify(folioRepository, never()).guardar(any());
     }
+
+    // --- RN-14: cambio de apartamento ---
+
+    private final IdentificacionApartamento aptNuevo = new IdentificacionApartamento("APT-202");
+    private final Apartamento destino = new Apartamento(aptNuevo, "Terraza", 2, 4);
+
+    @Test
+    void alCambiarDeApartamentoRevalidaYCotizaContraElNuevoYGuardaLaReserva() {
+        when(apartamentoRepository.buscarPorIdentificacion(aptNuevo)).thenReturn(Optional.of(destino));
+        when(cotizador.cotizar(aptNuevo, tresNoches, List.of(titular))).thenReturn(valor(3, 150_000));
+
+        Reserva resultado = useCase.ejecutar(codigo, aptNuevo, tresNoches, List.of(titular), "Juan", ahora);
+
+        assertEquals(aptNuevo, resultado.getApartamento());
+        verify(disponibilidad).verificarDisponible(destino, tresNoches, 1, codigo);
+        verify(disponibilidad, never()).verificarDisponible(eq(apartamento), any(), anyInt(), any());
+        assertEquals(Dinero.de(250_000), folio.obtenerAjustes().get(0).valor()); // 450.000 - 200.000
+        verify(reservaRepository).guardar(reserva);
+        verify(folioRepository).guardar(folio);
+    }
+
+    @Test
+    void sinIndicarApartamentoConservaElActual() {
+        when(cotizador.cotizar(apt, tresNoches, List.of(titular))).thenReturn(valor(3, 100_000));
+
+        Reserva resultado = useCase.ejecutar(codigo, null, tresNoches, List.of(titular), "Juan", ahora);
+
+        assertEquals(apt, resultado.getApartamento());
+        verify(apartamentoRepository, never()).buscarPorIdentificacion(aptNuevo);
+    }
+
+    @Test
+    void siElApartamentoDestinoNoExisteLanzaNoEncontradoYNoGuardaNada() {
+        when(apartamentoRepository.buscarPorIdentificacion(aptNuevo)).thenReturn(Optional.empty());
+
+        assertThrows(ApartamentoNoEncontradoException.class,
+                () -> useCase.ejecutar(codigo, aptNuevo, tresNoches, List.of(titular), "Juan", ahora));
+
+        assertEquals(apt, reserva.getApartamento());
+        verifyNoInteractions(disponibilidad, cotizador);
+        verify(reservaRepository, never()).guardar(any());
+    }
+
+    @Test
+    void siElDestinoNoEstaDisponibleOExcedeLaCapacidadElDominioLoRechazaYLaReservaQuedaIgual() {
+        when(apartamentoRepository.buscarPorIdentificacion(aptNuevo)).thenReturn(Optional.of(destino));
+        doThrow(new ReglaDominioException("El apartamento ya tiene una reserva activa que solapa esas noches"))
+                .when(disponibilidad).verificarDisponible(destino, tresNoches, 1, codigo);
+
+        assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(codigo, aptNuevo, tresNoches, List.of(titular), "Juan", ahora));
+
+        assertEquals(apt, reserva.getApartamento());
+        verifyNoInteractions(cotizador);
+        verify(reservaRepository, never()).guardar(any());
+        verify(folioRepository, never()).guardar(any());
+    }
 }
