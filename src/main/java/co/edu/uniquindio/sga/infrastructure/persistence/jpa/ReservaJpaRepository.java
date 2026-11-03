@@ -54,6 +54,13 @@ public class ReservaJpaRepository implements ReservaRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Reserva> buscarPendientesCreadasAntesDe(java.time.LocalDateTime limite) {
+        return datos.findByEstadoAndCreadaEnBefore(EstadoReserva.PENDIENTE, limite).stream()
+                .map(mapper::aDominio).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Pagina<Reserva> buscar(FiltroReservas filtro, SolicitudPagina pagina) {
         return PaginacionJpa.aDominio(
                 datos.findAll(ReservaEspecificaciones.segun(filtro),

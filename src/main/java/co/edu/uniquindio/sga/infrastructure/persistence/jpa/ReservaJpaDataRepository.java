@@ -18,4 +18,8 @@ public interface ReservaJpaDataRepository
 
     @EntityGraph(attributePaths = "ocupantes")
     Optional<ReservaEntity> findByCodigo(String codigo);
+
+    /** Insumo del vencimiento automático (RN-21): el límite ya viene calculado por el caso de uso. */
+    @EntityGraph(attributePaths = "ocupantes")
+    List<ReservaEntity> findByEstadoAndCreadaEnBefore(EstadoReserva estado, java.time.LocalDateTime limite);
 }
