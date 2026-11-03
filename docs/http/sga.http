@@ -259,15 +259,14 @@ Content-Type: application/json
   "ocupantes": [{"documento": "TI-9300", "nombre": "Menor Uno", "fechaNacimiento": "2020-01-01"}]
 }
 
-### 3.6 [409 · RN-09] Confirmar sin hora estimada de llegada (reserva B, anticipo ya pagado en 3.6a) -> 409
-# 3.6a Pagar el valor total de la reserva B para que el anticipo no sea el obstáculo
+### 3.6a Pagar el valor total de la reserva B para que el anticipo no sea el obstáculo -> 201
 POST {{host}}/api/reservas/{{codigoB}}/folio/pagos
 Content-Type: application/json
 
 {"medio": "EFECTIVO", "fecha": "2026-11-02", "valor": {{valorTotalB}}}
 
 ###
-# 3.6b Confirmar sin enviar la hora de llegada -> 409
+# 3.6b [409 · RN-09] Confirmar sin hora estimada de llegada (reserva B, anticipo ya pagado en 3.6a) -> 409
 PUT {{host}}/api/reservas/{{codigoB}}/confirmar
 Content-Type: application/json
 
@@ -302,8 +301,7 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"}]
 }
 
-### 3.11 [409 · RN-14 + RN-01] Modificar una reserva para que solape con la reserva B -> 409
-# 3.11a Reserva C, en fechas libres
+### 3.11a Reserva C, en fechas libres -> 201
 POST {{host}}/api/reservas
 Content-Type: application/json
 
@@ -321,7 +319,7 @@ Content-Type: application/json
 %}
 
 ###
-# 3.11b Moverla sobre las noches de la reserva B (20 al 22 de abril) -> 409
+# 3.11b [409 · RN-14 + RN-01] Modificar la reserva C para que solape con la reserva B (20 al 22 de abril) -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
 Content-Type: application/json
 
@@ -357,15 +355,14 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9500", "nombre": "Elena Mora", "fechaNacimiento": "1991-11-11"}]
 }
 
-### 3.15 [409 · 7.4] Un apartamento nuevo nace inactivo; activarlo sin tarifas completas -> 409
-# 3.15a Crear el apartamento (201 la primera vez; si ya existe de una corrida anterior, 409 por L-04)
+### 3.15a Crear el apartamento (nace inactivo) -> 201 la primera vez; si ya existe de una corrida anterior, 409 por L-04
 POST {{host}}/api/apartamentos
 Content-Type: application/json
 
 {"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Apartamento de prueba", "dormitorios": 1, "capacidad": 2}
 
 ###
-# 3.15b Activarlo sin tarifas -> 409
+# 3.15b [409 · 7.4] Activarlo sin tarifas completas -> 409
 PUT {{host}}/api/apartamentos/DEMO-SIN-TARIFAS/activar
 
 ### 3.16 [409 · L-04] Identificación de apartamento repetida -> 409
