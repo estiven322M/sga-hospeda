@@ -100,7 +100,7 @@ class ReservaControllerTest {
 
     @Test
     void crearResponde201ConLocationYElMomentoActualLoPoneElServidor() throws Exception {
-        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any())).thenReturn(reserva());
+        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(reserva());
 
         mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON).content(CREAR))
                 .andExpect(status().isCreated())
@@ -113,7 +113,7 @@ class ReservaControllerTest {
                 .andExpect(jsonPath("$.versionPolitica").value(2));
 
         ArgumentCaptor<LocalDateTime> ahora = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(crear).ejecutar(any(), any(), any(), any(), any(), any(), ahora.capture());
+        verify(crear).ejecutar(any(), any(), any(), any(), any(), any(), any(), ahora.capture());
         assertEquals(LocalDateTime.of(2026, 11, 2, 10, 0), ahora.getValue());
     }
 
@@ -143,7 +143,7 @@ class ReservaControllerTest {
 
     @Test
     void unaReglaDeNegocioViolada409ConElMensajeDelDominio() throws Exception {
-        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any()))
+        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new ReglaDominioException("El apartamento ya tiene una reserva activa que solapa esas noches"));
 
         mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON).content(CREAR))
@@ -156,7 +156,7 @@ class ReservaControllerTest {
 
     @Test
     void unErrorInesperadoResponde500SinFiltrarLaTraza() throws Exception {
-        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any()))
+        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("jdbc:h2:mem:sgadb password=secreto"));
 
         mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON).content(CREAR))
@@ -383,5 +383,46 @@ class ReservaControllerTest {
         mvc.perform(put("/api/reservas/RES-2026-00001/estado").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"estado\":\"FINALIZADA\"}"))
                 .andExpect(status().isNotFound());
+    }
+
+    // --- RN-19: canal externo ---
+
+    @Test
+    void crearConCanalExternoLeEntregaElIdentificadorAlCasoDeUso() throws Exception {
+        when(crear.ejecutar(any(), any(), any(), any(), eq(CanalOrigen.EXTERNO),
+                eq(new co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno("BKG-1")), any(), any()))
+                .thenReturn(reserva());
+
+        mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(CREAR.replace("\"PORTAL\"", "\"EXTERNO\",\"identificadorExterno\":\"BKG-1\"")))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void crearSinIdentificadorLoEntregaNuloYElDominioDecideSiElCanalLoExige() throws Exception {
+        when(crear.ejecutar(any(), any(), any(), any(), any(), isNull(), any(), any())).thenReturn(reserva());
+
+        mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON).content(CREAR))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void unIdentificadorMasLargoQueElMaximoResponde400() throws Exception {
+        mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(CREAR.replace("\"PORTAL\"",
+                                "\"EXTERNO\",\"identificadorExterno\":\"" + "x".repeat(61) + "\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.identificadorExterno").exists());
+    }
+
+    @Test
+    void unMensajeRepetidoOUnConflictoEnCanalExternoResponde409() throws Exception {
+        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new co.edu.uniquindio.sga.domain.exception.ReglaDominioException("El mensaje ya fue recibido"));
+
+        mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(CREAR.replace("\"PORTAL\"", "\"EXTERNO\",\"identificadorExterno\":\"BKG-1\"")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("El mensaje ya fue recibido"));
     }
 }

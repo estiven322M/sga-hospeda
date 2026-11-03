@@ -18,6 +18,7 @@ import co.edu.uniquindio.sga.domain.repository.TemporadaRepository;
 import co.edu.uniquindio.sga.domain.service.ActivacionApartamentoService;
 import co.edu.uniquindio.sga.domain.service.ConfirmacionReservaService;
 import co.edu.uniquindio.sga.domain.service.CotizadorEstancia;
+import co.edu.uniquindio.sga.domain.service.RecepcionReservaExternaService;
 import co.edu.uniquindio.sga.domain.service.DisponibilidadApartamentoService;
 import co.edu.uniquindio.sga.domain.service.RegistroApartamentoService;
 import co.edu.uniquindio.sga.domain.service.RegistroPoliticaCancelacionService;
@@ -97,6 +98,11 @@ public class DomainServiceConfig {
     @Bean
     public ConfirmacionReservaService confirmacionReservaService(ConfiguracionAlojamiento configuracion) {
         return new ConfirmacionReservaService(configuracion);
+    }
+
+    @Bean
+    public RecepcionReservaExternaService recepcionReservaExternaService(ReservaRepository reservaRepository) {
+        return new RecepcionReservaExternaService(reservaRepository);
     }
 
     @Bean

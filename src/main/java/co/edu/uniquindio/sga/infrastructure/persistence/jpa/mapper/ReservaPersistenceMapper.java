@@ -6,6 +6,7 @@ import co.edu.uniquindio.sga.domain.valueobject.CargoNoche;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.EventoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 import co.edu.uniquindio.sga.domain.valueobject.ValorCongelado;
 import co.edu.uniquindio.sga.domain.valueobject.VersionPolitica;
 import co.edu.uniquindio.sga.infrastructure.persistence.jpa.ConversionesMonetarias;
@@ -34,7 +35,8 @@ public class ReservaPersistenceMapper {
                 reserva.getPolitica().numero(), reserva.getCreadaEn(),
                 reserva.getOcupantes().stream().map(ocupantes::aEmbeddable).toList(),
                 reserva.getHistorial().stream().map(ReservaPersistenceMapper::aEmbeddable).toList(),
-                reserva.getValor().detalle().stream().map(ReservaPersistenceMapper::aEmbeddable).toList());
+                reserva.getValor().detalle().stream().map(ReservaPersistenceMapper::aEmbeddable).toList(),
+                reserva.getIdentificadorExterno() == null ? null : reserva.getIdentificadorExterno().valor());
     }
 
     public Reserva aDominio(ReservaEntity entidad) {
@@ -44,7 +46,9 @@ public class ReservaPersistenceMapper {
                 estancias.aDominio(entidad.getEstancia()), titularEntre(grupo, entidad), grupo,
                 entidad.getCanalOrigen(), valorDe(entidad), new VersionPolitica(entidad.getVersionPolitica()),
                 entidad.getCreadaEn(), entidad.getEstado(), entidad.getHoraEstimadaLlegada(),
-                entidad.getHistorial().stream().map(ReservaPersistenceMapper::aDominio).toList());
+                entidad.getHistorial().stream().map(ReservaPersistenceMapper::aDominio).toList(),
+                entidad.getIdentificadorExterno() == null ? null
+                        : new IdentificadorExterno(entidad.getIdentificadorExterno()));
     }
 
     private static Ocupante titularEntre(List<Ocupante> grupo, ReservaEntity entidad) {

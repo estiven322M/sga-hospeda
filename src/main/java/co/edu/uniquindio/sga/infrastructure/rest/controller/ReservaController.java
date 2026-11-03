@@ -102,6 +102,7 @@ public class ReservaController {
                 solicitud.aOcupante(request.titular(), hoy),
                 solicitud.aOcupantes(request.ocupantes(), hoy),
                 request.canalOrigen(),
+                solicitud.aIdentificadorExterno(request.identificadorExterno()),
                 request.horaEstimadaLlegada(),
                 ahora);
         URI ubicacion = ServletUriComponentsBuilder.fromCurrentRequest()

@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
+import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoReserva;
 import co.edu.uniquindio.sga.infrastructure.persistence.jpa.entity.ReservaEntity;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -18,6 +19,10 @@ public interface ReservaJpaDataRepository
 
     @EntityGraph(attributePaths = "ocupantes")
     Optional<ReservaEntity> findByCodigo(String codigo);
+
+    /** RN-19: la reserva ya creada para ese mensaje del canal externo. */
+    @EntityGraph(attributePaths = "ocupantes")
+    Optional<ReservaEntity> findByCanalOrigenAndIdentificadorExterno(CanalOrigen canalOrigen, String identificadorExterno);
 
     /** Insumo del vencimiento automático (RN-21): el límite ya viene calculado por el caso de uso. */
     @EntityGraph(attributePaths = "ocupantes")

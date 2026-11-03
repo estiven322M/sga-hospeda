@@ -13,6 +13,9 @@ El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencia
 - `RetencionCancelacionService`: además de la cancelación calcula la consecuencia del no-show con la política congelada.
 - Vencimiento automático (RN-21): `Reserva.haVencido`, `PlazoConfirmacion.limiteDeCreacion` y `Folio.liquidarVencimiento`
   (reverso del alojamiento sin penalidad).
+- Canal externo: `IdentificadorExterno`, `RecepcionReservaExternaService` (RN-19: canal + identificador únicos; solo los canales
+  externos lo llevan), `Reserva.crear`/`reconstruir` con el identificador, `RechazoReservaExterna` (RN-18) y su puerto
+  `RechazoReservaExternaRepository`; `ReservaRepository.buscarPorCanalEIdentificadorExterno`.
 - `Reserva.modificarEstancia`: ahora rechaza reservas en curso, exige al titular entre los ocupantes y revalida RN-04.
   Sobrecarga que además recibe el apartamento destino (RN-14): `apartamento` deja de ser `final` y el cambio queda en el historial.
 - `TiempoPreparacion.permiteEntradaElMismoDia(salida, entrada)`: compara con la ventana salida-entrada (RN-20).
@@ -33,6 +36,7 @@ classDiagram
         -Ocupante titular
         -List~Ocupante~ ocupantes
         -CanalOrigen canalOrigen
+        -IdentificadorExterno identificadorExterno «nuevo, RN-19»
         -ValorCongelado valor
         -VersionPolitica politica
         -EstadoReserva estado
@@ -85,6 +89,21 @@ classDiagram
         +liquidarVencimiento() «nuevo»
         +saldo() Dinero
         +cerrar()
+    }
+
+    class RechazoReservaExterna {
+        <<«nuevo, RN-18»>>
+        -CanalOrigen canalOrigen
+        -IdentificadorExterno identificadorExterno
+        -IdentificacionApartamento apartamento
+        -Estancia estancia
+        -String motivo
+        -LocalDateTime rechazadaEn
+    }
+
+    class IdentificadorExterno {
+        <<record «nuevo, RN-19»>>
+        +String valor
     }
 
     class Bloqueo {
@@ -203,6 +222,9 @@ classDiagram
     Folio "1" *-- "1..*" Cargo
     Folio "1" *-- "0..*" Ajuste
     Folio "1" *-- "0..*" Pago
+    Reserva "1" o-- "0..1" IdentificadorExterno
+    RechazoReservaExterna "1" *-- "1" IdentificadorExterno
+    RechazoReservaExterna "1" *-- "1" Estancia
     Bloqueo "1" *-- "1" Estancia
     Temporada "1" *-- "0..*" Periodo
     PoliticaCancelacion "1" *-- "2..*" TramoRetencion
@@ -236,6 +258,11 @@ classDiagram
         <<nuevo>>
         L-11 RN-08 RN-09
     }
+    class RecepcionReservaExternaService {
+        <<servicio de dominio «nuevo, RN-19»>>
+        +verificarRecepcion(CanalOrigen, IdentificadorExterno)
+    }
+
     class RegistroBloqueoService {
         <<nuevo>>
         7.3
@@ -269,6 +296,7 @@ classDiagram
     class ApartamentoRepository { <<puerto>> }
     class FolioRepository { <<puerto>> }
     class BloqueoRepository { <<puerto>> }
+    class RechazoReservaExternaRepository { <<puerto «nuevo»>> }
     class TarifarioRepository { <<puerto>> }
     class TemporadaRepository { <<puerto «nuevo»>> }
     class PoliticaCancelacionRepository { <<puerto «nuevo»>> }
@@ -283,6 +311,7 @@ classDiagram
     RetencionCancelacionService ..> ConfiguracionAlojamiento
     ConfirmacionReservaService ..> ConfiguracionAlojamiento
     RegistroBloqueoService ..> ReservaRepository
+    RecepcionReservaExternaService ..> ReservaRepository
     ActivacionApartamentoService ..> TarifarioRepository
     ActivacionApartamentoService ..> TemporadaRepository
     RegistroApartamentoService ..> ApartamentoRepository

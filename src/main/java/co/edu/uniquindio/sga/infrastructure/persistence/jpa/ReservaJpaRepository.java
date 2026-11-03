@@ -5,9 +5,11 @@ import co.edu.uniquindio.sga.domain.repository.FiltroReservas;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.ReservaRepository;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
+import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 import co.edu.uniquindio.sga.infrastructure.persistence.jpa.mapper.ReservaPersistenceMapper;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
@@ -50,6 +52,12 @@ public class ReservaJpaRepository implements ReservaRepository {
     @Transactional(readOnly = true)
     public Optional<Reserva> buscarPorCodigo(CodigoReserva codigo) {
         return datos.findByCodigo(codigo.valor()).map(mapper::aDominio);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Reserva> buscarPorCanalEIdentificadorExterno(CanalOrigen canal, IdentificadorExterno identificador) {
+        return datos.findByCanalOrigenAndIdentificadorExterno(canal, identificador.valor()).map(mapper::aDominio);
     }
 
     @Override

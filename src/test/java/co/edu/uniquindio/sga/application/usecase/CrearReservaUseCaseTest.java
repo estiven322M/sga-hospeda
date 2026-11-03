@@ -26,11 +26,13 @@ import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.entity.Folio;
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
 import co.edu.uniquindio.sga.domain.entity.PoliticaCancelacion;
+import co.edu.uniquindio.sga.domain.entity.RechazoReservaExterna;
 import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.repository.*;
 import co.edu.uniquindio.sga.domain.service.CotizadorEstancia;
 import co.edu.uniquindio.sga.domain.service.DisponibilidadApartamentoService;
+import co.edu.uniquindio.sga.domain.service.RecepcionReservaExternaService;
 import co.edu.uniquindio.sga.domain.valueobject.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,6 +45,8 @@ class CrearReservaUseCaseTest {
     @Mock private GeneradorCodigoReserva generadorCodigo;
     @Mock private DisponibilidadApartamentoService disponibilidad;
     @Mock private CotizadorEstancia cotizador;
+    @Mock private RecepcionReservaExternaService recepcionExterna;
+    @Mock private RechazoReservaExternaRepository rechazoRepository;
     @InjectMocks private CrearReservaUseCase useCase;
 
     private final LocalDateTime ahora = LocalDateTime.of(2026, 11, 2, 10, 0);
@@ -151,5 +155,90 @@ class CrearReservaUseCaseTest {
                 () -> useCase.ejecutar(apt, estancia, titular, List.of(otro), CanalOrigen.PORTAL, null, ahora));
 
         verifyNoInteractions(folioRepository);
+    }
+
+    // --- RN-19 y RN-18: canal externo ---
+
+    private final IdentificadorExterno mensaje = new IdentificadorExterno("BKG-778899");
+
+    @Test
+    void laReservaExternaGuardaSuIdentificadorYSeVerificaLaRecepcionAntesQueLaDisponibilidad() {
+        Reserva reserva = useCase.ejecutar(apt, estancia, titular, ocupantes, CanalOrigen.EXTERNO, mensaje, null, ahora);
+
+        assertEquals(mensaje, reserva.getIdentificadorExterno());
+        assertEquals(CanalOrigen.EXTERNO, reserva.getCanalOrigen());
+        InOrder orden = inOrder(recepcionExterna, disponibilidad);
+        orden.verify(recepcionExterna).verificarRecepcion(CanalOrigen.EXTERNO, mensaje);
+        orden.verify(disponibilidad).verificarDisponible(apartamento, estancia, 1, null);
+        verifyNoInteractions(rechazoRepository);
+    }
+
+    @Test
+    void unMensajeRepetidoRN19SeRechazaSinCrearNadaNiRegistrarUnRechazoPorConflicto() {
+        doThrow(new ReglaDominioException("El mensaje ya fue recibido"))
+                .when(recepcionExterna).verificarRecepcion(CanalOrigen.EXTERNO, mensaje);
+
+        assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(apt, estancia, titular, ocupantes, CanalOrigen.EXTERNO, mensaje, null, ahora));
+
+        verifyNoInteractions(disponibilidad, cotizador, rechazoRepository, folioRepository);
+        verify(reservaRepository, never()).guardar(any());
+    }
+
+    @Test
+    void unaReservaExternaEnConflictoRN18SeRechazaSeRegistraYNoToqueLaVigente() {
+        doThrow(new ReglaDominioException("El apartamento ya tiene una reserva activa que solapa esas noches"))
+                .when(disponibilidad).verificarDisponible(apartamento, estancia, 1, null);
+
+        ReglaDominioException error = assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(apt, estancia, titular, ocupantes, CanalOrigen.EXTERNO, mensaje, null, ahora));
+
+        assertTrue(error.getMessage().contains("solapa"));
+        ArgumentCaptor<RechazoReservaExterna> captor = ArgumentCaptor.forClass(RechazoReservaExterna.class);
+        verify(rechazoRepository).guardar(captor.capture());
+        RechazoReservaExterna rechazo = captor.getValue();
+        assertEquals(CanalOrigen.EXTERNO, rechazo.getCanalOrigen());
+        assertEquals(mensaje, rechazo.getIdentificadorExterno());
+        assertEquals(apt, rechazo.getApartamento());
+        assertEquals(estancia, rechazo.getEstancia());
+        assertEquals(error.getMessage(), rechazo.getMotivo());
+        assertEquals(ahora, rechazo.getRechazadaEn());
+        verify(reservaRepository, never()).guardar(any());   // la reserva vigente no se sobrescribe
+        verify(folioRepository, never()).guardar(any());
+    }
+
+    @Test
+    void cualquierReglaQueViolaUnaReservaExternaQuedaRegistradaComoRechazo() {
+        Estancia pasada = new Estancia(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 3));
+        when(cotizador.cotizar(apt, pasada, ocupantes)).thenReturn(new ValorCongelado(List.of(
+                new CargoNoche(LocalDate.of(2026, 10, 1), "ALTA", Dinero.de(100_000), 1),
+                new CargoNoche(LocalDate.of(2026, 10, 2), "ALTA", Dinero.de(100_000), 1))));
+
+        assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(apt, pasada, titular, ocupantes, CanalOrigen.EXTERNO, mensaje, null, ahora));
+
+        verify(rechazoRepository).guardar(any(RechazoReservaExterna.class));
+        verify(reservaRepository, never()).guardar(any());
+    }
+
+    @Test
+    void elConflictoEnUnCanalSinIdentificadorExternoNoGeneraRechazoRegistrado() {
+        doThrow(new ReglaDominioException("El apartamento ya tiene una reserva activa que solapa esas noches"))
+                .when(disponibilidad).verificarDisponible(apartamento, estancia, 1, null);
+
+        assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(apt, estancia, titular, ocupantes, CanalOrigen.PORTAL, null, ahora));
+
+        verifyNoInteractions(rechazoRepository);
+    }
+
+    @Test
+    void siElApartamentoDeLaReservaExternaNoExisteEsUn404YNoUnRechazoPorConflicto() {
+        when(apartamentoRepository.buscarPorIdentificacion(apt)).thenReturn(Optional.empty());
+
+        assertThrows(ApartamentoNoEncontradoException.class,
+                () -> useCase.ejecutar(apt, estancia, titular, ocupantes, CanalOrigen.EXTERNO, mensaje, null, ahora));
+
+        verifyNoInteractions(rechazoRepository);
     }
 }
