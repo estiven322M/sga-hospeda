@@ -2,6 +2,8 @@ package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
 import co.edu.uniquindio.sga.domain.repository.GeneradorCodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,7 @@ import java.time.LocalDate;
 @Repository
 public class GeneradorCodigoReservaJpa implements GeneradorCodigoReserva {
 
+    private static final Logger REGISTRO = LoggerFactory.getLogger(GeneradorCodigoReservaJpa.class);
     private static final String FORMATO = "RES-%04d-%05d";
 
     private final ContadorCodigoReservaJpaDataRepository contadores;
@@ -42,6 +45,7 @@ public class GeneradorCodigoReservaJpa implements GeneradorCodigoReserva {
             inicializador.asegurarExistencia(anio);
         } catch (DataIntegrityViolationException otroHiloLoCreoPrimero) {
             // La fila ya existe: es justo lo que se buscaba, se continúa con el bloqueo.
+            REGISTRO.debug("Otro hilo creó primero el contador de códigos del año {}", anio, otroHiloLoCreoPrimero);
         }
     }
 }

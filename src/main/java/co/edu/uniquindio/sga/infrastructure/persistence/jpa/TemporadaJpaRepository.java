@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Repository
-@Transactional(readOnly = true)
 public class TemporadaJpaRepository implements TemporadaRepository {
 
     private final TemporadaJpaDataRepository datos;
@@ -20,6 +19,7 @@ public class TemporadaJpaRepository implements TemporadaRepository {
         this.mapper = mapper;
     }
 
+    /** Se une a la transacción del caso de uso y mapea las colecciones del agregado guardado dentro de ella. */
     @Override
     @Transactional
     public Temporada guardar(Temporada temporada) {
@@ -27,6 +27,7 @@ public class TemporadaJpaRepository implements TemporadaRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Temporada> listarTodas() {
         return datos.listarConPeriodos().stream().map(mapper::aDominio).toList();
     }

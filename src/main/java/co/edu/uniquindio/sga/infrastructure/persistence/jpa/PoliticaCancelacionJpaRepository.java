@@ -11,7 +11,6 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 @Repository
-@Transactional(readOnly = true)
 public class PoliticaCancelacionJpaRepository implements PoliticaCancelacionRepository {
 
     private final PoliticaCancelacionJpaDataRepository datos;
@@ -23,6 +22,7 @@ public class PoliticaCancelacionJpaRepository implements PoliticaCancelacionRepo
         this.mapper = mapper;
     }
 
+    /** Se une a la transacción del caso de uso y mapea las colecciones del agregado guardado dentro de ella. */
     @Override
     @Transactional
     public PoliticaCancelacion guardar(PoliticaCancelacion politica) {
@@ -30,17 +30,20 @@ public class PoliticaCancelacionJpaRepository implements PoliticaCancelacionRepo
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<PoliticaCancelacion> vigenteEn(LocalDate fecha) {
         return datos.findFirstByVigenteDesdeLessThanEqualOrderByVigenteDesdeDescNumeroVersionDesc(fecha)
                 .map(mapper::aDominio);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<PoliticaCancelacion> ultimaVersion() {
         return datos.findFirstByOrderByNumeroVersionDesc().map(mapper::aDominio);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<PoliticaCancelacion> porVersion(VersionPolitica version) {
         return datos.findById(version.numero()).map(mapper::aDominio);
     }

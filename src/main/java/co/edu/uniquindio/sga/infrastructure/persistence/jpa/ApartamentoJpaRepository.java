@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-@Transactional(readOnly = true)
 public class ApartamentoJpaRepository implements ApartamentoRepository {
 
     private static final Sort POR_IDENTIFICACION = Sort.by("identificacion");
@@ -27,6 +26,7 @@ public class ApartamentoJpaRepository implements ApartamentoRepository {
         this.mapper = mapper;
     }
 
+    /** Se une a la transacción del caso de uso y mapea las colecciones del agregado guardado dentro de ella. */
     @Override
     @Transactional
     public Apartamento guardar(Apartamento apartamento) {
@@ -34,16 +34,19 @@ public class ApartamentoJpaRepository implements ApartamentoRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Apartamento> buscarPorIdentificacion(IdentificacionApartamento identificacion) {
         return datos.findById(identificacion.valor()).map(mapper::aDominio);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Apartamento> listarActivos() {
         return datos.findByActivoTrueOrderByIdentificacion().stream().map(mapper::aDominio).toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Pagina<Apartamento> listarActivos(SolicitudPagina pagina) {
         return PaginacionJpa.aDominio(
                 datos.findByActivoTrue(PaginacionJpa.solicitud(pagina, POR_IDENTIFICACION)),
@@ -51,6 +54,7 @@ public class ApartamentoJpaRepository implements ApartamentoRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Pagina<Apartamento> listarTodos(SolicitudPagina pagina) {
         return PaginacionJpa.aDominio(
                 datos.findAll(PaginacionJpa.solicitud(pagina, POR_IDENTIFICACION)),

@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-@Transactional(readOnly = true)
 public class ReservaJpaRepository implements ReservaRepository {
 
     // El código desempata reservas creadas en el mismo instante para que el orden sea estable.
@@ -33,12 +32,14 @@ public class ReservaJpaRepository implements ReservaRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Reserva> buscarActivasPorApartamento(IdentificacionApartamento apartamento) {
         List<EstadoReserva> activas = Arrays.stream(EstadoReserva.values()).filter(EstadoReserva::esActiva).toList();
         return datos.findByApartamentoIdAndEstadoIn(apartamento.valor(), activas).stream()
                 .map(mapper::aDominio).toList();
     }
 
+    /** Se une a la transacción del caso de uso y mapea las colecciones del agregado guardado dentro de ella. */
     @Override
     @Transactional
     public Reserva guardar(Reserva reserva) {
@@ -46,11 +47,13 @@ public class ReservaJpaRepository implements ReservaRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Reserva> buscarPorCodigo(CodigoReserva codigo) {
         return datos.findByCodigo(codigo.valor()).map(mapper::aDominio);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Pagina<Reserva> buscar(FiltroReservas filtro, SolicitudPagina pagina) {
         return PaginacionJpa.aDominio(
                 datos.findAll(ReservaEspecificaciones.segun(filtro),

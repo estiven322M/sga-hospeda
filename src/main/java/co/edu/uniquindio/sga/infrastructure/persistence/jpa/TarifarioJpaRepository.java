@@ -14,7 +14,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Repository
-@Transactional(readOnly = true)
 public class TarifarioJpaRepository implements TarifarioRepository {
 
     private final TarifaJpaDataRepository datos;
@@ -29,11 +28,13 @@ public class TarifarioJpaRepository implements TarifarioRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Tarifa tarifaDe(IdentificacionApartamento apartamento, LocalDate noche) {
         String temporada = new CalendarioTemporadas(temporadas.listarTodas()).temporadaDe(noche).getNombre();
         return datos.findById(new TarifaId(apartamento.valor(), temporada)).map(mapper::aDominio).orElse(null);
     }
 
+    /** Se une a la transacción del caso de uso; crea o reemplaza la tarifa de esa temporada. */
     @Override
     @Transactional
     public void guardarTarifa(IdentificacionApartamento apartamento, Tarifa tarifa) {
@@ -41,6 +42,7 @@ public class TarifarioJpaRepository implements TarifarioRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Tarifa> listarTarifas(IdentificacionApartamento apartamento) {
         return datos.findByIdApartamentoIdOrderByIdTemporada(apartamento.valor()).stream()
                 .map(mapper::aDominio).toList();

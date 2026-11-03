@@ -17,7 +17,6 @@ import java.util.List;
  * Hoy no tiene fecha de baja, así que todos los bloqueos de un apartamento son vigentes.
  */
 @Repository
-@Transactional(readOnly = true)
 public class BloqueoJpaRepository implements BloqueoRepository {
 
     private static final Sort CRONOLOGICO = Sort.by("estancia.fechaEntrada", "id");
@@ -31,11 +30,13 @@ public class BloqueoJpaRepository implements BloqueoRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Bloqueo> buscarVigentesPorApartamento(IdentificacionApartamento apartamento) {
         return datos.findByApartamentoIdOrderByEstanciaFechaEntradaAscIdAsc(apartamento.valor()).stream()
                 .map(mapper::aDominio).toList();
     }
 
+    /** Se une a la transacción del caso de uso y mapea las colecciones del agregado guardado dentro de ella. */
     @Override
     @Transactional
     public Bloqueo guardar(Bloqueo bloqueo) {
@@ -43,6 +44,7 @@ public class BloqueoJpaRepository implements BloqueoRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Pagina<Bloqueo> listarPorApartamento(IdentificacionApartamento apartamento, SolicitudPagina pagina) {
         return PaginacionJpa.aDominio(
                 datos.findByApartamentoId(apartamento.valor(), PaginacionJpa.solicitud(pagina, CRONOLOGICO)),

@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 @Repository
-@Transactional(readOnly = true)
 public class FolioJpaRepository implements FolioRepository {
 
     private final FolioJpaDataRepository datos;
@@ -21,6 +20,7 @@ public class FolioJpaRepository implements FolioRepository {
         this.mapper = mapper;
     }
 
+    /** Se une a la transacción del caso de uso y mapea las colecciones del agregado guardado dentro de ella. */
     @Override
     @Transactional
     public Folio guardar(Folio folio) {
@@ -28,6 +28,7 @@ public class FolioJpaRepository implements FolioRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Folio> buscarPorReserva(CodigoReserva reserva) {
         return datos.findById(reserva.valor()).map(mapper::aDominio);
     }
