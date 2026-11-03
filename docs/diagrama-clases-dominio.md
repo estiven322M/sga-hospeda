@@ -14,6 +14,7 @@ El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencia
 - Vencimiento automático (RN-21): `Reserva.haVencido`, `PlazoConfirmacion.limiteDeCreacion` y `Folio.liquidarVencimiento`
   (reverso del alojamiento sin penalidad).
 - `Reserva.modificarEstancia`: ahora rechaza reservas en curso, exige al titular entre los ocupantes y revalida RN-04.
+  Sobrecarga que además recibe el apartamento destino (RN-14): `apartamento` deja de ser `final` y el cambio queda en el historial.
 - `TiempoPreparacion.permiteEntradaElMismoDia(salida, entrada)`: compara con la ventana salida-entrada (RN-20).
 - Puertos nuevos o ampliados en `domain/repository`: paginación (`Pagina`, `SolicitudPagina`), `FiltroReservas`,
   `GeneradorCodigoReserva`, `TemporadaRepository`, `PoliticaCancelacionRepository`.
@@ -46,7 +47,7 @@ classDiagram
         +registrarLlegada()
         +registrarSalida()
         +declararNoShow()
-        +modificarEstancia() Dinero «cambio»
+        +modificarEstancia(apartamento?) Dinero «cambio»
     }
 
     class Apartamento {

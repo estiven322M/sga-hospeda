@@ -414,7 +414,43 @@ Content-Type: application/json
   ]
 }
 
-# 3.22 El cierre de folio (RN-17, CU-11), el registro de llegada (RN-10) y de salida (7.6), el no-show y el estado
+### 3.22 CU-04 [RN-14] Cambiar la reserva C de apartamento (misma estancia): se revalida y se recotiza contra el destino -> 200
+PUT {{host}}/api/reservas/{{codigoC}}/modificar
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{aptBloqueo}}",
+  "fechaEntrada": "2028-05-10",
+  "fechaSalida": "2028-05-12",
+  "autor": "Carlos Vega",
+  "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
+}
+
+### 3.23 [409 · RN-14 + RN-07] Cambiar de apartamento hacia noches con bloqueo vigente -> 409
+PUT {{host}}/api/reservas/{{codigoC}}/modificar
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{aptBloqueo}}",
+  "fechaEntrada": "2028-07-11",
+  "fechaSalida": "2028-07-12",
+  "autor": "Carlos Vega",
+  "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
+}
+
+### 3.24 [404 · RN-14] Cambiar de apartamento hacia uno que no existe -> 404
+PUT {{host}}/api/reservas/{{codigoC}}/modificar
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "NO-EXISTE",
+  "fechaEntrada": "2028-05-10",
+  "fechaSalida": "2028-05-12",
+  "autor": "Carlos Vega",
+  "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
+}
+
+# 3.25 El cierre de folio (RN-17, CU-11), el registro de llegada (RN-10) y de salida (7.6), el no-show y el estado
 # operativo (RN-11) se ejecutan en la PARTE 5, al final de este archivo.
 
 # =====================================================================================================
