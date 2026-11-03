@@ -5,10 +5,12 @@ import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.CargoNoche;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 import co.edu.uniquindio.sga.domain.valueobject.ValorCongelado;
 import co.edu.uniquindio.sga.domain.valueobject.VersionPolitica;
 
@@ -46,6 +48,7 @@ public final class ReservasDePrueba {
         return Reserva.crear(new CodigoReserva(codigo), new IdentificacionApartamento(apartamento),
                 new Estancia(entrada, entrada.plusDays(noches)), titular,
                 List.of(titular, ocupante(documentoTitular + "9", "Acompañante")), canal,
+                canal.exigeIdentificadorExterno() ? new IdentificadorExterno("EXT-" + codigo) : null,
                 valor(entrada, noches), new VersionPolitica(1), creadaEn);
     }
 

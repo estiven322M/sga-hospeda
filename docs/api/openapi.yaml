@@ -42,6 +42,8 @@ tags:
     description: Apartamentos libres para una estancia y un grupo
   - name: Reservas
     description: Ciclo de vida de la reserva
+  - name: Canal externo
+    description: Reservas que llegan por un canal externo y fueron rechazadas por conflicto (RN-18)
   - name: Folios
     description: Cargos, ajustes, pagos y saldo de una reserva
   - name: Estado operativo
@@ -657,6 +659,12 @@ paths:
       description: |
         Crea la reserva en estado PENDIENTE, congela el valor y la política de cancelación vigente (RN-22) y abre
         su folio con el cargo de alojamiento (F-08). El titular debe ser uno de los ocupantes.
+
+        **Canal externo.** Una reserva con `canalOrigen: EXTERNO` debe traer su `identificadorExterno`; las de los demás
+        canales no lo llevan (409). La combinación canal + identificador es única (RN-19): el mismo mensaje recibido
+        dos veces no crea dos reservas y la segunda recepción responde 409. Si una reserva externa viola una regla
+        (por ejemplo, solapa una reserva vigente) se rechaza con 409, no sobrescribe nada y queda registrada (RN-18);
+        el registro se consulta en `GET /api/reservas-externas/rechazos`.
         Mapea a: `CrearReservaUseCase`
       operationId: crearReserva
       requestBody:
@@ -753,6 +761,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginaReservaResumenResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+
+  /api/reservas-externas/rechazos:
+    get:
+      tags: [Canal externo]
+      summary: Listar las reservas externas rechazadas (RN-18)
+      description: |
+        Constancia de las reservas que llegaron por un canal externo y se rechazaron por violar una regla, del rechazo
+        más reciente al más antiguo, de 10 en 10. Solo lectura: los rechazos los produce la creación de reservas.
+        Mapea a: `ListarRechazosReservasExternasUseCase`
+      operationId: listarRechazosReservasExternas
+      parameters:
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página de rechazos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaRechazoReservaExternaResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
 
@@ -1232,6 +1261,16 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/BloqueoResponse'
+    PaginaRechazoReservaExternaResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/RechazoReservaExternaResponse'
     PaginaTemporadaResponse:
       allOf:
         - $ref: '#/components/schemas/PaginaBase'
@@ -1445,6 +1484,10 @@ components:
           format: date
         canalOrigen:
           $ref: '#/components/schemas/CanalOrigen'
+        identificadorExterno:
+          type: string
+          maxLength: 60
+          description: Obligatorio si el canal es EXTERNO y debe omitirse en los demás; canal + identificador es único (RN-19)
         horaEstimadaLlegada:
           type: string
           format: time
@@ -1558,6 +1601,28 @@ components:
           format: date
         motivo:
           type: string
+    RechazoReservaExternaResponse:
+      type: object
+      description: Constancia de una reserva externa rechazada por violar una regla (RN-18)
+      properties:
+        canalOrigen:
+          $ref: '#/components/schemas/CanalOrigen'
+        identificadorExterno:
+          type: string
+        identificacionApartamento:
+          type: string
+        fechaEntrada:
+          type: string
+          format: date
+        fechaSalida:
+          type: string
+          format: date
+        motivo:
+          type: string
+          description: La regla de negocio que se violó, tal como la devolvió el 409
+        rechazadaEn:
+          type: string
+          format: date-time
     TemporadaResponse:
       type: object
       properties:
@@ -1707,6 +1772,10 @@ components:
           $ref: '#/components/schemas/EstadoReserva'
         canalOrigen:
           $ref: '#/components/schemas/CanalOrigen'
+        identificadorExterno:
+          type: string
+          nullable: true
+          description: Solo las reservas de canal EXTERNO lo tienen (RN-19)
         identificacionApartamento:
           type: string
         fechaEntrada:

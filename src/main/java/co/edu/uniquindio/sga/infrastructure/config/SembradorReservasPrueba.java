@@ -4,12 +4,14 @@ import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.entity.Folio;
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
 import co.edu.uniquindio.sga.domain.entity.PoliticaCancelacion;
+import co.edu.uniquindio.sga.domain.entity.RechazoReservaExterna;
 import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
 import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
 import co.edu.uniquindio.sga.domain.repository.FolioRepository;
 import co.edu.uniquindio.sga.domain.repository.GeneradorCodigoReserva;
 import co.edu.uniquindio.sga.domain.repository.PoliticaCancelacionRepository;
+import co.edu.uniquindio.sga.domain.repository.RechazoReservaExternaRepository;
 import co.edu.uniquindio.sga.domain.repository.ReservaRepository;
 import co.edu.uniquindio.sga.domain.service.ConfirmacionReservaService;
 import co.edu.uniquindio.sga.domain.service.CotizadorEstancia;
@@ -22,6 +24,7 @@ import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 import co.edu.uniquindio.sga.domain.valueobject.Pago;
 import co.edu.uniquindio.sga.domain.valueobject.ValorCongelado;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -64,6 +67,7 @@ class SembradorReservasPrueba {
     private final LocalDate hoy;
     private final ApartamentoRepository apartamentos;
     private final ReservaRepository reservas;
+    private final RechazoReservaExternaRepository rechazos;
     private final FolioRepository folios;
     private final PoliticaCancelacionRepository politicas;
     private final GeneradorCodigoReserva generador;
@@ -74,13 +78,14 @@ class SembradorReservasPrueba {
     private final ConfiguracionAlojamiento configuracion;
 
     SembradorReservasPrueba(Clock reloj, ApartamentoRepository apartamentos, ReservaRepository reservas,
-                            FolioRepository folios, PoliticaCancelacionRepository politicas,
+                            FolioRepository folios, RechazoReservaExternaRepository rechazos, PoliticaCancelacionRepository politicas,
                             GeneradorCodigoReserva generador, DisponibilidadApartamentoService disponibilidad,
                             CotizadorEstancia cotizador, ConfirmacionReservaService confirmacion,
                             RetencionCancelacionService retencion, ConfiguracionAlojamiento configuracion) {
         this.hoy = LocalDate.now(reloj);
         this.apartamentos = apartamentos;
         this.reservas = reservas;
+        this.rechazos = rechazos;
         this.folios = folios;
         this.politicas = politicas;
         this.generador = generador;
@@ -98,11 +103,27 @@ class SembradorReservasPrueba {
         sembrarEnCurso();
         sembrarConfirmada();
         sembrarPendiente();
+        sembrarRechazoExterno();
     }
 
     private void sembrarPendiente() {
         ReservaConFolio r = abrir(new Escenario("APT-201", 20, 2, CanalOrigen.PORTAL, "CC-1001", 0, false));
         guardar(r);
+    }
+
+    /** RN-19: los canales externos traen el identificador con el que ese canal conoce la reserva. */
+    private static IdentificadorExterno identificadorExternoDe(Escenario escenario) {
+        return escenario.canal().exigeIdentificadorExterno()
+                ? new IdentificadorExterno("EXT-" + escenario.documentoTitular()) : null;
+    }
+
+    /** RN-18: una reserva externa que chocó con la confirmada de APT-202 y quedó registrada sin tocarla. */
+    private void sembrarRechazoExterno() {
+        LocalDate entrada = hoy.plusDays(10);
+        rechazos.guardar(new RechazoReservaExterna(CanalOrigen.EXTERNO, new IdentificadorExterno("EXT-CONFLICTO-001"),
+                new IdentificacionApartamento("APT-202"), new Estancia(entrada, entrada.plusDays(2)),
+                "El apartamento ya tiene una reserva activa que solapa esas noches",
+                hoy.minusDays(1).atTime(HORA_CREACION)));
     }
 
     private void sembrarConfirmada() {
@@ -167,7 +188,7 @@ class SembradorReservasPrueba {
         LocalDateTime creadaEn = hoy.minusDays(escenario.creadaHaceDias()).atTime(HORA_CREACION);
         CodigoReserva codigo = generador.generar(creadaEn.toLocalDate());
         Reserva reserva = Reserva.crear(codigo, apartamento.getIdentificacion(), estancia, grupo.get(0), grupo,
-                escenario.canal(), valor, ultimaPolitica().getVersion(), creadaEn);
+                escenario.canal(), identificadorExternoDe(escenario), valor, ultimaPolitica().getVersion(), creadaEn);
         if (escenario.conHoraDeLlegada()) {
             reserva.indicarHoraEstimadaLlegada(configuracion.horaEntrada().plusHours(1), AUTOR, creadaEn);
         }

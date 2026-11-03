@@ -34,7 +34,7 @@ class ReconstruccionTest {
     private Reserva reconstruir(EstadoReserva estado, LocalTime hora, List<Ocupante> ocupantes, ValorCongelado v) {
         return Reserva.reconstruir(new CodigoReserva("RES-2025-00001"), new IdentificacionApartamento("APT-101"),
                 estancia, titular, ocupantes, CanalOrigen.DIRECTO, v, new VersionPolitica(1), CREADA, estado, hora,
-                historial);
+                historial, null);
     }
 
     // ---------- Reserva ----------
@@ -95,13 +95,13 @@ class ReconstruccionTest {
     void rechazaDatosObligatoriosNulos() {
         assertThrows(ReglaDominioException.class, () -> Reserva.reconstruir(null,
                 new IdentificacionApartamento("APT-101"), estancia, titular, List.of(titular), CanalOrigen.DIRECTO,
-                valor, new VersionPolitica(1), CREADA, EstadoReserva.PENDIENTE, null, historial));
+                valor, new VersionPolitica(1), CREADA, EstadoReserva.PENDIENTE, null, historial, null));
         assertThrows(ReglaDominioException.class, () -> Reserva.reconstruir(new CodigoReserva("RES-2025-00001"),
                 new IdentificacionApartamento("APT-101"), estancia, titular, List.of(titular), CanalOrigen.DIRECTO,
-                valor, new VersionPolitica(1), CREADA, null, null, historial));
+                valor, new VersionPolitica(1), CREADA, null, null, historial, null));
         assertThrows(ReglaDominioException.class, () -> Reserva.reconstruir(new CodigoReserva("RES-2025-00001"),
                 new IdentificacionApartamento("APT-101"), estancia, titular, List.of(titular), CanalOrigen.DIRECTO,
-                valor, new VersionPolitica(1), CREADA, EstadoReserva.PENDIENTE, null, null));
+                valor, new VersionPolitica(1), CREADA, EstadoReserva.PENDIENTE, null, null, null));
     }
 
     @Test
@@ -109,7 +109,7 @@ class ReconstruccionTest {
         List<EventoReserva> origen = new ArrayList<>(historial);
         Reserva r = Reserva.reconstruir(new CodigoReserva("RES-2025-00001"), new IdentificacionApartamento("APT-101"),
                 estancia, titular, List.of(titular), CanalOrigen.DIRECTO, valor, new VersionPolitica(1), CREADA,
-                EstadoReserva.CONFIRMADA, LocalTime.of(16, 0), origen);
+                EstadoReserva.CONFIRMADA, LocalTime.of(16, 0), origen, null);
 
         origen.clear(); // modificar la lista de origen no afecta a la reserva
         assertEquals(2, r.getHistorial().size());

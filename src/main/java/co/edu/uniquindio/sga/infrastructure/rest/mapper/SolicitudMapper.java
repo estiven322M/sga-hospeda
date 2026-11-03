@@ -24,6 +24,7 @@ import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 
 /**
  * Convierte lo que llega por HTTP en tipos del dominio. Se escribe a mano (métodos default) porque
@@ -80,6 +81,11 @@ public interface SolicitudMapper {
 
     default IdentificacionApartamento aApartamento(String identificacion) {
         return new IdentificacionApartamento(identificacion);
+    }
+
+    /** Texto ausente o vacío significa "sin identificador"; el dominio decide si el canal lo exige (RN-19). */
+    default IdentificadorExterno aIdentificadorExterno(String identificador) {
+        return identificador == null || identificador.isBlank() ? null : new IdentificadorExterno(identificador);
     }
 
     default CodigoReserva aCodigo(String codigo) {

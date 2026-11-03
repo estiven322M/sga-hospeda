@@ -15,6 +15,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
@@ -28,7 +29,11 @@ import java.util.Objects;
  * por colección, no una por reserva.
  */
 @Entity
-@Table(name = "reserva", indexes = {
+@Table(name = "reserva",
+        // RN-19: red de seguridad en la base de datos; los NULL (canales sin identificador) no chocan entre sí.
+        uniqueConstraints = @UniqueConstraint(name = "uk_reserva_canal_identificador_externo",
+                columnNames = {"canal_origen", "identificador_externo"}),
+        indexes = {
         @Index(name = "idx_reserva_apartamento_estado", columnList = "apartamento_id, estado"),
         @Index(name = "idx_reserva_estado", columnList = "estado"),
         @Index(name = "idx_reserva_fecha_entrada", columnList = "fecha_entrada"),
@@ -52,6 +57,9 @@ public class ReservaEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "canal_origen", nullable = false, length = 12)
     private CanalOrigen canalOrigen;
+
+    @Column(name = "identificador_externo", length = 60)
+    private String identificadorExterno;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "estado", nullable = false, length = 12)
@@ -90,12 +98,14 @@ public class ReservaEntity {
     public ReservaEntity(String codigo, String apartamentoId, EstanciaEmbeddable estancia, String titularDocumento,
                          CanalOrigen canalOrigen, EstadoReserva estado, LocalTime horaEstimadaLlegada,
                          int versionPolitica, LocalDateTime creadaEn, List<OcupanteEmbeddable> ocupantes,
-                         List<EventoReservaEmbeddable> historial, List<CargoNocheEmbeddable> desglose) {
+                         List<EventoReservaEmbeddable> historial, List<CargoNocheEmbeddable> desglose,
+                         String identificadorExterno) {
         this.codigo = codigo;
         this.apartamentoId = apartamentoId;
         this.estancia = estancia;
         this.titularDocumento = titularDocumento;
         this.canalOrigen = canalOrigen;
+        this.identificadorExterno = identificadorExterno;
         this.estado = estado;
         this.horaEstimadaLlegada = horaEstimadaLlegada;
         this.versionPolitica = versionPolitica;
@@ -110,6 +120,7 @@ public class ReservaEntity {
     public EstanciaEmbeddable getEstancia() { return estancia; }
     public String getTitularDocumento() { return titularDocumento; }
     public CanalOrigen getCanalOrigen() { return canalOrigen; }
+    public String getIdentificadorExterno() { return identificadorExterno; }
     public EstadoReserva getEstado() { return estado; }
     public LocalTime getHoraEstimadaLlegada() { return horaEstimadaLlegada; }
     public int getVersionPolitica() { return versionPolitica; }
