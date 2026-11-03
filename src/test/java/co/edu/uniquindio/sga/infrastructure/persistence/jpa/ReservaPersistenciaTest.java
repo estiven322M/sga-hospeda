@@ -23,7 +23,9 @@ import org.springframework.context.annotation.Import;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -194,6 +196,57 @@ class ReservaPersistenciaTest {
         assertEquals(10, pagina.contenido().size());
         // Página + conteo + una carga por lote para cada una de las tres colecciones
         assertTrue(estadisticas.getPrepareStatementCount() <= 5,
+                "Consultas ejecutadas: " + estadisticas.getPrepareStatementCount());
+    }
+
+    // --- Vencimiento automático (RN-21) ---
+
+    @Test
+    void pendientes_creadas_antes_del_limite_incluye_solo_las_anteriores_y_excluye_la_creada_justo_en_el_limite() {
+        LocalDateTime limite = AHORA.plusHours(5);
+        guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);
+        repositorio.guardar(reserva(codigo(2).valor(), "APT-102", ENTRADA, 2, "101", CanalOrigen.PORTAL,
+                limite.minusMinutes(1)));
+        repositorio.guardar(reserva(codigo(3).valor(), "APT-201", ENTRADA, 2, "102", CanalOrigen.PORTAL, limite));
+        repositorio.guardar(reserva(codigo(4).valor(), "APT-202", ENTRADA, 2, "103", CanalOrigen.PORTAL,
+                limite.plusMinutes(1)));
+        sincronizarYLimpiar();
+
+        List<Reserva> pendientes = repositorio.buscarPendientesCreadasAntesDe(limite);
+
+        assertEquals(List.of(codigo(1), codigo(2)),
+                pendientes.stream().map(Reserva::getCodigo).sorted(Comparator.comparing(CodigoReserva::valor))
+                        .toList());
+    }
+
+    @Test
+    void pendientes_creadas_antes_del_limite_excluye_las_reservas_que_ya_no_estan_pendientes() {
+        Reserva confirmada = guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);
+        confirmada.indicarHoraEstimadaLlegada(LocalTime.of(15, 0), "Titular 100", AHORA.plusHours(1));
+        confirmada.confirmar("Recepción", AHORA.plusHours(2));
+        repositorio.guardar(confirmada);
+        Reserva cancelada = guardar(2, "APT-102", ENTRADA, "101", CanalOrigen.PORTAL, 0);
+        cancelada.cancelar("Cambio de planes", "Titular 101", AHORA.plusHours(1));
+        repositorio.guardar(cancelada);
+        sincronizarYLimpiar();
+
+        assertTrue(repositorio.buscarPendientesCreadasAntesDe(AHORA.plusDays(10)).isEmpty());
+    }
+
+    @Test
+    void pendientes_creadas_antes_del_limite_devuelve_las_reservas_completas_sin_consulta_por_reserva() {
+        IntStream.rangeClosed(1, 10).forEach(i ->
+                guardar(i, "APT-101", ENTRADA.plusDays(i * 3L), "100", CanalOrigen.PORTAL, i));
+        sincronizarYLimpiar();
+        var estadisticas = em.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+        estadisticas.clear();
+
+        List<Reserva> pendientes = repositorio.buscarPendientesCreadasAntesDe(AHORA.plusDays(1));
+
+        assertEquals(10, pendientes.size());
+        assertEquals(2, pendientes.get(0).getOcupantes().size());
+        // Una consulta con los ocupantes y una carga por lote para el historial y para el desglose
+        assertTrue(estadisticas.getPrepareStatementCount() <= 3,
                 "Consultas ejecutadas: " + estadisticas.getPrepareStatementCount());
     }
 }

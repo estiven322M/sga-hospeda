@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -59,5 +60,12 @@ public class ReservaJpaRepository implements ReservaRepository {
                 datos.findAll(ReservaEspecificaciones.segun(filtro),
                         PaginacionJpa.solicitud(pagina, MAS_RECIENTE_PRIMERO)),
                 pagina, mapper::aDominio);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Reserva> buscarPendientesCreadasAntesDe(LocalDateTime limite) {
+        return datos.findByEstadoAndCreadaEnBefore(EstadoReserva.PENDIENTE, limite).stream()
+                .map(mapper::aDominio).toList();
     }
 }

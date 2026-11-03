@@ -23,11 +23,13 @@ import co.edu.uniquindio.sga.domain.valueobject.Tarifa;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
+import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -51,6 +53,7 @@ class CargadorDatosPruebaTest {
     @Autowired private FolioRepository folios;
     @Autowired private BloqueoRepository bloqueos;
     @Autowired private Clock reloj;
+    @Autowired private ConfiguracionAlojamiento configuracion;
 
     private List<Reserva> todasLasReservas() {
         return reservas.buscar(SIN_FILTRO, SolicitudPagina.primera()).contenido();
@@ -125,7 +128,8 @@ class CargadorDatosPruebaTest {
     void hay_un_apartamento_fuera_de_servicio_y_uno_ocupado_por_la_reserva_en_curso() {
         List<Apartamento> todos = apartamentos.listarActivos();
 
-        assertEquals(1, todos.stream().filter(a -> a.getEstadoOperativo() == EstadoOperativo.FUERA_DE_SERVICIO).count());
+        assertEquals(1, todos.stream()
+                .filter(a -> a.getEstadoOperativo() == EstadoOperativo.FUERA_DE_SERVICIO).count());
         Reserva enCurso = enEstado(EstadoReserva.EN_CURSO);
         Apartamento ocupado = todos.stream().filter(a -> a.getIdentificacion().equals(enCurso.getApartamento()))
                 .findFirst().orElseThrow();
@@ -202,6 +206,16 @@ class CargadorDatosPruebaTest {
 
         assertFalse(folio.estaCerrado());
         assertFalse(folio.saldo().esCero());
+    }
+
+    @Test
+    void la_reserva_pendiente_se_siembra_dentro_del_plazo_y_el_vencimiento_automatico_no_la_cancela() {
+        Reserva pendiente = enEstado(EstadoReserva.PENDIENTE);
+        LocalDateTime ahora = LocalDateTime.now(reloj);
+
+        assertFalse(configuracion.plazoConfirmacion().venceAntesDe(pendiente.getCreadaEn(), ahora));
+        assertTrue(reservas.buscarPendientesCreadasAntesDe(
+                ahora.minusHours(configuracion.plazoConfirmacion().horas())).isEmpty());
     }
 
     @Test

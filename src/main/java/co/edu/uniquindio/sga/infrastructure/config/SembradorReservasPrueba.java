@@ -53,15 +53,16 @@ class SembradorReservasPrueba {
     private static final int EDAD_DEL_MENOR = 8;
     private static final int EDAD_DE_LOS_ADULTOS = 35;
 
-    /** Un escenario: dónde, cuándo (en días desde hoy), por qué canal y hace cuántos días se creó. */
+    /** Un escenario: dónde, cuándo (en días desde hoy), por qué canal y si ya indicó la hora de llegada. */
     private record Escenario(String apartamento, int entradaEnDias, int noches, CanalOrigen canal,
-                             String documentoTitular, int creadaHaceDias, boolean conHoraDeLlegada) {
+                             String documentoTitular, boolean conHoraDeLlegada) {
     }
 
     private record ReservaConFolio(Reserva reserva, Folio folio, LocalDateTime creadaEn) {
     }
 
     private final LocalDate hoy;
+    private final LocalDateTime instanteDeCarga;
     private final ApartamentoRepository apartamentos;
     private final ReservaRepository reservas;
     private final FolioRepository folios;
@@ -79,6 +80,7 @@ class SembradorReservasPrueba {
                             CotizadorEstancia cotizador, ConfirmacionReservaService confirmacion,
                             RetencionCancelacionService retencion, ConfiguracionAlojamiento configuracion) {
         this.hoy = LocalDate.now(reloj);
+        this.instanteDeCarga = LocalDateTime.now(reloj);
         this.apartamentos = apartamentos;
         this.reservas = reservas;
         this.folios = folios;
@@ -101,18 +103,20 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarPendiente() {
-        ReservaConFolio r = abrir(new Escenario("APT-201", 20, 2, CanalOrigen.PORTAL, "CC-1001", 0, false));
+        // Creada al cargar: si fuera más vieja que el plazo de confirmación, el vencimiento automático la cancelaría.
+        ReservaConFolio r = abrir(new Escenario("APT-201", 20, 2, CanalOrigen.PORTAL, "CC-1001", false),
+                instanteDeCarga);
         guardar(r);
     }
 
     private void sembrarConfirmada() {
-        ReservaConFolio r = abrir(new Escenario("APT-202", 10, 2, CanalOrigen.DIRECTO, "CC-1002", 3, true));
+        ReservaConFolio r = abrir(new Escenario("APT-202", 10, 2, CanalOrigen.DIRECTO, "CC-1002", true), haceDias(3));
         pagarAnticipoYConfirmar(r);
         guardar(r);
     }
 
     private void sembrarEnCurso() {
-        ReservaConFolio r = abrir(new Escenario("APT-203", -1, 3, CanalOrigen.EXTERNO, "CC-1003", 6, true));
+        ReservaConFolio r = abrir(new Escenario("APT-203", -1, 3, CanalOrigen.EXTERNO, "CC-1003", true), haceDias(6));
         pagarAnticipoYConfirmar(r);
         LocalDateTime llegada = llegadaDe(r.reserva());
         r.reserva().registrarLlegada(AUTOR, llegada);
@@ -125,7 +129,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarFinalizada() {
-        ReservaConFolio r = abrir(new Escenario("APT-201", -30, 3, CanalOrigen.PORTAL, "CC-1004", 40, true));
+        ReservaConFolio r = abrir(new Escenario("APT-201", -30, 3, CanalOrigen.PORTAL, "CC-1004", true), haceDias(40));
         pagarAnticipoYConfirmar(r);
         LocalDateTime llegada = llegadaDe(r.reserva());
         r.reserva().registrarLlegada(AUTOR, llegada);
@@ -137,7 +141,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarCancelada() {
-        ReservaConFolio r = abrir(new Escenario("APT-202", 1, 2, CanalOrigen.DIRECTO, "CC-1005", 20, true));
+        ReservaConFolio r = abrir(new Escenario("APT-202", 1, 2, CanalOrigen.DIRECTO, "CC-1005", true), haceDias(20));
         pagarAnticipoYConfirmar(r);
         LocalDateTime ahora = hoy.minusDays(1).atTime(HORA_CANCELACION);
         PoliticaCancelacion politica = politicaDe(r.reserva());
@@ -147,7 +151,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarNoShow() {
-        ReservaConFolio r = abrir(new Escenario("APT-301", -8, 2, CanalOrigen.EXTERNO, "CC-1006", 12, true));
+        ReservaConFolio r = abrir(new Escenario("APT-301", -8, 2, CanalOrigen.EXTERNO, "CC-1006", true), haceDias(12));
         pagarAnticipoYConfirmar(r);
         LocalDateTime ahora = r.reserva().getEstancia().fechaEntrada()
                 .atTime(configuracion.horaLimiteNoShow()).plusHours(1);
@@ -157,14 +161,13 @@ class SembradorReservasPrueba {
         guardar(r);
     }
 
-    private ReservaConFolio abrir(Escenario escenario) {
+    private ReservaConFolio abrir(Escenario escenario, LocalDateTime creadaEn) {
         Apartamento apartamento = apartamentoDe(escenario.apartamento());
         LocalDate entrada = hoy.plusDays(escenario.entradaEnDias());
         Estancia estancia = new Estancia(entrada, entrada.plusDays(escenario.noches()));
         List<Ocupante> grupo = grupoDe(escenario.documentoTitular());
         disponibilidad.verificarDisponible(apartamento, estancia, grupo.size(), null);
         ValorCongelado valor = cotizador.cotizar(apartamento.getIdentificacion(), estancia, grupo);
-        LocalDateTime creadaEn = hoy.minusDays(escenario.creadaHaceDias()).atTime(HORA_CREACION);
         CodigoReserva codigo = generador.generar(creadaEn.toLocalDate());
         Reserva reserva = Reserva.crear(codigo, apartamento.getIdentificacion(), estancia, grupo.get(0), grupo,
                 escenario.canal(), valor, ultimaPolitica().getVersion(), creadaEn);
@@ -173,6 +176,10 @@ class SembradorReservasPrueba {
         }
         Folio folio = new Folio(codigo, new Cargo(CONCEPTO_ALOJAMIENTO, valor.total()));
         return new ReservaConFolio(reserva, folio, creadaEn);
+    }
+
+    private LocalDateTime haceDias(int dias) {
+        return hoy.minusDays(dias).atTime(HORA_CREACION);
     }
 
     private void pagarAnticipoYConfirmar(ReservaConFolio r) {
