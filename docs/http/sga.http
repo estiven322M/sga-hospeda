@@ -450,7 +450,94 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
 
-# 3.25 El cierre de folio (RN-17, CU-11), el registro de llegada (RN-10) y de salida (7.6), el no-show y el estado
+### 3.26 CU-03 [RN-19] Crear una reserva del canal externo con su identificador -> 201 + Location
+# Si la app no se reinició desde una corrida anterior, el identificador ya existe y responde 409 por RN-19.
+POST {{host}}/api/reservas
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-09-10",
+  "fechaSalida": "2028-09-12",
+  "canalOrigen": "EXTERNO",
+  "identificadorExterno": "BKG-778899",
+  "titular": {"documento": "CC-9600", "nombre": "Paula Nieto", "fechaNacimiento": "1985-04-04"},
+  "ocupantes": [{"documento": "CC-9600", "nombre": "Paula Nieto", "fechaNacimiento": "1985-04-04"}]
+}
+
+### 3.27 [409 · RN-19] El mismo mensaje del canal recibido dos veces no crea otra reserva -> 409
+POST {{host}}/api/reservas
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-09-10",
+  "fechaSalida": "2028-09-12",
+  "canalOrigen": "EXTERNO",
+  "identificadorExterno": "BKG-778899",
+  "titular": {"documento": "CC-9600", "nombre": "Paula Nieto", "fechaNacimiento": "1985-04-04"},
+  "ocupantes": [{"documento": "CC-9600", "nombre": "Paula Nieto", "fechaNacimiento": "1985-04-04"}]
+}
+
+### 3.28 [409 · RN-18 + RN-01] Otra reserva externa sobre las mismas noches: se rechaza y no toca la vigente -> 409
+POST {{host}}/api/reservas
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-09-11",
+  "fechaSalida": "2028-09-13",
+  "canalOrigen": "EXTERNO",
+  "identificadorExterno": "BKG-778900",
+  "titular": {"documento": "CC-9601", "nombre": "Mario Rojas", "fechaNacimiento": "1983-08-08"},
+  "ocupantes": [{"documento": "CC-9601", "nombre": "Mario Rojas", "fechaNacimiento": "1983-08-08"}]
+}
+
+### 3.29 [RN-18] El rechazo quedó registrado (más reciente primero) -> 200
+GET {{host}}/api/reservas-externas/rechazos
+
+### 3.30 [409 · RN-19] Una reserva del canal externo sin identificador -> 409
+POST {{host}}/api/reservas
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-10",
+  "fechaSalida": "2028-10-12",
+  "canalOrigen": "EXTERNO",
+  "titular": {"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"},
+  "ocupantes": [{"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"}]
+}
+
+### 3.31 [409 · RN-19] Un canal que no es externo no lleva identificador externo -> 409
+POST {{host}}/api/reservas
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-10",
+  "fechaSalida": "2028-10-12",
+  "canalOrigen": "PORTAL",
+  "identificadorExterno": "BKG-1",
+  "titular": {"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"},
+  "ocupantes": [{"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"}]
+}
+
+### 3.32 [400] Identificador externo de más de 60 caracteres
+POST {{host}}/api/reservas
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-10",
+  "fechaSalida": "2028-10-12",
+  "canalOrigen": "EXTERNO",
+  "identificadorExterno": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "titular": {"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"},
+  "ocupantes": [{"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"}]
+}
+
+# 3.33 El cierre de folio (RN-17, CU-11), el registro de llegada (RN-10) y de salida (7.6), el no-show y el estado
 # operativo (RN-11) se ejecutan en la PARTE 5, al final de este archivo.
 
 # =====================================================================================================

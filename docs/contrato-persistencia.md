@@ -24,6 +24,7 @@ Reserva guardar(Reserva reserva);                                   // crea o ac
 Optional<Reserva> buscarPorCodigo(CodigoReserva codigo);
 Pagina<Reserva> buscar(FiltroReservas filtro, SolicitudPagina pagina);
 List<Reserva> buscarPendientesCreadasAntesDe(LocalDateTime limite);  // PENDIENTE con creadaEn ANTERIOR al límite (RN-21)
+Optional<Reserva> buscarPorCanalEIdentificadorExterno(CanalOrigen canal, IdentificadorExterno id); // RN-19
 
 // FolioRepository
 Folio guardar(Folio folio);                                         // cargos, ajustes, pagos, cerrado y autorización
@@ -60,6 +61,8 @@ CodigoReserva generar(LocalDate fecha);                             // formato R
 | Puerto / método | Lo que debe cumplir |
 |---|---|
 | `ReservaRepository.buscar` | Filtros **opcionales** (campo nulo = no filtrar): `entradaDesde`/`entradaHasta` sobre la **fecha de entrada** (ambos extremos inclusive), `estado`, `apartamento`, `canal` y `titular` (documento). Orden **de la reserva más reciente a la más antigua** (`creadaEn` descendente). `Pagina.numero` parte de 0; el tamaño es `SolicitudPagina.TAMANIO` (10); `totalElementos` es el total sin paginar. |
+| `ReservaRepository.buscarPorCanalEIdentificadorExterno` | Devuelve la reserva ya creada para ese canal e identificador (RN-19). La base de datos lo respalda con una restricción única `(canal_origen, identificador_externo)`; los NULL de los canales sin identificador no chocan. |
+| `RechazoReservaExternaRepository` | Solo **inserta** y **lista** (10 por página, del más reciente al más antiguo): el rechazo (RN-18) es una constancia inmutable. Debe guardarse **aunque la petición termine en 409**: el caso de uso no revierte la transacción por `ReglaDominioException`. |
 | `ReservaRepository.buscarPendientesCreadasAntesDe` | Solo estado **PENDIENTE** y `creadaEn` **estrictamente anterior** al límite (una creada justo en el límite no entra). Lo consulta el proceso programado del vencimiento automático (RN-21) cada 5 minutos. No necesita orden ni paginación. |
 | `ReservaRepository.buscarActivasPorApartamento` | Solo estados PENDIENTE, CONFIRMADA y EN_CURSO. De esto depende que **una cancelación libere las noches de inmediato** (RN-12). |
 | `ReservaRepository.guardar` / `FolioRepository.guardar` / `ApartamentoRepository.guardar` | Se usan para **actualizar** (no solo crear): modificación, cancelación, llegada, salida, pagos, cierre, estado operativo. Si ya existe, actualizar; no duplicar. Devolver la entidad guardada. |
@@ -76,7 +79,7 @@ El dominio no tiene setters ni constructor vacío. Para restaurar entidades:
 
 | Entidad | Cómo reconstruirla |
 |---|---|
-| `Reserva` | `Reserva.reconstruir(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, valor, politica, creadaEn, estado, horaEstimadaLlegada, historial)`. Restaura el **estado, la fecha de creación y el historial** tal como se guardaron. No valida RN-04 (no exige fecha futura). Una reserva en CONFIRMADA, EN_CURSO, FINALIZADA o NO_SHOW **debe** traer `horaEstimadaLlegada` (RN-09). |
+| `Reserva` | `Reserva.reconstruir(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, valor, politica, creadaEn, estado, horaEstimadaLlegada, historial, identificadorExterno)`. El identificador es obligatorio si el canal es EXTERNO y debe ser nulo en los demás (RN-19). Restaura el **estado, la fecha de creación y el historial** tal como se guardaron. No valida RN-04 (no exige fecha futura). Una reserva en CONFIRMADA, EN_CURSO, FINALIZADA o NO_SHOW **debe** traer `horaEstimadaLlegada` (RN-09). |
 | `Apartamento` | `Apartamento.reconstruir(identificacion, nombre, dormitorios, capacidad, estadoOperativo, activo)`. **No uses `new Apartamento(...)` para restaurar**: ese constructor deja el apartamento *inactivo* (7.4). |
 | `Folio` | Reproduce sus movimientos: `new Folio(reserva, cargoAlojamiento)` (el primer cargo), luego `registrarCargo`, `registrarAjuste` y `registrarPago` en el orden guardado y, si estaba cerrado, `cerrar(autorizacion)`. |
 | `Ocupante` | `new Ocupante(documento, nombre, fechaNacimiento, fechaActual)`; para restaurar pasa la fecha de hoy (`LocalDate.now(...)`) como `fechaActual`. |
