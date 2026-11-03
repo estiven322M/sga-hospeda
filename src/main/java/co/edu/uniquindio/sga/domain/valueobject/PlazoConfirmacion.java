@@ -15,4 +15,12 @@ public record PlazoConfirmacion(int horas) {
         return momento.isAfter(creacion.plusHours(horas));
     }
 
+    /**
+     * Instante límite: una reserva creada estrictamente antes de él ya superó el plazo en {@code ahora}.
+     * Es equivalente a {@link #venceAntesDe} y permite que un puerto de consulta filtre sin conocer el plazo.
+     */
+    public LocalDateTime limiteDeCreacion(LocalDateTime ahora) {
+        return ahora.minusHours(horas);
+    }
+
 }

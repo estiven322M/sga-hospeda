@@ -68,6 +68,14 @@ public class Folio {
         liquidarTerminacion(retencion, "Reverso del alojamiento por no-show", "Penalidad por no-show");
     }
 
+    /**
+     * Vencimiento de una reserva pendiente (RN-21): la reserva pasa a CANCELADA por decisión del sistema, sin
+     * penalidad. Se revierte lo cargado por la estancia; lo que el huésped ya hubiera pagado queda como saldo a favor.
+     */
+    public void liquidarVencimiento() {
+        liquidarTerminacion(Dinero.CERO, "Reverso del alojamiento por vencimiento de la reserva", "Penalidad por vencimiento");
+    }
+
     private void liquidarTerminacion(Dinero retencion, String conceptoReverso, String conceptoPenalidad) {
         verificarQueNoEsteCerrado();
         if (retencion == null || retencion.esNegativo()) {

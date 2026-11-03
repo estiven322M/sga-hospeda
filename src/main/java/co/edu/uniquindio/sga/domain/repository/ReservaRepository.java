@@ -19,4 +19,10 @@ public interface ReservaRepository {
     /** Listado filtrado, ordenado de la más reciente a la más antigua (creadaEn DESC). */
     Pagina<Reserva> buscar(FiltroReservas filtro, SolicitudPagina pagina);
 
+    /**
+     * Reservas en estado PENDIENTE creadas estrictamente antes de {@code limite}. Es el insumo del vencimiento
+     * automático (RN-21); el caso de uso calcula el límite con PlazoConfirmacion.limiteDeCreacion.
+     */
+    List<Reserva> buscarPendientesCreadasAntesDe(java.time.LocalDateTime limite);
+
 }
