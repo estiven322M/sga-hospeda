@@ -23,6 +23,7 @@ List<Reserva> buscarActivasPorApartamento(IdentificacionApartamento apartamento)
 Reserva guardar(Reserva reserva);                                   // crea o actualiza (estancia, ocupantes, valor, historial)
 Optional<Reserva> buscarPorCodigo(CodigoReserva codigo);
 Pagina<Reserva> buscar(FiltroReservas filtro, SolicitudPagina pagina);
+List<Reserva> buscarPendientesCreadasAntesDe(LocalDateTime limite);  // PENDIENTE con creadaEn ANTERIOR al límite (RN-21)
 
 // FolioRepository
 Folio guardar(Folio folio);                                         // cargos, ajustes, pagos, cerrado y autorización
@@ -59,6 +60,7 @@ CodigoReserva generar(LocalDate fecha);                             // formato R
 | Puerto / método | Lo que debe cumplir |
 |---|---|
 | `ReservaRepository.buscar` | Filtros **opcionales** (campo nulo = no filtrar): `entradaDesde`/`entradaHasta` sobre la **fecha de entrada** (ambos extremos inclusive), `estado`, `apartamento`, `canal` y `titular` (documento). Orden **de la reserva más reciente a la más antigua** (`creadaEn` descendente). `Pagina.numero` parte de 0; el tamaño es `SolicitudPagina.TAMANIO` (10); `totalElementos` es el total sin paginar. |
+| `ReservaRepository.buscarPendientesCreadasAntesDe` | Solo estado **PENDIENTE** y `creadaEn` **estrictamente anterior** al límite (una creada justo en el límite no entra). Lo consulta el proceso programado del vencimiento automático (RN-21) cada 5 minutos. No necesita orden ni paginación. |
 | `ReservaRepository.buscarActivasPorApartamento` | Solo estados PENDIENTE, CONFIRMADA y EN_CURSO. De esto depende que **una cancelación libere las noches de inmediato** (RN-12). |
 | `ReservaRepository.guardar` / `FolioRepository.guardar` / `ApartamentoRepository.guardar` | Se usan para **actualizar** (no solo crear): modificación, cancelación, llegada, salida, pagos, cierre, estado operativo. Si ya existe, actualizar; no duplicar. Devolver la entidad guardada. |
 | `FolioRepository.buscarPorReserva` | Un folio por reserva. El orden de cargos, ajustes y pagos debe ser el de registro. |
@@ -97,6 +99,10 @@ Para que la colección `docs/http/sga.http` funcione de punta a punta, los datos
   (consistente con `Folio.liquidarCancelacion` / `liquidarNoShow`).
 - Al menos **un bloqueo vigente** y **un apartamento FUERA_DE_SERVICIO**.
 - Las reservas sembradas **no deben ocupar fechas de 2028** (las usa la colección HTTP).
+- **Cuidado con las reservas PENDIENTE sembradas (RN-21):** el vencimiento automático cancela toda reserva PENDIENTE cuya
+  `creadaEn` supere el plazo de confirmación (24 h hoy, `sga.alojamiento.plazo-confirmacion-horas`), y se ejecuta **al arrancar
+  y luego cada 5 minutos**. Si siembras una PENDIENTE con una fecha de creación antigua, quedará CANCELADA a los pocos
+  segundos y ya no habrá ninguna en ese estado. Siémbrala con `creadaEn` reciente (por ejemplo, `LocalDateTime.now()`).
 
 Un apartamento nuevo nace inactivo: en la carga inicial créalo, registra las tarifas y llama a `activar()`.
 

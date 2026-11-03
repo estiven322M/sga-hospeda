@@ -11,6 +11,8 @@ El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencia
 - `Apartamento`: nace **inactivo** (7.4), con `activar`, `darDeBaja`, `actualizarDatos` y `reincorporarAlServicio`.
 - `Folio`: nueva lista de **ajustes** (movimientos con signo, RN-16), `liquidarCancelacion` y `liquidarNoShow`.
 - `RetencionCancelacionService`: además de la cancelación calcula la consecuencia del no-show con la política congelada.
+- Vencimiento automático (RN-21): `Reserva.haVencido`, `PlazoConfirmacion.limiteDeCreacion` y `Folio.liquidarVencimiento`
+  (reverso del alojamiento sin penalidad).
 - `Reserva.modificarEstancia`: ahora rechaza reservas en curso, exige al titular entre los ocupantes y revalida RN-04.
 - `TiempoPreparacion.permiteEntradaElMismoDia(salida, entrada)`: compara con la ventana salida-entrada (RN-20).
 - Puertos nuevos o ampliados en `domain/repository`: paginación (`Pagina`, `SolicitudPagina`), `FiltroReservas`,
@@ -39,6 +41,7 @@ classDiagram
         +indicarHoraEstimadaLlegada()
         +confirmar()
         +cancelar()
+        +haVencido() boolean «nuevo»
         +vencer()
         +registrarLlegada()
         +registrarSalida()
@@ -78,6 +81,7 @@ classDiagram
         +registrarPago()
         +liquidarCancelacion() «nuevo»
         +liquidarNoShow() «nuevo»
+        +liquidarVencimiento() «nuevo»
         +saldo() Dinero
         +cerrar()
     }
