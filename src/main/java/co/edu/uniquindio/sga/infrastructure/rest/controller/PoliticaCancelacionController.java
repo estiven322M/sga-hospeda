@@ -4,6 +4,7 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.LocalDate;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,6 +56,7 @@ public class PoliticaCancelacionController {
 
     /** 201 con Location hacia la nueva versión. */
     @PostMapping
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Definir una nueva versión de la política de cancelación")
     public ResponseEntity<PoliticaCancelacionResponse> registrar(
             @Valid @RequestBody RegistrarPoliticaCancelacionRequest request) {
@@ -67,12 +69,14 @@ public class PoliticaCancelacionController {
 
     /** La vigente hoy, con la fecha del servidor. */
     @GetMapping("/vigente")
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Consultar la política de cancelación vigente")
     public ResponseEntity<PoliticaCancelacionResponse> vigente() {
         return ResponseEntity.ok(mapper.aPolitica(consultarVigente.ejecutar(LocalDate.now(reloj))));
     }
 
     @GetMapping("/{version}")
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Consultar una versión de la política de cancelación")
     public ResponseEntity<PoliticaCancelacionResponse> porVersion(@PathVariable int version) {
         return ResponseEntity.ok(mapper.aPolitica(consultarPorVersion.ejecutar(solicitud.aVersion(version))));

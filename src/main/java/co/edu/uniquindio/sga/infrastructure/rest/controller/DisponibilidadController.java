@@ -3,6 +3,7 @@ package co.edu.uniquindio.sga.infrastructure.rest.controller;
 import java.time.Clock;
 import java.time.LocalDate;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,6 +44,7 @@ public class DisponibilidadController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Consultar apartamentos disponibles (CU-02)")
     public ResponseEntity<PaginaResponse<ApartamentoDisponibleResponse>> consultar(
             @Valid @RequestBody ConsultarDisponibilidadRequest request,

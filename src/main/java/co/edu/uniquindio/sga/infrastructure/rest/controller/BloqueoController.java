@@ -2,6 +2,7 @@ package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import java.net.URI;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,6 +49,7 @@ public class BloqueoController {
 
     /** CU-09. 201; el bloqueo no tiene identificador propio, así que Location apunta al listado del apartamento. */
     @PostMapping
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Registrar un bloqueo (CU-09)")
     public ResponseEntity<BloqueoResponse> registrar(@PathVariable String identificacion,
                                                      @Valid @RequestBody RegistrarBloqueoRequest request) {
@@ -60,6 +62,7 @@ public class BloqueoController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Listar los bloqueos de un apartamento")
     public ResponseEntity<PaginaResponse<BloqueoResponse>> listar(
             @PathVariable String identificacion,

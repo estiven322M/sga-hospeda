@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +46,7 @@ public class TarifaController {
 
     /** Crea o reemplaza la tarifa de esa temporada (PUT idempotente): 200. */
     @PutMapping("/{temporada}")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Definir o reemplazar la tarifa de un apartamento en una temporada")
     public ResponseEntity<TarifaResponse> definir(@PathVariable String identificacion,
                                                   @PathVariable String temporada,
@@ -55,6 +57,7 @@ public class TarifaController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Listar las tarifas de un apartamento")
     public ResponseEntity<PaginaResponse<TarifaResponse>> listar(
             @PathVariable String identificacion,
