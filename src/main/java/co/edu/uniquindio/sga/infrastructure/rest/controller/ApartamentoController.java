@@ -2,6 +2,7 @@ package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import java.net.URI;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -70,6 +71,7 @@ public class ApartamentoController {
 
     /** 201 con Location. El apartamento nace inactivo hasta tener tarifas completas (7.4). */
     @PostMapping
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Crear un apartamento")
     public ResponseEntity<ApartamentoResponse> crear(@Valid @RequestBody CrearApartamentoRequest request) {
         Apartamento apartamento = crearApartamento.ejecutar(solicitud.aApartamento(request.identificacion()),
@@ -80,6 +82,7 @@ public class ApartamentoController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR', 'PERSONAL_SERVICIO')")
     @Operation(summary = "Listar apartamentos (activos o no), de 10 en 10")
     public ResponseEntity<PaginaResponse<ApartamentoResponse>> listar(
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "La página no puede ser negativa") int pagina) {
@@ -88,6 +91,7 @@ public class ApartamentoController {
     }
 
     @GetMapping("/{identificacion}")
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR', 'PERSONAL_SERVICIO')")
     @Operation(summary = "Consultar un apartamento")
     public ResponseEntity<ApartamentoResponse> obtener(@PathVariable String identificacion) {
         return ResponseEntity.ok(mapper.aResponse(
@@ -95,6 +99,7 @@ public class ApartamentoController {
     }
 
     @PutMapping("/{identificacion}")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Editar los datos de un apartamento")
     public ResponseEntity<ApartamentoResponse> actualizar(@PathVariable String identificacion,
                                                          @Valid @RequestBody ActualizarApartamentoRequest request) {
@@ -105,6 +110,7 @@ public class ApartamentoController {
 
     /** Operación de negocio: exige tarifa en todas las temporadas (7.4). */
     @PutMapping("/{identificacion}/activar")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Activar un apartamento (requiere tarifas completas)")
     public ResponseEntity<ApartamentoResponse> activar(@PathVariable String identificacion) {
         return ResponseEntity.ok(mapper.aResponse(
@@ -113,6 +119,7 @@ public class ApartamentoController {
 
     /** Baja lógica: el apartamento deja de venderse, no se elimina. */
     @PutMapping("/{identificacion}/baja")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Dar de baja un apartamento (baja lógica)")
     public ResponseEntity<ApartamentoResponse> darDeBaja(@PathVariable String identificacion) {
         return ResponseEntity.ok(mapper.aResponse(

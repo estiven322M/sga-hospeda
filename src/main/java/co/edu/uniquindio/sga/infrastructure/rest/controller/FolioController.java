@@ -2,6 +2,7 @@ package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import java.net.URI;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,7 +25,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-/** Adaptador REST del recurso Folio. El folio de una reserva se identifica por el código de esa reserva. */
+/**
+ * Adaptador REST del recurso Folio. El folio de una reserva se identifica por el código de esa reserva.
+ * Seguridad (Guía 12): el huésped solo consulta el folio de SU reserva (7.2); pagos y cierre son de recepción, y
+ * solo el administrador autoriza el cierre con saldo pendiente (CU-11, 7.1).
+ */
 @RestController
 @RequestMapping("/api/reservas/{codigo}/folio")
 @Tag(name = "Folios", description = "Cargos, ajustes, pagos y saldo de una reserva")
@@ -46,6 +51,8 @@ public class FolioController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR') "
+            + "or (hasAuthority('HUESPED') and @propietarioReserva.esTitular(#codigo, authentication))")
     @Operation(summary = "Consultar el folio de una reserva con su saldo")
     public ResponseEntity<FolioResponse> obtener(@PathVariable String codigo) {
         return ResponseEntity.ok(mapper.aResponse(consultarFolio.ejecutar(solicitud.aCodigo(codigo))));
@@ -56,6 +63,8 @@ public class FolioController {
      * (RN-17); sin ellos, 409. Operación de negocio: 200.
      */
     @PutMapping("/cerrar")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR') "
+            + "or (hasAuthority('RECEPCIONISTA') and @cierreFolio.sinAutorizacion(#request))")
     @Operation(summary = "Cerrar el folio; con saldo pendiente exige autorización (CU-11)")
     public ResponseEntity<FolioResponse> cerrar(@PathVariable String codigo,
                                                @Valid @RequestBody CerrarFolioRequest request) {
@@ -65,6 +74,7 @@ public class FolioController {
 
     /** CU-08. Crea un pago (201); Location apunta al folio, que devuelve con el saldo actualizado. */
     @PostMapping("/pagos")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Registrar un pago en el folio (CU-08)")
     public ResponseEntity<FolioResponse> registrarPago(@PathVariable String codigo,
                                                       @Valid @RequestBody RegistrarPagoRequest request) {

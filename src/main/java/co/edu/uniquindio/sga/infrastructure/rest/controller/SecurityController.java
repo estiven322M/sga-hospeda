@@ -1,0 +1,60 @@
+package co.edu.uniquindio.sga.infrastructure.rest.controller;
+
+import co.edu.uniquindio.sga.application.dto.request.LoginRequest;
+import co.edu.uniquindio.sga.application.dto.request.RegistroUsuarioRequest;
+import co.edu.uniquindio.sga.application.dto.response.TokenResponse;
+import co.edu.uniquindio.sga.application.dto.response.UsuarioRegistradoResponse;
+import co.edu.uniquindio.sga.application.security.SecurityService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Controller REST de autenticación (Guía 12). Ambos endpoints son públicos (SecurityConfig.RUTAS_PUBLICAS):
+ * el login emite el JWT y el registro crea huéspedes. Depende del puerto SecurityService, no de Spring Security.
+ */
+@RestController
+@RequestMapping("/api/auth")
+@Tag(name = "Autenticación", description = "Inicio de sesión, emisión del JWT y registro público de huéspedes")
+public class SecurityController {
+
+    private final SecurityService securityService;
+
+    public SecurityController(SecurityService securityService) {
+        this.securityService = securityService;
+    }
+
+    /** POST -> /api/auth/login */
+    @PostMapping("/login")
+    @SecurityRequirements    // público: no exige token en Swagger
+    @Operation(summary = "Iniciar sesión", description = "Devuelve un JWT para usar como Bearer token")
+    @ApiResponse(responseCode = "200", description = "Token emitido")
+    @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos")
+    @ApiResponse(responseCode = "401", description = "Credenciales inválidas o usuario inactivo")
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok(securityService.login(request));
+    }
+
+    /**
+     * POST -> /api/auth/registro. Crea siempre un HUESPED (7.2). No devuelve Location: las cuentas no se
+     * exponen como recurso consultable; el huésped continúa con POST /api/auth/login.
+     */
+    @PostMapping("/registro")
+    @SecurityRequirements    // público: no exige token en Swagger
+    @Operation(summary = "Registrarse como huésped",
+            description = "Registro público. El rol asignado es siempre HUESPED")
+    @ApiResponse(responseCode = "201", description = "Huésped registrado")
+    @ApiResponse(responseCode = "400", description = "Datos inválidos o contraseña insegura")
+    @ApiResponse(responseCode = "409", description = "El correo o el documento ya están registrados")
+    public ResponseEntity<UsuarioRegistradoResponse> registrar(@Valid @RequestBody RegistroUsuarioRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(securityService.registrar(request));
+    }
+}

@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -48,6 +49,7 @@ public class EstadoOperativoController {
 
     /** CU-10: PENDIENTE_PREPARACION → EN_PREPARACION. */
     @PutMapping("/iniciar-preparacion")
+    @PreAuthorize("hasAnyAuthority('PERSONAL_SERVICIO', 'ADMINISTRADOR')")
     @Operation(summary = "Iniciar la preparación de un apartamento (CU-10)")
     public ResponseEntity<ApartamentoResponse> iniciarPreparacion(@PathVariable String identificacion) {
         return ResponseEntity.ok(mapper.aResponse(
@@ -56,6 +58,7 @@ public class EstadoOperativoController {
 
     /** CU-10: EN_PREPARACION → PREPARADO. */
     @PutMapping("/marcar-preparado")
+    @PreAuthorize("hasAnyAuthority('PERSONAL_SERVICIO', 'ADMINISTRADOR')")
     @Operation(summary = "Marcar un apartamento como preparado (CU-10)")
     public ResponseEntity<ApartamentoResponse> marcarPreparado(@PathVariable String identificacion) {
         return ResponseEntity.ok(mapper.aResponse(
@@ -64,6 +67,7 @@ public class EstadoOperativoController {
 
     /** Decisión administrativa; no equivale a un bloqueo (3.3). */
     @PutMapping("/declarar-fuera-de-servicio")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Declarar un apartamento fuera de servicio")
     public ResponseEntity<ApartamentoResponse> declararFueraDeServicio(@PathVariable String identificacion) {
         return ResponseEntity.ok(mapper.aResponse(
@@ -72,6 +76,7 @@ public class EstadoOperativoController {
 
     /** FUERA_DE_SERVICIO → PENDIENTE_PREPARACION. */
     @PutMapping("/reincorporar")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Reincorporar al servicio un apartamento fuera de servicio")
     public ResponseEntity<ApartamentoResponse> reincorporar(@PathVariable String identificacion) {
         return ResponseEntity.ok(mapper.aResponse(

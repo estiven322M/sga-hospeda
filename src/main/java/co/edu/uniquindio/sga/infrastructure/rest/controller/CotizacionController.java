@@ -3,6 +3,7 @@ package co.edu.uniquindio.sga.infrastructure.rest.controller;
 import java.time.Clock;
 import java.time.LocalDate;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,6 +44,7 @@ public class CotizacionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Cotizar una estancia (CU-01)")
     public ResponseEntity<CotizacionResponse> cotizar(@Valid @RequestBody CotizarEstanciaRequest request) {
         IdentificacionApartamento apartamento = solicitud.aApartamento(request.identificacionApartamento());

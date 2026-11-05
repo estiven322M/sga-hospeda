@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,6 +36,7 @@ public class RechazoReservaExternaController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Listar las reservas externas rechazadas (RN-18)")
     public ResponseEntity<PaginaResponse<RechazoReservaExternaResponse>> listar(
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "La página no puede ser negativa") int pagina) {

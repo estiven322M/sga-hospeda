@@ -42,7 +42,9 @@ Para compilar y ejecutar este backend se requiere:
 
 - **Arrancar:** `.\gradlew.bat bootRun` (Windows) o `./gradlew bootRun`. Puerto 8080, JDK 25.
 - **Pruebas automáticas:** `.\gradlew.bat test`.
-- **Swagger UI:** http://localhost:8080/swagger-ui.html
+- **Clave del JWT (obligatoria para arrancar):** copiar `src/main/resources/application-secrets.properties.example` como `application-secrets.properties` (no se versiona) y poner una clave aleatoria de al menos 32 caracteres, o definir la variable de entorno `SGA_JWT_SECRET`.
+- **Iniciar sesión:** `POST /api/auth/login` con un usuario inicial (`admin@sga.local` / `Admin2026`, `recepcion@sga.local` / `Recepcion2026`, `servicio@sga.local` / `Servicio2026`, `huesped1@sga.local` y `huesped2@sga.local` / `Huesped2026`) y enviar el token como `Authorization: Bearer <token>`.
+- **Swagger UI:** http://localhost:8080/swagger-ui.html (botón **Authorize** para pegar el token)
 - **Contrato de la API:** `docs/api/openapi.yaml` (coincide con los endpoints implementados).
 - **Consola H2:** http://localhost:8080/h2-console, URL `jdbc:h2:mem:sgadb`, usuario `sa`, sin contraseña.
 - **Datos de prueba:** se cargan solos al iniciar (apartamentos de ejemplo, temporadas BASE, MEDIA y ALTA, una política de cancelación, reservas en todos los estados y una por canal). Se desactivan con `sga.datos-prueba.habilitado=false` en `application.properties`. Los valores de la Ficha del Alojamiento están en `CatalogoDatosPrueba` y se ajustan en esa única clase.
@@ -55,9 +57,10 @@ Para compilar y ejecutar este backend se requiere:
 - `docs/matriz-trazabilidad.md`: regla de negocio, su implementación, su prueba y el endpoint que la expone.
 - `docs/diagrama-clases-dominio.md`: diagrama de clases del dominio.
 - `docs/contrato-persistencia.md`: contrato entre la capa de aplicación y la persistencia.
+- `docs/seguridad.md`: seguridad con JWT, matriz de roles por endpoint y decisiones (Guía 12).
 
 ---
 
 ## 7. Alcance de esta entrega
 
-El backend se entrega **sin seguridad JWT**, por indicación del docente: los endpoints están abiertos y no hay respuestas 401 ni 403.
+Con la Guía 12 el backend incorpora **seguridad con JWT** (Spring Security 7, HS256): todo endpoint exige token salvo el login y el registro público, cada endpoint se protege por rol y un huésped solo accede a sus propias reservas y folios (propietario del recurso). Respuestas `401` (sin token, token inválido o vencido, credenciales erradas) y `403` (rol o propietario). Detalle en `docs/seguridad.md`.

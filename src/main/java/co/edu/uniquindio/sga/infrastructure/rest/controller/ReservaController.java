@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,6 +52,9 @@ import jakarta.validation.constraints.Min;
  * delega en el caso de uso y arma la respuesta HTTP. No decide ninguna regla de negocio.
  * La fecha y hora actuales las pone el servidor (Clock con la zona del alojamiento), no el cliente.
  * No hay endpoint genérico de cambio de estado: cada transición es una operación de negocio.
+ * Seguridad (Guía 12): cada endpoint declara con @PreAuthorize los roles de la matriz 7.1. Consultar y cancelar
+ * admiten además al huésped, pero solo si es el titular (@propietarioReserva); crear verifica el canal permitido
+ * para el rol y que el huésped reserve a su nombre (@canalReserva).
  */
 @RestController
 @RequestMapping("/api/reservas")
@@ -92,6 +96,8 @@ public class ReservaController {
 
     /** CU-03. 201 con Location hacia la reserva creada. */
     @PostMapping
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR') "
+            + "and @canalReserva.puedeCrear(#request, authentication)")
     @Operation(summary = "Crear una reserva (CU-03)")
     public ResponseEntity<ReservaDetalleResponse> crear(@Valid @RequestBody CrearReservaRequest request) {
         LocalDateTime ahora = LocalDateTime.now(reloj);
@@ -112,6 +118,7 @@ public class ReservaController {
 
     /** Listado filtrable de 10 en 10, de la reserva más reciente a la más antigua. */
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Listar reservas con filtros")
     public ResponseEntity<PaginaResponse<ReservaResumenResponse>> listar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate entradaDesde,
@@ -128,6 +135,8 @@ public class ReservaController {
     }
 
     @GetMapping("/{codigo}")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR') "
+            + "or (hasAuthority('HUESPED') and @propietarioReserva.esTitular(#codigo, authentication))")
     @Operation(summary = "Consultar una reserva por su código")
     public ResponseEntity<ReservaDetalleResponse> obtener(@PathVariable String codigo) {
         return ResponseEntity.ok(mapper.aDetalle(consultarReserva.ejecutar(solicitud.aCodigo(codigo))));
@@ -135,6 +144,7 @@ public class ReservaController {
 
     /** CU-04. Operación de negocio: 200. */
     @PutMapping("/{codigo}/modificar")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Modificar fechas u ocupantes de una reserva (CU-04)")
     public ResponseEntity<ReservaDetalleResponse> modificar(@PathVariable String codigo,
                                                            @Valid @RequestBody ModificarReservaRequest request) {
@@ -152,6 +162,7 @@ public class ReservaController {
 
     /** Confirmación (PENDIENTE → CONFIRMADA), con el anticipo cubierto. Operación de negocio: 200. */
     @PutMapping("/{codigo}/confirmar")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Confirmar una reserva")
     public ResponseEntity<ReservaDetalleResponse> confirmar(@PathVariable String codigo,
                                                            @Valid @RequestBody ConfirmarReservaRequest request) {
@@ -162,6 +173,7 @@ public class ReservaController {
 
     /** CU-06. CONFIRMADA → EN_CURSO y el apartamento pasa a OCUPADO. Operación de negocio: 200. */
     @PutMapping("/{codigo}/registrar-llegada")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Registrar la llegada del grupo (CU-06)")
     public ResponseEntity<ReservaDetalleResponse> registrarLlegada(@PathVariable String codigo,
                                                                   @Valid @RequestBody AutorRequest request) {
@@ -172,6 +184,7 @@ public class ReservaController {
 
     /** CU-07. EN_CURSO → FINALIZADA y el apartamento pasa a PENDIENTE_PREPARACION. Exige el folio cerrado. */
     @PutMapping("/{codigo}/registrar-salida")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Registrar la salida del grupo (CU-07)")
     public ResponseEntity<ReservaDetalleResponse> registrarSalida(@PathVariable String codigo,
                                                                  @Valid @RequestBody AutorRequest request) {
@@ -182,6 +195,7 @@ public class ReservaController {
 
     /** CONFIRMADA → NO_SHOW desde la hora límite del día de entrada; aplica la política congelada. */
     @PutMapping("/{codigo}/declarar-no-show")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Declarar no-show")
     public ResponseEntity<ReservaDetalleResponse> declararNoShow(@PathVariable String codigo,
                                                                 @Valid @RequestBody AutorRequest request) {
@@ -192,6 +206,8 @@ public class ReservaController {
 
     /** CU-05. Operación de negocio: 200. */
     @PutMapping("/{codigo}/cancelar")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR') "
+            + "or (hasAuthority('HUESPED') and @propietarioReserva.esTitular(#codigo, authentication))")
     @Operation(summary = "Cancelar una reserva (CU-05)")
     public ResponseEntity<ReservaDetalleResponse> cancelar(@PathVariable String codigo,
                                                           @Valid @RequestBody CancelarReservaRequest request) {

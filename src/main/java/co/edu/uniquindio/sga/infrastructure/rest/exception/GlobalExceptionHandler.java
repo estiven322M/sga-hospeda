@@ -9,6 +9,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.validation.method.ParameterErrors;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,13 +21,17 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import co.edu.uniquindio.sga.application.exception.RecursoNoEncontradoException;
+import co.edu.uniquindio.sga.application.exception.UsuarioYaRegistradoException;
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * Único manejador de errores de la API. Convención:
- *  400 el mensaje está mal escrito (forma) · 404 el identificador no existe · 409 el negocio no lo permite.
+ * Único manejador de errores de la API. Convención (ampliada en la Guía 12, 3.14):
+ *  400 el mensaje está mal escrito (forma) · 401 no sé quién eres (sin token, token inválido o vencido, o
+ *  credenciales erradas) · 403 sé quién eres, pero tu rol no lo permite o no eres el propietario del recurso ·
+ *  404 el identificador no existe · 409 el negocio no lo permite.
  * Nunca devuelve trazas técnicas: la traza de un error inesperado va al log, no al cliente.
+ * Los 401/403 de la cadena de filtros también llegan aquí, reenviados por ManejadorErroresSeguridad.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -78,6 +86,33 @@ public class GlobalExceptionHandler {
     /** Una regla de negocio (RN-xx, L-xx) lo impide. */
     @ExceptionHandler(ReglaDominioException.class)
     public ResponseEntity<ErrorResponse> handleReglaDominio(ReglaDominioException ex, HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
+    /**
+     * Seguridad (Guía 12): no se sabe quién es. En el login, credenciales inválidas o usuario inactivo, con un
+     * mensaje genérico que no revela si el correo existe. En la cadena de filtros, token ausente, inválido o vencido.
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAutenticacion(AuthenticationException ex, HttpServletRequest request) {
+        boolean problemaDeToken = ex instanceof OAuth2AuthenticationException
+                || ex instanceof InsufficientAuthenticationException;
+        String mensaje = problemaDeToken
+                ? "Se requiere un token válido: inicie sesión y envíe el encabezado Authorization: Bearer <token>"
+                : "Credenciales inválidas";
+        return construir(HttpStatus.UNAUTHORIZED, mensaje, request, null);
+    }
+
+    /** Seguridad (Guía 12): autenticado, pero sin permiso por rol, por canal o por propietario del recurso. */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccesoDenegado(AccessDeniedException ex, HttpServletRequest request) {
+        return construir(HttpStatus.FORBIDDEN, "No tiene permiso para realizar esta operación", request, null);
+    }
+
+    /** Registro público (Guía 12): el correo o el documento ya pertenecen a otro usuario. */
+    @ExceptionHandler(UsuarioYaRegistradoException.class)
+    public ResponseEntity<ErrorResponse> handleUsuarioYaRegistrado(UsuarioYaRegistradoException ex,
+                                                                   HttpServletRequest request) {
         return construir(HttpStatus.CONFLICT, ex.getMessage(), request, null);
     }
 

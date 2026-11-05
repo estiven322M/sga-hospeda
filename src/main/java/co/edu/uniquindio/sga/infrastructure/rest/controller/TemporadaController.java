@@ -2,6 +2,7 @@ package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import java.net.URI;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +48,7 @@ public class TemporadaController {
 
     /** 201 con Location hacia el listado (la temporada se identifica por su nombre, que no va en una URL propia). */
     @PostMapping
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
     @Operation(summary = "Registrar una temporada")
     public ResponseEntity<TemporadaResponse> registrar(@Valid @RequestBody RegistrarTemporadaRequest request) {
         Temporada temporada = registrarTemporada.ejecutar(solicitud.aTemporada(request));
@@ -55,6 +57,7 @@ public class TemporadaController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Listar las temporadas")
     public ResponseEntity<PaginaResponse<TemporadaResponse>> listar(
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "La página no puede ser negativa") int pagina) {

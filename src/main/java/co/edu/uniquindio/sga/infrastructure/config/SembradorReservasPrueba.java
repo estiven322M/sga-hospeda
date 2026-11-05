@@ -55,6 +55,10 @@ class SembradorReservasPrueba {
     private static final long ABONO_DURANTE_LA_ESTANCIA = 100_000;
     private static final int EDAD_DEL_MENOR = 8;
     private static final int EDAD_DE_LOS_ADULTOS = 35;
+    // Guía 12: documentos de los huéspedes iniciales (application.properties). Las reservas del portal quedan a su
+    // nombre para poder demostrar el acceso por propietario: el huésped 1 ve la suya y no la del huésped 2 (7.2)
+    private static final String HUESPED_1 = "1094000111";
+    private static final String HUESPED_2 = "1094000222";
 
     /** Un escenario: dónde, cuándo (en días desde hoy), por qué canal y hace cuántos días se creó. */
     private record Escenario(String apartamento, int entradaEnDias, int noches, CanalOrigen canal,
@@ -107,7 +111,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarPendiente() {
-        ReservaConFolio r = abrir(new Escenario("APT-201", 20, 2, CanalOrigen.PORTAL, "CC-1001", 0, false));
+        ReservaConFolio r = abrir(new Escenario("APT-201", 20, 2, CanalOrigen.PORTAL, HUESPED_1, 0, false));
         guardar(r);
     }
 
@@ -146,7 +150,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarFinalizada() {
-        ReservaConFolio r = abrir(new Escenario("APT-201", -30, 3, CanalOrigen.PORTAL, "CC-1004", 40, true));
+        ReservaConFolio r = abrir(new Escenario("APT-201", -30, 3, CanalOrigen.PORTAL, HUESPED_2, 40, true));
         pagarAnticipoYConfirmar(r);
         LocalDateTime llegada = llegadaDe(r.reserva());
         r.reserva().registrarLlegada(AUTOR, llegada);
