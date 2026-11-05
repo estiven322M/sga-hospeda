@@ -37,6 +37,13 @@ dependencies {
     // La línea 3.x de springdoc es la compatible con Spring Boot 4
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
 
+    // --- Seguridad: Spring Security + validación de JWT (Guía 12) ---
+    // Spring Security protege el ciclo HTTP con una cadena de filtros (SecurityFilterChain)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    // Servidor de recursos OAuth2: sabe firmar (NimbusJwtEncoder) y validar (NimbusJwtDecoder) el JWT.
+    // En Spring Boot 4 se llama 'security-oauth2-resource-server' (antes 'oauth2-resource-server')
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+
     // MapStruct: genera en compilación los mappers DTO <-> dominio y JPA <-> dominio
     implementation 'org.mapstruct:mapstruct:1.6.3'
 
