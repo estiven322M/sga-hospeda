@@ -120,3 +120,22 @@ Sigue pendiente:
   decide "ahora"); su camino de éxito está cubierto por pruebas de casos de uso, y por HTTP se prueba su 409.
 - Falta "consultar las llegadas y salidas previstas para un día" (7.6): no hay endpoint propio (las llegadas se pueden
   aproximar con `GET /api/reservas?entradaDesde=...&entradaHasta=...`; las salidas no se pueden filtrar por fecha de salida).
+
+---
+
+## Seguridad (Guía 12, proyecto 7.1 y 7.2)
+
+Las reglas de acceso **no son reglas de negocio**: no viven en el dominio (el usuario es un concepto de acceso, 3.6),
+se evalúan en `@PreAuthorize` y su incumplimiento es 401/403, no 409. El detalle está en
+[`docs/seguridad.md`](seguridad.md).
+
+| ID | Regla de acceso | Responsable | Endpoint que la expone | Pruebas (evidencia) | Prueba HTTP | Estado |
+|---|---|---|---|---|---|---|
+| S-01 | Autenticación con JWT (HS256, emisor y expiración validados; algoritmo fijo) | `JwtConfig`, `JwtTokenProvider`, `SecurityConfig` | todos menos login y registro | `JwtConfigTest` (8 pruebas); `SeguridadApiIntegracionTest.caso6`, `caso13` | 6.6, 6.13, 6.13b, 6.14 | Implementada |
+| S-02 | Login con BCrypt y mensaje genérico ante credenciales inválidas o usuario inactivo | `SecurityServiceImpl`, `UserConfig`, `CustomUserDetails`, `GlobalExceptionHandler` | `POST /api/auth/login` | `SecurityServiceImplTest`; `SecurityControllerTest`; `SeguridadApiIntegracionTest.caso3`, `caso4` | 0.1–0.7, 6.3–6.5 | Implementada |
+| S-03 | Registro público: siempre HUESPED, correo y documento únicos, contraseña segura | `RegistroUsuarioRequest`, `SecurityServiceImpl` | `POST /api/auth/registro` | `SecurityServiceImplTest`; `SecurityControllerTest`; `SeguridadApiIntegracionTest.elRegistroPublico...` | 0.6, 6.19–6.21 | Implementada |
+| S-04 | Cada endpoint protegido según el rol (matriz 7.1) | `@PreAuthorize` en cada controller | todos | `SeguridadApiIntegracionTest.caso7`, `caso8`, `caso12` | 6.7, 6.8, 6.12–6.12d | Implementada |
+| S-05 | Un huésped solo accede a sus reservas y folios (propietario del recurso) | `PropietarioReservaVerificador` | `GET /api/reservas/{codigo}`, `PUT .../cancelar`, `GET .../folio` | `PropietarioReservaVerificadorTest` (6 pruebas); `SeguridadApiIntegracionTest.caso9y10` | 6.9–6.10d | Implementada |
+| S-06 | Rol y canal: huésped por PORTAL a su nombre; recepción por DIRECTO; administrador DIRECTO o EXTERNO | `CanalReservaVerificador` | `POST /api/reservas` | `CanalReservaVerificadorTest` (7 pruebas); `SeguridadApiIntegracionTest.elHuespedNoReserva...` | 6.15–6.18 | Implementada |
+| S-07 | Solo el administrador autoriza el cierre de un folio con saldo (CU-11) | `CierreFolioVerificador` | `PUT /api/reservas/{codigo}/folio/cerrar` | `CierreFolioVerificadorTest` | 5.6, 5.7, 6.12d | Implementada |
+| S-08 | La clave del JWT no se versiona | `.gitignore`, `application-secrets.properties.example`, `SGA_JWT_SECRET` | — | `JwtConfigTest.unaClaveDeMenosDe32CaracteresImpideArrancar` | `git status --ignored` | Implementada |

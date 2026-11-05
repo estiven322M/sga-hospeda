@@ -8,9 +8,16 @@ Proyecto final de Programación Avanzada, Universidad del Quindío. Backend en S
 - Pruebas: JUnit 5 + Mockito. `./gradlew test` debe quedar en verde antes de cada commit.
 
 ## Alcance de esta entrega
-- **SIN seguridad JWT.** El profe indicó: "Se realiza todo el backend sin la parte de Seguridad con JWT". No agregar Spring Security, JJWT, login, registro ni roles. Los endpoints quedan abiertos.
+- **Seguridad con JWT (Guía 12) incorporada.** Antes el profe indicó entregar el backend sin JWT; con la Guía 12 se agregan Spring Security 7 + servidor de recursos OAuth2 (HS256), login, registro público de huéspedes y autorización por rol y por propietario del recurso. Todo endpoint exige token salvo `/api/auth/login`, `/api/auth/registro`, `/error`, Swagger y la consola H2.
 - Alcance del corte 2: alojamiento y apartamentos, bloqueos, temporadas, tarifas y política de cancelación, disponibilidad, cotización y reservas. Operación diaria, folio y canal externo pueden avanzar pero no son exigidos.
 - Los 11 casos de uso documentados en la Entrega 1: CU-01 Cotizar estancia, CU-02 Consultar disponibilidad, CU-03 Crear reserva, CU-04 Modificar reserva, CU-05 Cancelar reserva, CU-06 Registrar llegada, CU-07 Registrar salida, CU-08 Registrar pago en folio, CU-09 Registrar bloqueo, CU-10 Preparar apartamento, CU-11 Autorizar cierre de folio con saldo pendiente.
+
+## Seguridad (Guía 12)
+- El usuario NO es del dominio (3.6): `UsuarioEntity` y `RolUsuario` viven en `infrastructure`; `LoginRequest`, `RegistroUsuarioRequest`, `TokenResponse` en `application/dto`; el puerto `SecurityService` en `application/security`. El puente con el negocio es el **documento**: claim `documento` del JWT = documento del titular.
+- Clases en `infrastructure/security`: `JwtConfig` (encoder/decoder HS256, emisor validado), `JwtTokenProvider`, `SecurityConfig` (cadena de filtros, BCrypt), `UserConfig`, `CustomUserDetails`, `SecurityServiceImpl`, `ManejadorErroresSeguridad` (401/403 de los filtros con `ErrorResponse`) y los verificadores usados en `@PreAuthorize`: `@propietarioReserva` (titular), `@canalReserva` (rol y canal al crear) y `@cierreFolio` (CU-11 solo administrador).
+- Matriz de roles: cada método de controller lleva `@PreAuthorize` con `hasAuthority`/`hasAnyAuthority` (nunca `hasRole`: los roles van sin prefijo `ROLE_`). Cualquier endpoint nuevo DEBE declarar su `@PreAuthorize` y sus respuestas 401/403 en `openapi.yaml`.
+- La clave `sga.jwt.secret` NUNCA se versiona: va en `src/main/resources/application-secrets.properties` (ignorado; plantilla `.example`) o en la variable `SGA_JWT_SECRET`. Las pruebas usan una clave pública solo de pruebas en `src/test/resources/config/application.properties`.
+- Usuarios iniciales (uno por rol y dos huéspedes) en `application.properties`; `DefaultUserInitializer` los carga con BCrypt.
 
 ## Arquitectura hexagonal (paquete base `co.edu.uniquindio.sga`)
 ```
@@ -39,7 +46,7 @@ infrastructure/
 5. **Casos de uso** reciben tipos del dominio y orquestan, sin reglas de negocio.
 6. **DTOs** como `record`; no exponer tipos del dominio salvo enums cerrados.
 7. **Controllers delgados:** `@Valid`, MapStruct, delegar en el caso de uso. Un controller por recurso, exactamente los endpoints del `openapi.yaml`. Sin DELETE físicos ni endpoint genérico de cambio de estado.
-8. **HTTP:** 201 con `Location` al crear; 200 en consultas y operaciones de negocio. Errores 400, 404, 409 con un único `ErrorResponse`. Nunca devolver trazas técnicas.
+8. **HTTP:** 201 con `Location` al crear; 200 en consultas y operaciones de negocio. Errores 400, 401, 403, 404, 409 con un único `ErrorResponse`. Nunca devolver trazas técnicas.
 9. **Servicios de dominio** se registran como `@Bean` en una clase `@Configuration` (el dominio no conoce Spring).
 10. **Nada del negocio quemado en el código:** umbral de edad, tiempo de preparación, plazo de confirmación, hora límite de no-show, horas de entrada/salida, anticipo y demás parámetros de la Ficha van en `application.properties`.
 11. **Persistencia:** entidades JPA separadas del dominio, `@Embeddable` para objetos de valor, mapper persistencia↔dominio. Persistir no cambia el dominio. Eliminación lógica, nunca física. Los adaptadores en memoria pueden existir pero la app no los usa al arrancar.
@@ -50,8 +57,8 @@ infrastructure/
 16. **Lenguaje ubicuo obligatorio** (apartamento, estancia, titular, ocupante facturable, folio, cargo, pago, saldo, bloqueo, canal...). No usar room, booking, user, request.
 
 ## Documentación exigida
-- `docs/api/openapi.yaml` coherente con lo implementado (un endpoint en Swagger que no esté en el yaml, o al revés, cuenta como incoherencia). Sin botón Authorize.
-- Colección de pruebas (Postman, Bruno o `.http`) en el repo: flujo completo de una reserva y un 409 por cada regla que exponga la API. Sin casos 401/403.
+- `docs/api/openapi.yaml` coherente con lo implementado (un endpoint en Swagger que no esté en el yaml, o al revés, cuenta como incoherencia). Esquema `bearerAuth` global, login y registro con `security: []`, y 401/403 en cada endpoint protegido.
+- Colección de pruebas (Postman, Bruno o `.http`) en el repo: flujo completo de una reserva, un 409 por cada regla que exponga la API y los casos 3 a 14 de la sección 9 de la Guía 12 (PARTE 0 inicia sesión; PARTE 6 seguridad).
 - Matriz de Trazabilidad ampliada con el endpoint que expone cada regla.
 - Diagrama de clases actualizado si el dominio cambió.
 

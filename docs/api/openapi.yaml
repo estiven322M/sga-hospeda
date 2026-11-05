@@ -1,5 +1,5 @@
 # API del Sistema de Gestión de Alojamiento (SGA) - Hospeda
-# Entrega 2: backend sin la parte de seguridad JWT (los endpoints están abiertos; no hay respuestas 401/403).
+# Guía 12: seguridad con JWT. Todo endpoint exige un token Bearer salvo el login y el registro (security: []).
 # Este archivo debe coincidir exactamente con los endpoints implementados en infrastructure/rest/controller.
 openapi: 3.1.0
 
@@ -10,6 +10,8 @@ info:
 
     **Convención de errores** (un único esquema `ErrorResponse`):
     - `400` el mensaje está mal escrito (forma: campos faltantes, JSON mal formado, valores fuera de rango).
+    - `401` no sé quién eres: no hay token, el token es inválido o expiró, o las credenciales del login son incorrectas.
+    - `403` sé quién eres, pero tu rol no lo permite o no eres el titular de la reserva (propietario del recurso).
     - `404` el identificador no existe.
     - `409` una regla del negocio (RN-xx, L-xx) lo impide. El mensaje explica la regla violada.
 
@@ -19,13 +21,25 @@ info:
     - La fecha y hora actuales las pone el servidor (zona `America/Bogota`), nunca el cliente.
     - Todos los listados paginan de **10 en 10** (parámetro `pagina`, desde 0).
     - No existen eliminaciones físicas ni un endpoint genérico de cambio de estado: cada transición es una operación de negocio.
-  version: 1.0.0
+
+    **Seguridad (JWT)**
+    - Inicie sesión en `POST /api/auth/login` y envíe el token en cada petición: `Authorization: Bearer <token>`.
+    - El token (HS256, emisor `sga`) dura 30 minutos y trae el correo (`sub`), los `roles` y el `documento`.
+    - Roles: `HUESPED`, `RECEPCIONISTA`, `ADMINISTRADOR` y `PERSONAL_SERVICIO`. Cada operación indica los suyos.
+    - Un huésped solo accede a las reservas y folios de los que es titular: se compara el `documento` del token
+      con el del titular de la reserva.
+  version: 1.1.0
 
 servers:
   - url: http://localhost:8080
     description: Servidor de desarrollo local
 
+security:
+  - bearerAuth: []
+
 tags:
+  - name: Autenticación
+    description: Inicio de sesión, emisión del JWT y registro público de huéspedes
   - name: Apartamentos
     description: Inventario de apartamentos (baja lógica; nacen inactivos hasta tener tarifas completas)
   - name: Bloqueos
@@ -51,6 +65,95 @@ tags:
 
 paths:
 
+  # ==================== AUTENTICACIÓN (pública) ====================
+
+  /api/auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión
+      description: |
+        **Público.** Verifica el correo y la contraseña contra H2 (BCrypt) y devuelve un JWT para usar como Bearer
+        token. Ante credenciales inválidas o un usuario inactivo responde 401 con un mensaje genérico, que no
+        revela si el correo existe.
+      operationId: iniciarSesion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              correo: recepcion@sga.local
+              contrasena: Recepcion2026
+      responses:
+        '200':
+          description: Token emitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          description: Credenciales inválidas o usuario inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-05T15:00:00Z'
+                status: 401
+                error: Unauthorized
+                mensaje: Credenciales inválidas
+                path: /api/auth/login
+
+  /api/auth/registro:
+    post:
+      tags: [Autenticación]
+      summary: Registrarse como huésped
+      description: |
+        **Público.** Registro público (7.2): crea SIEMPRE un usuario con rol `HUESPED`; los roles internos solo los
+        asigna un administrador. Exige nombre, correo único, contraseña segura (mínimo 8 caracteres, con mayúsculas
+        y números), teléfono, documento único y fecha de nacimiento. La contraseña se guarda cifrada con BCrypt.
+        No devuelve `Location`: las cuentas no se exponen como recurso; el huésped continúa con el login.
+      operationId: registrarHuesped
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistroUsuarioRequest'
+            example:
+              nombre: Marta López
+              correo: marta@correo.com
+              contrasena: Segura2026
+              telefono: '3005550000'
+              documento: '1094555666'
+              fechaNacimiento: '1993-04-02'
+      responses:
+        '201':
+          description: Huésped registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioRegistradoResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          description: El correo o el documento ya están registrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-05T15:00:00Z'
+                status: 409
+                error: Conflict
+                mensaje: Ya existe un usuario registrado con ese correo
+                path: /api/auth/registro
+
   # ==================== APARTAMENTOS ====================
 
   /api/apartamentos:
@@ -58,6 +161,8 @@ paths:
       tags: [Apartamentos]
       summary: Crear un apartamento
       description: |
+        **Roles:** ADMINISTRADOR.
+
         Crea el apartamento **inactivo**: solo se puede activar cuando tenga tarifa en todas las temporadas (7.4).
         La identificación debe ser única y estable (L-04).
         Mapea a: `CrearApartamentoUseCase`
@@ -90,10 +195,17 @@ paths:
           $ref: '#/components/responses/DatosInvalidos'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
     get:
       tags: [Apartamentos]
       summary: Listar los apartamentos (activos o no), de 10 en 10
-      description: 'Mapea a: `ListarApartamentosUseCase`'
+      description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO.
+
+        Mapea a: `ListarApartamentosUseCase`
       operationId: listarApartamentos
       parameters:
         - $ref: '#/components/parameters/Pagina'
@@ -106,12 +218,19 @@ paths:
                 $ref: '#/components/schemas/PaginaApartamentoResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/apartamentos/{identificacion}:
     get:
       tags: [Apartamentos]
       summary: Consultar un apartamento
-      description: 'Mapea a: `ConsultarApartamentoUseCase`'
+      description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO.
+
+        Mapea a: `ConsultarApartamentoUseCase`
       operationId: consultarApartamento
       parameters:
         - $ref: '#/components/parameters/IdentificacionApartamento'
@@ -124,10 +243,16 @@ paths:
                 $ref: '#/components/schemas/ApartamentoResponse'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
     put:
       tags: [Apartamentos]
       summary: Editar los datos de un apartamento
       description: |
+        **Roles:** ADMINISTRADOR.
+
         Cambia nombre, dormitorios y capacidad. La identificación no cambia.
         Cambiar la capacidad no afecta las reservas ya creadas (7.3).
         Mapea a: `ActualizarApartamentoUseCase`
@@ -157,12 +282,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/apartamentos/{identificacion}/activar:
     put:
       tags: [Apartamentos]
       summary: Activar un apartamento
       description: |
+        **Roles:** ADMINISTRADOR.
+
         Operación de negocio. El sistema impide activar un apartamento sin tarifa en todas las temporadas (7.4).
         Mapea a: `ActivarApartamentoUseCase`
       operationId: activarApartamento
@@ -179,12 +310,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/apartamentos/{identificacion}/baja:
     put:
       tags: [Apartamentos]
       summary: Dar de baja un apartamento (baja lógica)
       description: |
+        **Roles:** ADMINISTRADOR.
+
         El apartamento deja de venderse; el registro nunca se elimina físicamente.
         Mapea a: `DarDeBajaApartamentoUseCase`
       operationId: darDeBajaApartamento
@@ -201,6 +338,10 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== ESTADO OPERATIVO ====================
 
@@ -209,6 +350,8 @@ paths:
       tags: [Estado operativo]
       summary: Iniciar la preparación de un apartamento (CU-10)
       description: |
+        **Roles:** PERSONAL_SERVICIO, ADMINISTRADOR.
+
         PENDIENTE_PREPARACION a EN_PREPARACION. Cualquier otra transición se rechaza.
         Mapea a: `IniciarPreparacionUseCase`
       operationId: iniciarPreparacion
@@ -225,12 +368,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/apartamentos/{identificacion}/estado-operativo/marcar-preparado:
     put:
       tags: [Estado operativo]
       summary: Marcar un apartamento como preparado (CU-10)
       description: |
+        **Roles:** PERSONAL_SERVICIO, ADMINISTRADOR.
+
         EN_PREPARACION a PREPARADO. Solo un apartamento PREPARADO puede recibir un grupo (RN-11).
         Mapea a: `MarcarPreparadoUseCase`
       operationId: marcarPreparado
@@ -247,12 +396,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/apartamentos/{identificacion}/estado-operativo/declarar-fuera-de-servicio:
     put:
       tags: [Estado operativo]
       summary: Declarar un apartamento fuera de servicio
       description: |
+        **Roles:** ADMINISTRADOR. El personal de servicio no declara FUERA_DE_SERVICIO: es decisión administrativa (7.1).
+
         Decisión administrativa, posible desde cualquier estado no ocupado. No crea un bloqueo: un apartamento fuera
         de servicio sin bloqueo registrado sigue siendo vendible a futuro (3.3), por eso se debe registrar además el bloqueo.
         Mapea a: `DeclararFueraDeServicioUseCase`
@@ -270,12 +425,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/apartamentos/{identificacion}/estado-operativo/reincorporar:
     put:
       tags: [Estado operativo]
       summary: Reincorporar al servicio un apartamento fuera de servicio
       description: |
+        **Roles:** ADMINISTRADOR.
+
         FUERA_DE_SERVICIO a PENDIENTE_PREPARACION.
         Mapea a: `ReincorporarApartamentoUseCase`
       operationId: reincorporarApartamento
@@ -292,6 +453,10 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== BLOQUEOS ====================
 
@@ -300,6 +465,8 @@ paths:
       tags: [Bloqueos]
       summary: Registrar un bloqueo (CU-09)
       description: |
+        **Roles:** ADMINISTRADOR.
+
         Bloquea las noches `[fechaInicio, fechaFin)` del apartamento, con un motivo. No se puede bloquear
         noches que ya tengan reservas activas (7.3). Un bloqueo no cambia el estado operativo.
         Mapea a: `RegistrarBloqueoUseCase`
@@ -335,10 +502,17 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
     get:
       tags: [Bloqueos]
       summary: Listar los bloqueos de un apartamento
-      description: 'Mapea a: `ListarBloqueosUseCase`'
+      description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
+        Mapea a: `ListarBloqueosUseCase`
       operationId: listarBloqueos
       parameters:
         - $ref: '#/components/parameters/IdentificacionApartamento'
@@ -354,6 +528,10 @@ paths:
           $ref: '#/components/responses/DatosInvalidos'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== TEMPORADAS ====================
 
@@ -362,6 +540,8 @@ paths:
       tags: [Temporadas]
       summary: Registrar una temporada
       description: |
+        **Roles:** ADMINISTRADOR.
+
         Las temporadas no pueden solaparse y debe existir exactamente una temporada **base** (sin periodos),
         que se registra primero (7.4). Los periodos incluyen ambos extremos.
         Mapea a: `RegistrarTemporadaUseCase`
@@ -403,10 +583,17 @@ paths:
           $ref: '#/components/responses/DatosInvalidos'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
     get:
       tags: [Temporadas]
       summary: Listar las temporadas
-      description: 'Mapea a: `ListarTemporadasUseCase`'
+      description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
+        Mapea a: `ListarTemporadasUseCase`
       operationId: listarTemporadas
       parameters:
         - $ref: '#/components/parameters/Pagina'
@@ -419,6 +606,10 @@ paths:
                 $ref: '#/components/schemas/PaginaTemporadaResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== TARIFAS ====================
 
@@ -427,6 +618,8 @@ paths:
       tags: [Tarifas]
       summary: Definir o reemplazar la tarifa de un apartamento en una temporada
       description: |
+        **Roles:** ADMINISTRADOR.
+
         Valor por ocupante facturable y por noche. La temporada debe existir (7.4). Operación idempotente.
         Mapea a: `RegistrarTarifaUseCase`
       operationId: definirTarifa
@@ -454,12 +647,19 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/apartamentos/{identificacion}/tarifas:
     get:
       tags: [Tarifas]
       summary: Listar las tarifas de un apartamento
-      description: 'Mapea a: `ListarTarifasUseCase`'
+      description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
+        Mapea a: `ListarTarifasUseCase`
       operationId: listarTarifas
       parameters:
         - $ref: '#/components/parameters/IdentificacionApartamento'
@@ -475,6 +675,10 @@ paths:
           $ref: '#/components/responses/DatosInvalidos'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== POLÍTICA DE CANCELACIÓN ====================
 
@@ -483,6 +687,8 @@ paths:
       tags: [Política de cancelación]
       summary: Definir una nueva versión de la política de cancelación
       description: |
+        **Roles:** ADMINISTRADOR.
+
         La política es única por alojamiento y está versionada: el sistema asigna el número de versión siguiente.
         Debe tener al menos dos tramos, uno de antelación 0, y regir desde una fecha posterior a la versión anterior.
         Las reservas ya creadas conservan la versión que congelaron (RN-13, RN-22).
@@ -520,12 +726,19 @@ paths:
           $ref: '#/components/responses/DatosInvalidos'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/politicas-cancelacion/vigente:
     get:
       tags: [Política de cancelación]
       summary: Consultar la política de cancelación vigente hoy
-      description: 'Usa la fecha del servidor. Mapea a: `ConsultarPoliticaVigenteUseCase`'
+      description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR.
+
+        Usa la fecha del servidor. Mapea a: `ConsultarPoliticaVigenteUseCase`
       operationId: consultarPoliticaVigente
       responses:
         '200':
@@ -536,12 +749,19 @@ paths:
                 $ref: '#/components/schemas/PoliticaCancelacionResponse'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/politicas-cancelacion/{version}:
     get:
       tags: [Política de cancelación]
       summary: Consultar una versión de la política de cancelación
-      description: 'Mapea a: `ConsultarPoliticaPorVersionUseCase`'
+      description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR.
+
+        Mapea a: `ConsultarPoliticaPorVersionUseCase`
       operationId: consultarPoliticaPorVersion
       parameters:
         - name: version
@@ -565,6 +785,10 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== COTIZACIÓN (CU-01) ====================
 
@@ -573,6 +797,8 @@ paths:
       tags: [Cotizaciones]
       summary: Cotizar una estancia (CU-01)
       description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR.
+
         Calcula el valor noche por noche con la tarifa de la temporada de cada noche, multiplicada por el número
         de ocupantes facturables (RN-05, RN-06). No crea ningún recurso, por eso responde 200.
         Se usa POST porque la composición del grupo (con fechas de nacimiento) viaja en el cuerpo.
@@ -608,6 +834,10 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== DISPONIBILIDAD (CU-02) ====================
 
@@ -616,6 +846,8 @@ paths:
       tags: [Disponibilidad]
       summary: Consultar apartamentos disponibles (CU-02)
       description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR.
+
         Devuelve los apartamentos que pueden alojar al grupo en la estancia (RN-01, RN-02, RN-07, RN-20), con su
         cotización, ordenados por precio. Filtros opcionales: capacidad mínima y rango de precio del total.
         Es una consulta, por eso responde 200. Se usa POST porque la composición del grupo viaja en el cuerpo.
@@ -649,6 +881,10 @@ paths:
           $ref: '#/components/responses/DatosInvalidos'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== RESERVAS ====================
 
@@ -657,6 +893,8 @@ paths:
       tags: [Reservas]
       summary: Crear una reserva (CU-03)
       description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR. Rol y canal: el HUESPED solo por PORTAL y a su nombre (el documento del titular es el de su token); RECEPCIONISTA por DIRECTO; ADMINISTRADOR por DIRECTO o EXTERNO. Otra combinación responde 403.
+
         Crea la reserva en estado PENDIENTE, congela el valor y la política de cancelación vigente (RN-22) y abre
         su folio con el cargo de alojamiento (F-08). El titular debe ser uno de los ocupantes.
 
@@ -706,10 +944,16 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
     get:
       tags: [Reservas]
       summary: Listar reservas con filtros
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
         Filtros opcionales: rango de fecha de entrada, estado, apartamento, canal y documento del titular.
         De 10 en 10 y ordenadas de la reserva más reciente a la más antigua.
         Mapea a: `ListarReservasUseCase`
@@ -763,12 +1007,18 @@ paths:
                 $ref: '#/components/schemas/PaginaReservaResumenResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas-externas/rechazos:
     get:
       tags: [Canal externo]
       summary: Listar las reservas externas rechazadas (RN-18)
       description: |
+        **Roles:** ADMINISTRADOR.
+
         Constancia de las reservas que llegaron por un canal externo y se rechazaron por violar una regla, del rechazo
         más reciente al más antiguo, de 10 en 10. Solo lectura: los rechazos los produce la creación de reservas.
         Mapea a: `ListarRechazosReservasExternasUseCase`
@@ -784,12 +1034,19 @@ paths:
                 $ref: '#/components/schemas/PaginaRechazoReservaExternaResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}:
     get:
       tags: [Reservas]
       summary: Consultar una reserva por su código
-      description: 'Mapea a: `ConsultarReservaUseCase`'
+      description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR, HUESPED solo si es el titular de la reserva.
+
+        Mapea a: `ConsultarReservaUseCase`
       operationId: consultarReserva
       parameters:
         - $ref: '#/components/parameters/CodigoReserva'
@@ -804,12 +1061,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/modificar:
     put:
       tags: [Reservas]
       summary: Modificar fechas, ocupantes o apartamento de una reserva (CU-04)
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
         Solo mientras la reserva esté PENDIENTE o CONFIRMADA y no haya iniciado. Repite las validaciones de la creación
         (RN-14), recalcula el valor con las tarifas vigentes y registra la diferencia como ajuste en el folio, positivo
         o negativo. La política congelada no se recalcula. Si se envía `identificacionApartamento`, la reserva se pasa a ese
@@ -845,12 +1108,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/confirmar:
     put:
       tags: [Reservas]
       summary: Confirmar una reserva
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
         PENDIENTE a CONFIRMADA. Exige la hora estimada de llegada (RN-09; puede enviarse aquí si no se informó al
         crear) y que lo pagado en el folio cubra el anticipo configurado (L-11).
         Mapea a: `ConfirmarReservaUseCase`
@@ -879,12 +1148,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/cancelar:
     put:
       tags: [Reservas]
       summary: Cancelar una reserva (CU-05)
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR, HUESPED solo si es el titular de la reserva.
+
         Desde PENDIENTE o CONFIRMADA, siempre antes del registro. Calcula la retención con la política congelada en
         la reserva (RN-13) y la registra como cargo en el folio; el reverso del alojamiento queda como ajuste, de modo
         que la devolución resulta en saldo a favor. Libera las noches de inmediato (RN-12).
@@ -914,12 +1189,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/registrar-llegada:
     put:
       tags: [Reservas]
       summary: Registrar la llegada del grupo (CU-06)
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
         CONFIRMADA a EN_CURSO y el apartamento pasa a OCUPADO, en una sola transacción. Exige que la fecha de entrada
         se haya alcanzado y que la reserva esté CONFIRMADA (RN-10) y que el apartamento esté PREPARADO (RN-11).
         Mapea a: `RegistrarLlegadaUseCase`
@@ -947,12 +1228,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/registrar-salida:
     put:
       tags: [Reservas]
       summary: Registrar la salida del grupo (CU-07)
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
         EN_CURSO a FINALIZADA y el apartamento pasa a PENDIENTE_PREPARACION, en una sola transacción. El folio debe
         estar cerrado (7.6); un folio con saldo pendiente solo se cierra con la autorización del administrador (RN-17).
         Mapea a: `RegistrarSalidaUseCase`
@@ -980,12 +1267,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/declarar-no-show:
     put:
       tags: [Reservas]
       summary: Declarar no-show
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
         CONFIRMADA a NO_SHOW, solo a partir de la hora límite configurada del día de entrada. Aplica la política
         congelada en la reserva (RN-13): revierte el alojamiento y registra la penalidad en el folio. Libera las noches (RN-12).
         Mapea a: `DeclararNoShowUseCase`
@@ -1013,6 +1306,10 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   # ==================== FOLIO ====================
 
@@ -1020,7 +1317,10 @@ paths:
     get:
       tags: [Folios]
       summary: Consultar el folio de una reserva con su saldo
-      description: 'Mapea a: `ConsultarFolioUseCase`'
+      description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR, HUESPED solo si es el titular de la reserva.
+
+        Mapea a: `ConsultarFolioUseCase`
       operationId: consultarFolio
       parameters:
         - $ref: '#/components/parameters/CodigoReserva'
@@ -1035,12 +1335,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/folio/pagos:
     post:
       tags: [Folios]
       summary: Registrar un pago en el folio (CU-08)
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
         Registra un pago parcial indicando medio y fecha (RN-15). Un mismo folio admite medios distintos.
         Los pagos no se editan ni se borran (RN-16). Devuelve el folio con el saldo actualizado.
         Mapea a: `RegistrarPagoUseCase`
@@ -1076,12 +1382,18 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
   /api/reservas/{codigo}/folio/cerrar:
     put:
       tags: [Folios]
       summary: Cerrar el folio; con saldo pendiente exige autorización (CU-11)
       description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR. Si la petición trae autorización (autorizadoPor o motivo) solo la puede enviar el ADMINISTRADOR (CU-11); el RECEPCIONISTA cierra folios sin autorización.
+
         El cierre del folio es requisito para completar la salida (7.6). Con saldo distinto de cero solo se cierra
         con la autorización explícita del administrador, que queda registrada con quién autoriza y el motivo (RN-17);
         sin ella responde 409. Un folio cerrado no admite más movimientos.
@@ -1109,8 +1421,19 @@ paths:
           $ref: '#/components/responses/NoEncontrado'
         '409':
           $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
 
 components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Token obtenido en POST /api/auth/login. Se envía como Authorization: Bearer <token>'
 
   parameters:
     Pagina:
@@ -1148,6 +1471,36 @@ components:
         example: ALTA
 
   responses:
+    NoAutenticado:
+      description: Sin token, token inválido (firma, algoritmo o emisor) o token vencido
+      headers:
+        WWW-Authenticate:
+          description: Desafío estándar del servidor de recursos OAuth2
+          schema:
+            type: string
+            example: Bearer error="invalid_token", error_description="Jwt expired"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-05T15:00:00Z'
+            status: 401
+            error: Unauthorized
+            mensaje: 'Se requiere un token válido: inicie sesión y envíe el encabezado Authorization: Bearer <token>'
+            path: /api/reservas
+    SinPermiso:
+      description: Autenticado, pero el rol no lo permite o no es el titular de la reserva
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-05T15:00:00Z'
+            status: 403
+            error: Forbidden
+            mensaje: No tiene permiso para realizar esta operación
+            path: /api/reservas/RES-2026-00001
     DatosInvalidos:
       description: La petición está mal escrita (campos faltantes o inválidos, JSON mal formado, valores no permitidos)
       content:
@@ -1201,9 +1554,81 @@ components:
       enum: [PREPARADO, OCUPADO, PENDIENTE_PREPARACION, EN_PREPARACION, FUERA_DE_SERVICIO]
 
     # ---------- Error ----------
+    # ---------- Autenticación (Guía 12) ----------
+    LoginRequest:
+      type: object
+      required: [correo, contrasena]
+      properties:
+        correo:
+          type: string
+          format: email
+        contrasena:
+          type: string
+          format: password
+    TokenResponse:
+      type: object
+      required: [token, tipo, expiraEn, roles]
+      properties:
+        token:
+          type: string
+          description: JWT firmado con HS256 (firmado, no cifrado)
+          example: eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzZ2EiLCJzdWIiOi...
+        tipo:
+          type: string
+          example: Bearer
+        expiraEn:
+          type: string
+          format: date-time
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RolUsuario'
+    RegistroUsuarioRequest:
+      type: object
+      required: [nombre, correo, contrasena, telefono, documento, fechaNacimiento]
+      properties:
+        nombre:
+          type: string
+          maxLength: 100
+        correo:
+          type: string
+          format: email
+          maxLength: 120
+        contrasena:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+          pattern: '^(?=.*[A-Z])(?=.*\d).{8,72}$'
+          description: Mínimo 8 caracteres, con al menos una mayúscula y un número
+        telefono:
+          type: string
+          pattern: '^\+?\d{7,15}$'
+        documento:
+          type: string
+          maxLength: 15
+        fechaNacimiento:
+          type: string
+          format: date
+    UsuarioRegistradoResponse:
+      type: object
+      required: [nombre, correo, documento, rol]
+      properties:
+        nombre:
+          type: string
+        correo:
+          type: string
+        documento:
+          type: string
+        rol:
+          $ref: '#/components/schemas/RolUsuario'
+    RolUsuario:
+      type: string
+      enum: [HUESPED, RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO]
+
     ErrorResponse:
       type: object
-      description: Forma única de todos los errores. Nunca contiene trazas técnicas.
+      description: Forma única de todos los errores (400, 401, 403, 404, 409). Nunca contiene trazas técnicas.
       required: [timestamp, status, error, mensaje, path]
       properties:
         timestamp:

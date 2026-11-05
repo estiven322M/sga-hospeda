@@ -13,9 +13,83 @@
 #   - Existe la temporada base, al menos una política de cancelación y el anticipo configurado es > 0.
 # Todas las fechas de reserva están en 2028 para no chocar con las reservas sembradas.
 #
-# Sin seguridad (el docente indicó que el backend se desarrolla sin JWT): no hay casos 401/403.
-# Cada escenario "409" indica la regla de negocio que viola. Códigos: 400 forma, 404 no existe, 409 negocio.
+# Seguridad (Guía 12): todo endpoint exige "Authorization: Bearer <token>" salvo el login y el registro.
+#   - La PARTE 0 inicia sesión con los usuarios iniciales (uno por rol, application.properties), registra a la
+#     huésped Ana Ramírez (titular de la reserva A) y guarda los tokens en variables globales.
+#   - Cada solicitud usa el token del rol que la ejecuta en la vida real: la huésped cotiza, reserva por el
+#     PORTAL a su nombre, consulta su reserva y su folio y la cancela; recepción toma las reservas por el canal
+#     DIRECTO, cobra, confirma y opera; el administrador gestiona inventario, tarifas, políticas, bloqueos,
+#     canal externo y autoriza cierres con saldo; el personal de servicio prepara los apartamentos.
+#   - Los tokens duran 30 minutos: si vencen, vuelva a ejecutar la PARTE 0.
+#   - La PARTE 6 demuestra los casos 3 a 14 de la sección 9 de la Guía 12 (401 frente a 403 y propietario).
+# Códigos: 400 forma · 401 sin token o token inválido · 403 rol o propietario · 404 no existe · 409 negocio.
+# Cada escenario "409" indica la regla de negocio que viola.
 # =====================================================================================================
+
+# =====================================================================================================
+# PARTE 0 · INICIO DE SESIÓN (públicos: no llevan token)
+# =====================================================================================================
+
+### 0.1 Login del administrador -> 200
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "admin@sga.local", "contrasena": "Admin2026"}
+
+> {% client.global.set("tokenAdmin", response.body.token); %}
+
+### 0.2 Login de recepción -> 200 (tipo Bearer, roles [RECEPCIONISTA])
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "recepcion@sga.local", "contrasena": "Recepcion2026"}
+
+> {% client.global.set("tokenRecepcion", response.body.token); %}
+
+### 0.3 Login del personal de servicio -> 200
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "servicio@sga.local", "contrasena": "Servicio2026"}
+
+> {% client.global.set("tokenServicio", response.body.token); %}
+
+### 0.4 Login de los dos huéspedes iniciales (documentos 1094000111 y 1094000222) -> 200
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "huesped1@sga.local", "contrasena": "Huesped2026"}
+
+> {% client.global.set("tokenHuesped1", response.body.token); %}
+
+### 0.5
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "huesped2@sga.local", "contrasena": "Huesped2026"}
+
+> {% client.global.set("tokenHuesped2", response.body.token); %}
+
+### 0.6 Registro público de Ana Ramírez: queda como HUESPED -> 201 (409 si la colección ya se ejecutó en esta sesión)
+POST {{host}}/api/auth/registro
+Content-Type: application/json
+
+{
+  "nombre": "Ana Ramírez",
+  "correo": "ana.ramirez@correo.com",
+  "contrasena": "AnaRamirez2026",
+  "telefono": "3104445566",
+  "documento": "CC-9001",
+  "fechaNacimiento": "1990-05-12"
+}
+
+### 0.7 Login de Ana: es la titular de la reserva A de la PARTE 2 -> 200
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "ana.ramirez@correo.com", "contrasena": "AnaRamirez2026"}
+
+> {% client.global.set("tokenHuesped", response.body.token); %}
 
 @apt = APT-101
 @aptBloqueo = APT-102
@@ -26,21 +100,27 @@
 
 ### 1.1 Listar apartamentos (de 10 en 10)
 GET {{host}}/api/apartamentos?pagina=0
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 1.2 Consultar un apartamento
 GET {{host}}/api/apartamentos/{{apt}}
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 1.3 Listar temporadas
 GET {{host}}/api/temporadas
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 1.4 Tarifas del apartamento (una por temporada)
 GET {{host}}/api/apartamentos/{{apt}}/tarifas
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 1.5 Política de cancelación vigente
 GET {{host}}/api/politicas-cancelacion/vigente
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 1.6 Bloqueos del apartamento
 GET {{host}}/api/apartamentos/{{aptBloqueo}}/bloqueos
+Authorization: Bearer {{tokenRecepcion}}
 
 # =====================================================================================================
 # PARTE 2 · FLUJO COMPLETO DE UNA RESERVA (todos deben dar 2xx salvo los marcados 409)
@@ -48,6 +128,7 @@ GET {{host}}/api/apartamentos/{{aptBloqueo}}/bloqueos
 
 ### 2.1 CU-01 Cotizar la estancia (2 adultos y 1 niño: el niño no genera cargo, RN-05 y RN-06) -> 200
 POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenHuesped}}
 Content-Type: application/json
 
 {
@@ -63,6 +144,7 @@ Content-Type: application/json
 
 ### 2.2 CU-02 Consultar disponibilidad de la misma estancia (filtro de capacidad mínima) -> 200
 POST {{host}}/api/disponibilidad?pagina=0
+Authorization: Bearer {{tokenHuesped}}
 Content-Type: application/json
 
 {
@@ -78,6 +160,7 @@ Content-Type: application/json
 
 ### 2.3 CU-03 Crear la reserva (queda PENDIENTE; abre el folio) -> 201 + Location
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenHuesped}}
 Content-Type: application/json
 
 {
@@ -101,27 +184,32 @@ Content-Type: application/json
 
 ### 2.4 Consultar la reserva por su código -> 200
 GET {{host}}/api/reservas/{{codigoA}}
+Authorization: Bearer {{tokenHuesped}}
 
 ### 2.5 [409 · L-11 anticipo] Confirmar SIN haber pagado el anticipo -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/confirmar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Ana Ramírez"}
 
 ### 2.6 CU-08 Registrar el pago (se paga el valor total, que cubre el anticipo) -> 201
 POST {{host}}/api/reservas/{{codigoA}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"medio": "TRANSFERENCIA", "fecha": "2026-11-02", "valor": {{valorTotalA}}}
 
 ### 2.7 Confirmar la reserva (hora de llegada ya informada, anticipo cubierto) -> 200 CONFIRMADA
 PUT {{host}}/api/reservas/{{codigoA}}/confirmar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Ana Ramírez"}
 
 ### 2.8 CU-04 Modificar: ampliar a 3 noches (el ajuste queda en el folio, la política no cambia) -> 200
 PUT {{host}}/api/reservas/{{codigoA}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -137,18 +225,22 @@ Content-Type: application/json
 
 ### 2.9 Consultar el folio: cargo de alojamiento, ajuste por la modificación, pago y saldo -> 200
 GET {{host}}/api/reservas/{{codigoA}}/folio
+Authorization: Bearer {{tokenHuesped}}
 
 ### 2.10 CU-05 Cancelar (retención según la política congelada; devolución como saldo a favor) -> 200 CANCELADA
 PUT {{host}}/api/reservas/{{codigoA}}/cancelar
+Authorization: Bearer {{tokenHuesped}}
 Content-Type: application/json
 
 {"motivo": "Cambio de planes", "autor": "Ana Ramírez"}
 
 ### 2.11 Folio tras cancelar: reverso del alojamiento, penalidad (si aplica) y saldo -> 200
 GET {{host}}/api/reservas/{{codigoA}}/folio
+Authorization: Bearer {{tokenHuesped}}
 
 ### 2.12 Las noches quedaron libres (RN-12): la misma estancia vuelve a aparecer disponible -> 200
 POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped}}
 Content-Type: application/json
 
 {
@@ -159,6 +251,7 @@ Content-Type: application/json
 
 ### 2.13 Listar reservas con filtros (más recientes primero) -> 200
 GET {{host}}/api/reservas?estado=CANCELADA&apartamento={{apt}}&canal=PORTAL&titular=CC-9001&entradaDesde=2028-01-01&entradaHasta=2028-12-31&pagina=0
+Authorization: Bearer {{tokenRecepcion}}
 
 # =====================================================================================================
 # PARTE 3 · ESCENARIOS 409 (una regla de negocio violada por cada uno)
@@ -166,6 +259,7 @@ GET {{host}}/api/reservas?estado=CANCELADA&apartamento={{apt}}&canal=PORTAL&titu
 
 ### 3.0 Preparación: reserva B sin hora de llegada y confirmable (se usa en varios escenarios) -> 201
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -184,26 +278,28 @@ Content-Type: application/json
 
 ### 3.1 [409 · RN-01] Otra reserva que solapa las noches de la reserva B (21 y 22 de abril) -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{apt}}",
   "fechaEntrada": "2028-04-21",
   "fechaSalida": "2028-04-24",
-  "canalOrigen": "PORTAL",
+  "canalOrigen": "DIRECTO",
   "titular": {"documento": "CC-9102", "nombre": "Pedro Soto", "fechaNacimiento": "1980-01-01"},
   "ocupantes": [{"documento": "CC-9102", "nombre": "Pedro Soto", "fechaNacimiento": "1980-01-01"}]
 }
 
 ### 3.2 [409 · RN-02] Grupo de 15 personas: excede la capacidad del apartamento -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{apt}}",
   "fechaEntrada": "2028-06-01",
   "fechaSalida": "2028-06-03",
-  "canalOrigen": "PORTAL",
+  "canalOrigen": "DIRECTO",
   "titular": {"documento": "CC-9200", "nombre": "Persona 0", "fechaNacimiento": "1980-01-01"},
   "ocupantes": [
     {"documento": "CC-9200", "nombre": "Persona 0", "fechaNacimiento": "1980-01-01"},
@@ -226,6 +322,7 @@ Content-Type: application/json
 
 ### 3.3 [409 · RN-03] La fecha de salida no es posterior a la de entrada -> 409
 POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -237,19 +334,21 @@ Content-Type: application/json
 
 ### 3.4 [409 · RN-04] Reserva con fecha de entrada en el pasado -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{apt}}",
   "fechaEntrada": "2020-01-10",
   "fechaSalida": "2020-01-12",
-  "canalOrigen": "PORTAL",
+  "canalOrigen": "DIRECTO",
   "titular": {"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"},
   "ocupantes": [{"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"}]
 }
 
 ### 3.5 [409 · RN-06] Grupo formado solo por menores: ningún ocupante facturable -> 409
 POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -261,6 +360,7 @@ Content-Type: application/json
 
 ### 3.6a Pagar el valor total de la reserva B para que el anticipo no sea el obstáculo -> 201
 POST {{host}}/api/reservas/{{codigoB}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"medio": "EFECTIVO", "fecha": "2026-11-02", "valor": {{valorTotalB}}}
@@ -268,30 +368,35 @@ Content-Type: application/json
 ###
 # 3.6b [409 · RN-09] Confirmar sin hora estimada de llegada (reserva B, anticipo ya pagado en 3.6a) -> 409
 PUT {{host}}/api/reservas/{{codigoB}}/confirmar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Marta Ríos"}
 
 ### 3.7 Confirmar la reserva B con hora de llegada -> 200 CONFIRMADA (la deja activa para los siguientes escenarios)
 PUT {{host}}/api/reservas/{{codigoB}}/confirmar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"horaEstimadaLlegada": "15:30", "autor": "Marta Ríos"}
 
 ### 3.8 [409 · RN-08] Cancelar una reserva que ya está CANCELADA (reserva A) -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/cancelar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"motivo": "Intento repetido", "autor": "Ana Ramírez"}
 
 ### 3.9 [409 · RN-08] Confirmar una reserva CANCELADA (reserva A) -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/confirmar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"horaEstimadaLlegada": "16:00", "autor": "Ana Ramírez"}
 
 ### 3.10 [409 · RN-14] Modificar una reserva CANCELADA (reserva A) -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -303,13 +408,14 @@ Content-Type: application/json
 
 ### 3.11a Reserva C, en fechas libres -> 201
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{apt}}",
   "fechaEntrada": "2028-05-10",
   "fechaSalida": "2028-05-12",
-  "canalOrigen": "PORTAL",
+  "canalOrigen": "DIRECTO",
   "titular": {"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"},
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
@@ -321,6 +427,7 @@ Content-Type: application/json
 ###
 # 3.11b [409 · RN-14 + RN-01] Modificar la reserva C para que solape con la reserva B (20 al 22 de abril) -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -332,31 +439,35 @@ Content-Type: application/json
 
 ### 3.12 [409 · 7.3] Bloquear noches que ya tienen una reserva activa (reserva B) -> 409
 POST {{host}}/api/apartamentos/{{apt}}/bloqueos
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"fechaInicio": "2028-04-21", "fechaFin": "2028-04-23", "motivo": "Mantenimiento"}
 
 ### 3.13 CU-09 Registrar un bloqueo en otro apartamento, sin reservas en esas noches -> 201 + Location
 POST {{host}}/api/apartamentos/{{aptBloqueo}}/bloqueos
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"fechaInicio": "2028-07-10", "fechaFin": "2028-07-13", "motivo": "Mantenimiento de la cocina"}
 
 ### 3.14 [409 · RN-07] Reservar noches con bloqueo vigente -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{aptBloqueo}}",
   "fechaEntrada": "2028-07-11",
   "fechaSalida": "2028-07-12",
-  "canalOrigen": "PORTAL",
+  "canalOrigen": "DIRECTO",
   "titular": {"documento": "CC-9500", "nombre": "Elena Mora", "fechaNacimiento": "1991-11-11"},
   "ocupantes": [{"documento": "CC-9500", "nombre": "Elena Mora", "fechaNacimiento": "1991-11-11"}]
 }
 
 ### 3.15a Crear el apartamento (nace inactivo) -> 201 la primera vez; si ya existe de una corrida anterior, 409 por L-04
 POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Apartamento de prueba", "dormitorios": 1, "capacidad": 2}
@@ -364,27 +475,32 @@ Content-Type: application/json
 ###
 # 3.15b [409 · 7.4] Activarlo sin tarifas completas -> 409
 PUT {{host}}/api/apartamentos/DEMO-SIN-TARIFAS/activar
+Authorization: Bearer {{tokenAdmin}}
 
 ### 3.16 [409 · L-04] Identificación de apartamento repetida -> 409
 POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Otro nombre", "dormitorios": 1, "capacidad": 2}
 
 ### 3.17 [409 · 7.4] Tarifa para una temporada que no existe -> 409
 PUT {{host}}/api/apartamentos/{{apt}}/tarifas/TEMPORADA-INEXISTENTE
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"valorPorOcupanteNoche": 100000}
 
 ### 3.18 [409 · 7.4] Una segunda temporada base -> 409
 POST {{host}}/api/temporadas
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"nombre": "OTRA-BASE", "base": true}
 
 ### 3.19 [409 · 7.4] Temporada cuyos periodos se solapan entre sí -> 409
 POST {{host}}/api/temporadas
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
@@ -398,12 +514,14 @@ Content-Type: application/json
 
 ### 3.20 [409 · L-10] Política de cancelación con un solo tramo (se exigen al menos dos) -> 409
 POST {{host}}/api/politicas-cancelacion
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"vigenteDesde": "2030-01-01", "tramos": [{"horasAntelacionMinima": 0, "porcentajeRetencion": 100}]}
 
 ### 3.21 [409 · F-07] Nueva versión de la política con una fecha anterior a la versión vigente -> 409
 POST {{host}}/api/politicas-cancelacion
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
@@ -416,6 +534,7 @@ Content-Type: application/json
 
 ### 3.22 CU-04 [RN-14] Cambiar la reserva C de apartamento (misma estancia): se revalida y se recotiza contra el destino -> 200
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -428,6 +547,7 @@ Content-Type: application/json
 
 ### 3.23 [409 · RN-14 + RN-07] Cambiar de apartamento hacia noches con bloqueo vigente -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -440,6 +560,7 @@ Content-Type: application/json
 
 ### 3.24 [404 · RN-14] Cambiar de apartamento hacia uno que no existe -> 404
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -453,6 +574,7 @@ Content-Type: application/json
 ### 3.26 CU-03 [RN-19] Crear una reserva del canal externo con su identificador -> 201 + Location
 # Si la app no se reinició desde una corrida anterior, el identificador ya existe y responde 409 por RN-19.
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
@@ -467,6 +589,7 @@ Content-Type: application/json
 
 ### 3.27 [409 · RN-19] El mismo mensaje del canal recibido dos veces no crea otra reserva -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
@@ -481,6 +604,7 @@ Content-Type: application/json
 
 ### 3.28 [409 · RN-18 + RN-01] Otra reserva externa sobre las mismas noches: se rechaza y no toca la vigente -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
@@ -495,9 +619,11 @@ Content-Type: application/json
 
 ### 3.29 [RN-18] El rechazo quedó registrado (más reciente primero) -> 200
 GET {{host}}/api/reservas-externas/rechazos
+Authorization: Bearer {{tokenAdmin}}
 
 ### 3.30 [409 · RN-19] Una reserva del canal externo sin identificador -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
@@ -511,13 +637,14 @@ Content-Type: application/json
 
 ### 3.31 [409 · RN-19] Un canal que no es externo no lleva identificador externo -> 409
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{apt}}",
   "fechaEntrada": "2028-10-10",
   "fechaSalida": "2028-10-12",
-  "canalOrigen": "PORTAL",
+  "canalOrigen": "DIRECTO",
   "identificadorExterno": "BKG-1",
   "titular": {"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"},
   "ocupantes": [{"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"}]
@@ -525,6 +652,7 @@ Content-Type: application/json
 
 ### 3.32 [400] Identificador externo de más de 60 caracteres
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {
@@ -546,18 +674,21 @@ Content-Type: application/json
 
 ### 4.1 [400] Cuerpo vacío al crear una reserva: devuelve un error por campo
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {}
 
 ### 4.2 [400] JSON mal formado
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {esto no es json
 
 ### 4.3 [400] Canal de origen inexistente
 POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -569,18 +700,22 @@ Content-Type: application/json
 
 ### 4.4 [400] Número de página negativo
 GET {{host}}/api/reservas?pagina=-1
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 4.5 [400] Pago con valor cero y sin medio
 POST {{host}}/api/reservas/{{codigoB}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"fecha": "2026-11-02", "valor": 0}
 
 ### 4.6 [404] Reserva inexistente
 GET {{host}}/api/reservas/RES-2099-99999
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 4.7 [404] Apartamento inexistente al cotizar
 POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
@@ -592,9 +727,11 @@ Content-Type: application/json
 
 ### 4.8 [404] Folio de una reserva inexistente
 GET {{host}}/api/reservas/RES-2099-99999/folio
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 4.9 [404] Versión de la política que no existe
 GET {{host}}/api/politicas-cancelacion/9999
+Authorization: Bearer {{tokenRecepcion}}
 
 # =====================================================================================================
 # PARTE 5 · OPERACIÓN DIARIA (llegada, salida, no-show, cierre de folio y estado operativo)
@@ -607,84 +744,316 @@ GET {{host}}/api/politicas-cancelacion/9999
 
 ### 5.1 [409 · RN-10] Registrar la llegada antes de la fecha de entrada (reserva B es de 2028) -> 409
 PUT {{host}}/api/reservas/{{codigoB}}/registrar-llegada
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Recepción"}
 
 ### 5.2 [409 · 7.6] Registrar la salida de una reserva que no está EN_CURSO y con el folio sin cerrar -> 409
 PUT {{host}}/api/reservas/{{codigoB}}/registrar-salida
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Recepción"}
 
 ### 5.3 [409 · hora límite] Declarar no-show antes de la hora límite del día de entrada -> 409
 PUT {{host}}/api/reservas/{{codigoB}}/declarar-no-show
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Sistema"}
 
 ### 5.4 [400] Operación de la reserva sin indicar el autor
 PUT {{host}}/api/reservas/{{codigoB}}/registrar-llegada
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {}
 
 ### 5.5 [409 · RN-17] Cerrar un folio con saldo pendiente SIN autorización (reserva C no ha pagado nada) -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {}
 
 ### 5.6 [409 · RN-17] Autorización incompleta: falta el motivo -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"autorizadoPor": "Administración"}
 
 ### 5.7 CU-11 Cerrar el folio con saldo pendiente CON la autorización del administrador (queda registrada) -> 200
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"autorizadoPor": "Administración", "motivo": "El huésped pagará el saldo por transferencia"}
 
 ### 5.8 El folio quedó cerrado y la autorización aparece en la respuesta -> 200
 GET {{host}}/api/reservas/{{codigoC}}/folio
+Authorization: Bearer {{tokenRecepcion}}
 
 ### 5.9 [409 · folio cerrado] Registrar un pago sobre un folio cerrado -> 409
 POST {{host}}/api/reservas/{{codigoC}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"medio": "EFECTIVO", "fecha": "2026-11-02", "valor": 10000}
 
 ### 5.10 [409] Cerrar un folio que ya está cerrado -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
+Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"autorizadoPor": "Administración", "motivo": "Otra vez"}
 
 ### 5.11 [409 · RN-11] Iniciar la preparación de un apartamento que ya está PREPARADO -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/iniciar-preparacion
+Authorization: Bearer {{tokenServicio}}
 
 ### 5.12 [409] Marcar como preparado un apartamento que no está EN_PREPARACION -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/marcar-preparado
+Authorization: Bearer {{tokenServicio}}
 
 ### 5.13 [409] Reincorporar un apartamento que no está fuera de servicio -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/reincorporar
+Authorization: Bearer {{tokenAdmin}}
 
 ### 5.14 Declarar el apartamento fuera de servicio (decisión administrativa) -> 200 FUERA_DE_SERVICIO
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/declarar-fuera-de-servicio
+Authorization: Bearer {{tokenAdmin}}
 
 ### 5.15 [409] Declararlo fuera de servicio otra vez -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/declarar-fuera-de-servicio
+Authorization: Bearer {{tokenAdmin}}
 
 ### 5.16 Reincorporarlo al servicio -> 200 PENDIENTE_PREPARACION
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/reincorporar
+Authorization: Bearer {{tokenAdmin}}
 
 ### 5.17 CU-10 El personal de servicio inicia la preparación -> 200 EN_PREPARACION
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/iniciar-preparacion
+Authorization: Bearer {{tokenServicio}}
 
 ### 5.18 CU-10 ...y lo marca como preparado: queda listo para recibir un grupo -> 200 PREPARADO
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/marcar-preparado
+Authorization: Bearer {{tokenServicio}}
 
 ### 5.19 [404] Estado operativo de un apartamento inexistente
 PUT {{host}}/api/apartamentos/APT-NO-EXISTE/estado-operativo/iniciar-preparacion
+Authorization: Bearer {{tokenServicio}}
+
+# =====================================================================================================
+# PARTE 6 · SEGURIDAD: 401 FRENTE A 403, ROL Y PROPIETARIO (Guía 12, sección 9, casos 3 a 14)
+#
+# Supuesto: los datos de prueba están habilitados. La reserva PENDIENTE del PORTAL sembrada tiene como titular
+# a la huésped 1 (documento 1094000111) y la FINALIZADA del PORTAL al huésped 2 (1094000222).
+# Los casos 3 a 5 son sobre el login; los demás usan los tokens de la PARTE 0.
+# =====================================================================================================
+
+### 6.3 [caso 3] Login correcto -> 200 con token, tipo Bearer y roles [RECEPCIONISTA]
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "recepcion@sga.local", "contrasena": "Recepcion2026"}
+
+### 6.4 [caso 4 · 401] Contraseña errada -> 401 con ErrorResponse y mensaje "Credenciales inválidas"
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "recepcion@sga.local", "contrasena": "Equivocada2026"}
+
+### 6.4b [401] Correo inexistente: el MISMO mensaje genérico (no revela qué correos existen)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "nadie@sga.local", "contrasena": "Cualquiera2026"}
+
+### 6.5 [caso 5 · 400] Correo sin formato -> 400 con el campo "correo" en errores
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"correo": "esto-no-es-un-correo", "contrasena": "Recepcion2026"}
+
+### 6.6 [caso 6 · 401] Listar reservas SIN token -> 401 (encabezado WWW-Authenticate: Bearer y ErrorResponse)
+GET {{host}}/api/reservas?estado=PENDIENTE
+
+### 6.7 [caso 7 · 403] Un huésped intenta listar las reservas de todos -> 403 con ErrorResponse
+GET {{host}}/api/reservas?estado=PENDIENTE
+Authorization: Bearer {{tokenHuesped1}}
+
+### 6.8 [caso 8] Recepción lista las reservas pendientes -> 200. Guarda el código de la reserva de la huésped 1
+GET {{host}}/api/reservas?titular=1094000111
+Authorization: Bearer {{tokenRecepcion}}
+
+> {% client.global.set("codigoHuesped1", response.body.contenido[0].codigo); %}
+
+### 6.9 [caso 9] La huésped 1 consulta SU reserva -> 200
+GET {{host}}/api/reservas/{{codigoHuesped1}}
+Authorization: Bearer {{tokenHuesped1}}
+
+### 6.9b La huésped 1 consulta el folio de SU reserva -> 200
+GET {{host}}/api/reservas/{{codigoHuesped1}}/folio
+Authorization: Bearer {{tokenHuesped1}}
+
+### 6.10 [caso 10 · 403] El huésped 2 intenta ver la reserva de la huésped 1 (mismo rol, otro propietario) -> 403
+GET {{host}}/api/reservas/{{codigoHuesped1}}
+Authorization: Bearer {{tokenHuesped2}}
+
+### 6.10b [403] ...ni su folio
+GET {{host}}/api/reservas/{{codigoHuesped1}}/folio
+Authorization: Bearer {{tokenHuesped2}}
+
+### 6.10c [403] ...ni cancelarla
+PUT {{host}}/api/reservas/{{codigoHuesped1}}/cancelar
+Authorization: Bearer {{tokenHuesped2}}
+Content-Type: application/json
+
+{"motivo": "Intento de cancelar una reserva ajena", "autor": "Andres Rios"}
+
+### 6.10d [403] Para un huésped, una reserva inexistente también es 403 (no se revela qué códigos existen)
+GET {{host}}/api/reservas/RES-2099-99999
+Authorization: Bearer {{tokenHuesped2}}
+
+### 6.11 [caso 11 · 404] Recepción consulta una reserva que no existe -> 404
+GET {{host}}/api/reservas/RES-2099-99999
+Authorization: Bearer {{tokenRecepcion}}
+
+### 6.12 [caso 12 · 403] El personal de servicio intenta confirmar una reserva -> 403
+PUT {{host}}/api/reservas/{{codigoHuesped1}}/confirmar
+Authorization: Bearer {{tokenServicio}}
+Content-Type: application/json
+
+{"horaEstimadaLlegada": "16:00", "autor": "Servicio"}
+
+### 6.12b [403] El personal de servicio no declara un apartamento FUERA_DE_SERVICIO (decisión administrativa, 7.1)
+PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/declarar-fuera-de-servicio
+Authorization: Bearer {{tokenServicio}}
+
+### 6.12c [403] Recepción no gestiona temporadas (solo el administrador)
+POST {{host}}/api/temporadas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"nombre": "PRUEBA-403", "base": false, "periodos": [{"desde": "2029-01-01", "hasta": "2029-01-31"}]}
+
+### 6.12d [403] Recepción no autoriza el cierre de un folio con saldo pendiente: solo el administrador (CU-11)
+PUT {{host}}/api/reservas/{{codigoHuesped1}}/folio/cerrar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"autorizadoPor": "Recepción", "motivo": "Intento sin ser administrador"}
+
+### 6.13 [caso 13 · 401] Token modificado a mano (se altera la firma) -> 401
+GET {{host}}/api/reservas?estado=PENDIENTE
+Authorization: Bearer {{tokenRecepcion}}x
+
+### 6.13b [401] Token SIN firma ("alg":"none") que se declara ADMINISTRADOR: el algoritmo está fijo en HS256 -> 401
+GET {{host}}/api/reservas?estado=PENDIENTE
+Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJzZ2EiLCJzdWIiOiJhdGFjYW50ZUBzZ2EubG9jYWwiLCJyb2xlcyI6WyJBRE1JTklTVFJBRE9SIl0sImV4cCI6NDEwMjQ0NDgwMH0.
+
+### 6.14 [caso 14 · 401] Token vencido -> 401
+# El token dura 30 minutos (sga.jwt.expiracion-minutos). Para verlo vencer sin esperar: arrancar con
+#   gradlew.bat bootRun --args="--sga.jwt.expiracion-minutos=1"
+# ejecutar 0.2, esperar 2 minutos (Spring tolera 60 s de desfase de reloj) y ejecutar esta solicitud.
+# La prueba automática JwtConfigTest.unTokenVencidoSeRechaza lo verifica en cada build.
+GET {{host}}/api/reservas?estado=PENDIENTE
+Authorization: Bearer {{tokenRecepcion}}
+
+# ---------- Rol y canal (Guía 12, 7.5 punto 3) ----------
+
+### 6.15 [403] La huésped 1 intenta reservar por el PORTAL a nombre de OTRA persona -> 403
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-09-10",
+  "fechaSalida": "2028-09-12",
+  "canalOrigen": "PORTAL",
+  "horaEstimadaLlegada": "16:00",
+  "titular": {"documento": "1094000222", "nombre": "Andres Rios", "fechaNacimiento": "1988-09-12"},
+  "ocupantes": [{"documento": "1094000222", "nombre": "Andres Rios", "fechaNacimiento": "1988-09-12"}]
+}
+
+### 6.16 [403] La huésped 1 intenta reservar por el canal DIRECTO (solo lo usa recepción) -> 403
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-09-10",
+  "fechaSalida": "2028-09-12",
+  "canalOrigen": "DIRECTO",
+  "horaEstimadaLlegada": "16:00",
+  "titular": {"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"},
+  "ocupantes": [{"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"}]
+}
+
+### 6.17 [403] Recepción intenta registrar una reserva por el PORTAL (el portal es del huésped) -> 403
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-09-10",
+  "fechaSalida": "2028-09-12",
+  "canalOrigen": "PORTAL",
+  "horaEstimadaLlegada": "16:00",
+  "titular": {"documento": "CC-9301", "nombre": "Carlos Vélez", "fechaNacimiento": "1979-06-15"},
+  "ocupantes": [{"documento": "CC-9301", "nombre": "Carlos Vélez", "fechaNacimiento": "1979-06-15"}]
+}
+
+### 6.18 La huésped 1 reserva por el PORTAL a su nombre -> 201
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-09-10",
+  "fechaSalida": "2028-09-12",
+  "canalOrigen": "PORTAL",
+  "horaEstimadaLlegada": "16:00",
+  "titular": {"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"},
+  "ocupantes": [{"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"}]
+}
+
+# ---------- Registro público (Guía 12, 7.5 punto 2) ----------
+
+### 6.19 [409] Registro con un correo ya registrado -> 409
+POST {{host}}/api/auth/registro
+Content-Type: application/json
+
+{
+  "nombre": "Otra Persona",
+  "correo": "huesped1@sga.local",
+  "contrasena": "OtraClave2026",
+  "telefono": "3109998877",
+  "documento": "1094777888",
+  "fechaNacimiento": "1992-02-02"
+}
+
+### 6.20 [400] Registro con contraseña insegura (sin mayúscula ni número) y correo inválido -> 400 por campo
+POST {{host}}/api/auth/registro
+Content-Type: application/json
+
+{
+  "nombre": "Persona Débil",
+  "correo": "no-es-correo",
+  "contrasena": "debilita",
+  "telefono": "3109998877",
+  "documento": "1094777999",
+  "fechaNacimiento": "1992-02-02"
+}
+
+### 6.21 [400] Registro sin los campos obligatorios -> 400 por campo
+POST {{host}}/api/auth/registro
+Content-Type: application/json
+
+{}
