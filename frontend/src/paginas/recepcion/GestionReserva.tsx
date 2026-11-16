@@ -5,6 +5,7 @@ import { Cargando } from '../../componentes/Cargando';
 import { CierreFolio } from '../../componentes/CierreFolio';
 import { DatosReserva } from '../../componentes/DatosReserva';
 import { FolioDetalle } from '../../componentes/FolioDetalle';
+import { FormularioCargoServicioNuevo } from '../../componentes/FormularioCargoServicio';
 import { FormularioModificarReserva } from '../../componentes/FormularioModificarReserva';
 import { FormularioPago } from '../../componentes/FormularioPago';
 import { useConsulta } from '../../hooks/useConsulta';
@@ -77,6 +78,19 @@ export default function GestionReserva() {
             <div className="mb-4">
               <h3 className="h6">Registrar pago</h3>
               <FormularioPago
+                codigo={codigo}
+                alRegistrar={() => {
+                  setAjustesRecientes([]);
+                  folio.recargar();
+                }}
+              />
+            </div>
+          )}
+
+          {datosFolio && !datosFolio.cerrado && (datos.estado === 'CONFIRMADA' || datos.estado === 'EN_CURSO') && (
+            <div className="mb-4">
+              <h3 className="h6">Registrar cargo de servicio adicional</h3>
+              <FormularioCargoServicioNuevo
                 codigo={codigo}
                 alRegistrar={() => {
                   setAjustesRecientes([]);

@@ -5,6 +5,7 @@ import co.edu.uniquindio.sga.domain.entity.Temporada;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
 import co.edu.uniquindio.sga.domain.repository.BloqueoRepository;
 import co.edu.uniquindio.sga.domain.repository.PoliticaCancelacionRepository;
+import co.edu.uniquindio.sga.domain.repository.ServicioAdicionalRepository;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.repository.TarifarioRepository;
 import co.edu.uniquindio.sga.domain.repository.TemporadaRepository;
@@ -12,6 +13,7 @@ import co.edu.uniquindio.sga.domain.service.ActivacionApartamentoService;
 import co.edu.uniquindio.sga.domain.service.RegistroApartamentoService;
 import co.edu.uniquindio.sga.domain.service.RegistroBloqueoService;
 import co.edu.uniquindio.sga.domain.service.RegistroPoliticaCancelacionService;
+import co.edu.uniquindio.sga.domain.service.RegistroServicioAdicionalService;
 import co.edu.uniquindio.sga.domain.service.RegistroTarifaService;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
@@ -56,13 +58,18 @@ public class CargadorDatosPrueba implements ApplicationRunner {
     private final RegistroPoliticaCancelacionService registroPolitica;
     private final RegistroBloqueoService registroBloqueo;
     private final SembradorReservasPrueba sembradorReservas;
+    private final ServicioAdicionalRepository servicios;
+    private final RegistroServicioAdicionalService registroServicio;
 
     CargadorDatosPrueba(Clock reloj, TemporadaRepository temporadas, ApartamentoRepository apartamentos,
                         TarifarioRepository tarifario, PoliticaCancelacionRepository politicas,
                         BloqueoRepository bloqueos, RegistroApartamentoService registroApartamento,
                         RegistroTarifaService registroTarifa, ActivacionApartamentoService activacion,
                         RegistroPoliticaCancelacionService registroPolitica, RegistroBloqueoService registroBloqueo,
-                        SembradorReservasPrueba sembradorReservas) {
+                        SembradorReservasPrueba sembradorReservas, ServicioAdicionalRepository servicios,
+                        RegistroServicioAdicionalService registroServicio) {
+        this.servicios = servicios;
+        this.registroServicio = registroServicio;
         this.hoy = LocalDate.now(reloj);
         this.temporadas = temporadas;
         this.apartamentos = apartamentos;
@@ -80,6 +87,7 @@ public class CargadorDatosPrueba implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments argumentos) {
+        sembrarServiciosAdicionales();
         if (apartamentos.listarTodos(SolicitudPagina.primera()).totalElementos() > 0) {
             REGISTRO.info("Los datos de prueba ya están cargados; no se vuelven a sembrar.");
             return;
@@ -90,6 +98,16 @@ public class CargadorDatosPrueba implements ApplicationRunner {
         cargarBloqueo();
         sembradorReservas.sembrar();
         REGISTRO.info("Datos de prueba cargados.");
+    }
+
+    /** L-17: los servicios adicionales de ejemplo; idempotente (no repite uno que ya existe). */
+    private void sembrarServiciosAdicionales() {
+        CatalogoDatosPrueba.SERVICIOS_ADICIONALES.forEach(semilla -> {
+            if (servicios.buscarPorCodigo(semilla.codigo()).isEmpty()) {
+                servicios.guardar(registroServicio.crear(semilla.codigo(), semilla.nombre(), semilla.descripcion(),
+                        semilla.generaCargo(), Dinero.de(semilla.valor())));
+            }
+        });
     }
 
     private void cargarTemporadas() {

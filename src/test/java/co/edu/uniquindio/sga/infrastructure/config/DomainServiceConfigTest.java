@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.time.Clock;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -30,8 +31,9 @@ class DomainServiceConfigTest {
 
     private ConfiguracionAlojamiento configuracion(int tiempoPreparacion, int umbral, int nochesDescuento,
                                                    int porcentajeDescuento, int edadAdulto, MockEnvironment entorno) {
-        return config.configuracionAlojamiento("America/Bogota", "15:00", "11:00",
-                tiempoPreparacion, 24, umbral, "22:00", 30, nochesDescuento, porcentajeDescuento, edadAdulto, entorno);
+        return config.configuracionPropiedades("America/Bogota", "15:00", "11:00",
+                tiempoPreparacion, 24, umbral, "22:00", 30, nochesDescuento, porcentajeDescuento, edadAdulto,
+                List.of("EFECTIVO", "TARJETA", "TRANSFERENCIA"), 62, entorno);
     }
 
     @Test
@@ -56,6 +58,28 @@ class DomainServiceConfigTest {
         assertEquals(7, c.nochesDescuentoEstanciaLarga());                           // RP-02
         assertEquals(10, c.porcentajeDescuentoEstanciaLarga());
         assertEquals(18, c.edadAdultoResponsableAnios());                            // RP-03
+    }
+
+    @Test
+    void exponeLosMediosDePagoYElMaximoDeNochesDelCalendario() {
+        ConfiguracionAlojamiento c = configuracion(3, 12);
+
+        assertEquals(List.of("EFECTIVO", "TARJETA", "TRANSFERENCIA"), c.mediosPagoAceptados()); // L-18
+        assertEquals(62, c.calendarioMaximoNoches());
+    }
+
+    @Test
+    void losMediosDePagoSeNormalizanYExigenAlMenosDos() {
+        var entorno = entornoConMinimos();
+        ConfiguracionAlojamiento c = config.configuracionPropiedades("America/Bogota", "15:00", "11:00", 3, 24, 12,
+                "22:00", 30, 7, 10, 18, List.of(" efectivo ", "Tarjeta", "TARJETA", ""), 62, entorno);
+        assertEquals(List.of("EFECTIVO", "TARJETA"), c.mediosPagoAceptados());
+
+        // L-18: mínimo dos medios; con uno solo el sistema no arranca
+        assertThrows(ReglaDominioException.class, () -> config.configuracionPropiedades("America/Bogota", "15:00",
+                "11:00", 3, 24, 12, "22:00", 30, 7, 10, 18, List.of("EFECTIVO"), 62, entorno));
+        assertThrows(ReglaDominioException.class, () -> config.configuracionPropiedades("America/Bogota", "15:00",
+                "11:00", 3, 24, 12, "22:00", 30, 7, 10, 18, List.of("EFECTIVO", "TARJETA"), 0, entorno));
     }
 
     @Test

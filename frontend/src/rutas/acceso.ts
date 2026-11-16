@@ -39,9 +39,11 @@ const REGLAS: readonly ReglaDeAcceso[] = [
   { patron: PATRONES.reservas, roles: ROLES_RECEPCION },
   { patron: PATRONES.nuevaReservaRecepcion, roles: ROLES_RECEPCION },
   { patron: PATRONES.gestionReserva, roles: ROLES_RECEPCION },
+  { patron: PATRONES.calendarioOcupacion, roles: ROLES_RECEPCION },
 
   { patron: PATRONES.preparacion, roles: ROLES_SERVICIO },
 
+  { patron: PATRONES.alojamiento, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.apartamentos, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.apartamentoNuevo, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.apartamentoEditar, roles: ROLES_ADMINISTRACION },

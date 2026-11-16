@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { CalendarioDisponibilidad } from '../../componentes/CalendarioDisponibilidad';
 import { Cargando } from '../../componentes/Cargando';
 import { DesgloseCotizacion } from '../../componentes/DesgloseCotizacion';
 import { EtiquetasCaracteristicas } from '../../componentes/EtiquetasCaracteristicas';
 import { EstadoOperativoBadge } from '../../componentes/EstadoOperativoBadge';
+import { InformacionAlojamiento } from '../../componentes/InformacionAlojamiento';
 import { esquemaCotizacion } from '../../esquemas/estancia';
 import { useAuth } from '../../hooks/useAuth';
 import { useFiltros } from '../../hooks/useFiltros';
@@ -131,6 +133,15 @@ export default function DetalleApartamento() {
             </>
           )}
         </div>
+      </div>
+
+      <h2 className="h5">Disponibilidad</h2>
+      <div className="mb-4">
+        <CalendarioDisponibilidad identificacion={identificacion} />
+      </div>
+
+      <div className="mb-4">
+        <InformacionAlojamiento />
       </div>
 
       <h2 className="h5">Cotización</h2>

@@ -1,4 +1,5 @@
 import type { FechaISO } from './comun';
+import type { ReservaResumenResponse } from './reserva';
 
 /** Condición física del apartamento (3.3). */
 export type EstadoOperativo =
@@ -45,6 +46,15 @@ export interface ApartamentoResponse {
   caracteristicas: Caracteristica[];
   estadoOperativo: EstadoOperativo;
   activo: boolean;
+}
+
+/**
+ * PUT /apartamentos/{identificacion}: los mismos campos de ApartamentoResponse más el aviso de capacidad (7.3). Si se bajó la
+ * capacidad, `reservasPorEncimaDeLaCapacidad` lista las reservas activas con más ocupantes que la nueva capacidad; la
+ * actualización no se bloquea y esas reservas no se modifican. Vacía si no se bajó la capacidad o no hay ninguna.
+ */
+export interface ApartamentoActualizadoResponse extends ApartamentoResponse {
+  reservasPorEncimaDeLaCapacidad: ReservaResumenResponse[];
 }
 
 /** POST /apartamentos. Nace inactivo hasta tener tarifa en todas las temporadas (7.4). */

@@ -28,3 +28,12 @@ function aISO(fecha: Date): FechaISO {
   const dia = String(fecha.getDate()).padStart(2, '0');
   return `${fecha.getFullYear()}-${mes}-${dia}`;
 }
+
+/**
+ * El primer día del mes que queda `meses` meses después del de `fecha` (con meses = 1, el primer día del mes siguiente).
+ * Sirve para armar un rango "hasta el final de este mes y del siguiente" sin pasar por UTC.
+ */
+export function primerDiaDeMes(fecha: FechaISO, meses: number): FechaISO {
+  const [anio = 0, mes = 1] = fecha.split('-').map(Number);
+  return aISO(new Date(anio, mes - 1 + meses, 1));
+}

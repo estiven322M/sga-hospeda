@@ -55,6 +55,7 @@ class ApartamentoControllerTest {
     @Mock private ActualizarApartamentoUseCase actualizar;
     @Mock private ActivarApartamentoUseCase activar;
     @Mock private DarDeBajaApartamentoUseCase darDeBaja;
+    @Mock private co.edu.uniquindio.sga.application.usecase.ConsultarCalendarioUseCase calendario;
     private MockMvc mvc;
 
     private final IdentificacionApartamento id = new IdentificacionApartamento("APT-101");
@@ -66,7 +67,9 @@ class ApartamentoControllerTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.standaloneSetup(new ApartamentoController(crear, consultar, listar, actualizar,
-                        activar, darDeBaja, new ApartamentoMapperImpl(), new SolicitudMapperImpl()))
+                        activar, darDeBaja, calendario, new ApartamentoMapperImpl(),
+                        new co.edu.uniquindio.sga.infrastructure.rest.mapper.ReservaMapperImpl(),
+                        new co.edu.uniquindio.sga.infrastructure.rest.mapper.CalendarioMapper(), new SolicitudMapperImpl()))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -214,7 +217,8 @@ class ApartamentoControllerTest {
         Apartamento editado = apartamento();
         editado.actualizarDatos("Nuevo", "Nueva descripción", 3, 6, List.of("Lavadora"), Set.of(Caracteristica.JACUZZI));
         when(actualizar.ejecutar(eq(id), eq("Nuevo"), eq("Nueva descripción"), eq(3), eq(6),
-                eq(List.of("Lavadora")), eq(Set.of(Caracteristica.JACUZZI)))).thenReturn(editado);
+                eq(List.of("Lavadora")), eq(Set.of(Caracteristica.JACUZZI))))
+                .thenReturn(new ActualizarApartamentoUseCase.Resultado(editado, List.of()));
 
         mvc.perform(put("/api/apartamentos/APT-101").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nombre\":\"Nuevo\",\"descripcion\":\"Nueva descripción\",\"dormitorios\":3,"
@@ -223,7 +227,9 @@ class ApartamentoControllerTest {
                 .andExpect(jsonPath("$.nombre").value("Nuevo"))
                 .andExpect(jsonPath("$.descripcion").value("Nueva descripción"))
                 .andExpect(jsonPath("$.dotacion[0]").value("Lavadora"))
-                .andExpect(jsonPath("$.caracteristicas[0]").value("JACUZZI"));
+                .andExpect(jsonPath("$.caracteristicas[0]").value("JACUZZI"))
+                // 7.3: sin bajar la capacidad el aviso viene vacío
+                .andExpect(jsonPath("$.reservasPorEncimaDeLaCapacidad", hasSize(0)));
     }
 
     @Test

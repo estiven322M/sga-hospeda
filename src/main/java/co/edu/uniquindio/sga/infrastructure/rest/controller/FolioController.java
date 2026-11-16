@@ -14,10 +14,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import co.edu.uniquindio.sga.application.dto.request.CerrarFolioRequest;
+import co.edu.uniquindio.sga.application.dto.request.RegistrarCargoServicioRequest;
 import co.edu.uniquindio.sga.application.dto.request.RegistrarPagoRequest;
 import co.edu.uniquindio.sga.application.dto.response.FolioResponse;
 import co.edu.uniquindio.sga.application.usecase.CerrarFolioUseCase;
 import co.edu.uniquindio.sga.application.usecase.ConsultarFolioUseCase;
+import co.edu.uniquindio.sga.application.usecase.RegistrarCargoServicioUseCase;
 import co.edu.uniquindio.sga.application.usecase.RegistrarPagoUseCase;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.FolioMapper;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.SolicitudMapper;
@@ -38,14 +40,17 @@ public class FolioController {
     private final ConsultarFolioUseCase consultarFolio;
     private final RegistrarPagoUseCase registrarPago;
     private final CerrarFolioUseCase cerrarFolio;
+    private final RegistrarCargoServicioUseCase registrarCargoServicio;
     private final FolioMapper mapper;
     private final SolicitudMapper solicitud;
 
     public FolioController(ConsultarFolioUseCase consultarFolio, RegistrarPagoUseCase registrarPago,
-                           CerrarFolioUseCase cerrarFolio, FolioMapper mapper, SolicitudMapper solicitud) {
+                           CerrarFolioUseCase cerrarFolio, RegistrarCargoServicioUseCase registrarCargoServicio,
+                           FolioMapper mapper, SolicitudMapper solicitud) {
         this.consultarFolio = consultarFolio;
         this.registrarPago = registrarPago;
         this.cerrarFolio = cerrarFolio;
+        this.registrarCargoServicio = registrarCargoServicio;
         this.mapper = mapper;
         this.solicitud = solicitud;
     }
@@ -79,6 +84,22 @@ public class FolioController {
     public ResponseEntity<FolioResponse> registrarPago(@PathVariable String codigo,
                                                       @Valid @RequestBody RegistrarPagoRequest request) {
         var folio = registrarPago.ejecutar(solicitud.aCodigo(codigo), solicitud.aPago(request));
+        URI ubicacion = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/reservas/{codigo}/folio").buildAndExpand(codigo).toUri();
+        return ResponseEntity.created(ubicacion).body(mapper.aResponse(folio));
+    }
+
+    /**
+     * L-17, 7.7: registra un cargo de servicio adicional (código del servicio y cantidad). El dominio exige reserva
+     * CONFIRMADA o EN_CURSO, servicio activo que genere cargo y folio abierto (409). Crea un cargo (201); Location apunta al
+     * folio, que devuelve con el saldo actualizado.
+     */
+    @PostMapping("/cargos")
+    @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
+    @Operation(summary = "Registrar un cargo de servicio adicional en el folio")
+    public ResponseEntity<FolioResponse> registrarCargo(@PathVariable String codigo,
+                                                       @Valid @RequestBody RegistrarCargoServicioRequest request) {
+        var folio = registrarCargoServicio.ejecutar(solicitud.aCodigo(codigo), request.codigoServicio(), request.cantidad());
         URI ubicacion = ServletUriComponentsBuilder.fromCurrentContextPath()
                 .path("/api/reservas/{codigo}/folio").buildAndExpand(codigo).toUri();
         return ResponseEntity.created(ubicacion).body(mapper.aResponse(folio));

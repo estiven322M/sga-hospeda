@@ -12,9 +12,11 @@ interface EncabezadoProps {
 const OPCIONES_RECEPCION = [
   { etiqueta: 'Reservas', ruta: RUTAS.reservas },
   { etiqueta: 'Nueva reserva', ruta: RUTAS.nuevaReservaRecepcion },
+  { etiqueta: 'Calendario de ocupación', ruta: RUTAS.calendarioOcupacion },
 ] as const;
 
 const OPCIONES_ADMINISTRACION = [
+  { etiqueta: 'Alojamiento', ruta: RUTAS.alojamiento },
   { etiqueta: 'Apartamentos', ruta: RUTAS.apartamentos },
   { etiqueta: 'Bloqueos', ruta: RUTAS.bloqueos },
   { etiqueta: 'Temporadas y tarifas', ruta: RUTAS.temporadasTarifas },

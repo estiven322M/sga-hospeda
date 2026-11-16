@@ -1,9 +1,12 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,11 +20,14 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import co.edu.uniquindio.sga.application.dto.request.ActualizarApartamentoRequest;
 import co.edu.uniquindio.sga.application.dto.request.CrearApartamentoRequest;
+import co.edu.uniquindio.sga.application.dto.response.ApartamentoActualizadoResponse;
 import co.edu.uniquindio.sga.application.dto.response.ApartamentoResponse;
+import co.edu.uniquindio.sga.application.dto.response.CalendarioResponse;
 import co.edu.uniquindio.sga.application.dto.response.PaginaResponse;
 import co.edu.uniquindio.sga.application.usecase.ActivarApartamentoUseCase;
 import co.edu.uniquindio.sga.application.usecase.ActualizarApartamentoUseCase;
 import co.edu.uniquindio.sga.application.usecase.ConsultarApartamentoUseCase;
+import co.edu.uniquindio.sga.application.usecase.ConsultarCalendarioUseCase;
 import co.edu.uniquindio.sga.application.usecase.CrearApartamentoUseCase;
 import co.edu.uniquindio.sga.application.usecase.DarDeBajaApartamentoUseCase;
 import co.edu.uniquindio.sga.application.usecase.ListarApartamentosUseCase;
@@ -30,6 +36,8 @@ import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.ApartamentoMapper;
+import co.edu.uniquindio.sga.infrastructure.rest.mapper.CalendarioMapper;
+import co.edu.uniquindio.sga.infrastructure.rest.mapper.ReservaMapper;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.Paginas;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.SolicitudMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,7 +60,10 @@ public class ApartamentoController {
     private final ActualizarApartamentoUseCase actualizarApartamento;
     private final ActivarApartamentoUseCase activarApartamento;
     private final DarDeBajaApartamentoUseCase darDeBajaApartamento;
+    private final ConsultarCalendarioUseCase consultarCalendario;
     private final ApartamentoMapper mapper;
+    private final ReservaMapper reservaMapper;
+    private final CalendarioMapper calendarioMapper;
     private final SolicitudMapper solicitud;
 
     public ApartamentoController(CrearApartamentoUseCase crearApartamento,
@@ -61,14 +72,19 @@ public class ApartamentoController {
                                  ActualizarApartamentoUseCase actualizarApartamento,
                                  ActivarApartamentoUseCase activarApartamento,
                                  DarDeBajaApartamentoUseCase darDeBajaApartamento,
-                                 ApartamentoMapper mapper, SolicitudMapper solicitud) {
+                                 ConsultarCalendarioUseCase consultarCalendario,
+                                 ApartamentoMapper mapper, ReservaMapper reservaMapper,
+                                 CalendarioMapper calendarioMapper, SolicitudMapper solicitud) {
         this.crearApartamento = crearApartamento;
         this.consultarApartamento = consultarApartamento;
         this.listarApartamentos = listarApartamentos;
         this.actualizarApartamento = actualizarApartamento;
         this.activarApartamento = activarApartamento;
         this.darDeBajaApartamento = darDeBajaApartamento;
+        this.consultarCalendario = consultarCalendario;
         this.mapper = mapper;
+        this.reservaMapper = reservaMapper;
+        this.calendarioMapper = calendarioMapper;
         this.solicitud = solicitud;
     }
 
@@ -107,12 +123,37 @@ public class ApartamentoController {
 
     @PutMapping("/{identificacion}")
     @PreAuthorize("hasAuthority('ADMINISTRADOR')")
-    @Operation(summary = "Editar los datos de un apartamento")
-    public ResponseEntity<ApartamentoResponse> actualizar(@PathVariable String identificacion,
-                                                         @Valid @RequestBody ActualizarApartamentoRequest request) {
-        return ResponseEntity.ok(mapper.aResponse(actualizarApartamento.ejecutar(
+    @Operation(summary = "Editar los datos de un apartamento; si baja la capacidad, avisa de las reservas que quedan por encima")
+    public ResponseEntity<ApartamentoActualizadoResponse> actualizar(@PathVariable String identificacion,
+                                                                    @Valid @RequestBody ActualizarApartamentoRequest request) {
+        var resultado = actualizarApartamento.ejecutar(
                 solicitud.aApartamento(identificacion), request.nombre(), request.descripcion(),
-                request.dormitorios(), request.capacidad(), request.dotacion(), request.caracteristicas())));
+                request.dormitorios(), request.capacidad(), request.dotacion(), request.caracteristicas());
+        ApartamentoResponse datos = mapper.aResponse(resultado.apartamento());
+        return ResponseEntity.ok(new ApartamentoActualizadoResponse(datos.identificacion(), datos.nombre(),
+                datos.descripcion(), datos.dormitorios(), datos.capacidad(), datos.dotacion(), datos.caracteristicas(),
+                datos.estadoOperativo(), datos.activo(),
+                resultado.reservasPorEncimaDeLaCapacidad().stream().map(reservaMapper::aResumen).toList()));
+    }
+
+    /**
+     * 7.1, 7.5: estado de cada noche del rango [desde, hasta), de máximo 62 noches (configurable; 409 si se excede).
+     * Recepción y administración ven además el código y el estado de la reserva de cada noche reservada; el huésped solo ve
+     * LIBRE o NO_DISPONIBLE. El personal de servicio no usa el calendario.
+     */
+    @GetMapping("/{identificacion}/calendario")
+    @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR')")
+    @Operation(summary = "Calendario de ocupación de un apartamento (LIBRE, RESERVADA o BLOQUEADA)")
+    public ResponseEntity<CalendarioResponse> calendario(
+            @PathVariable String identificacion,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            Authentication authentication) {
+        var noches = consultarCalendario.ejecutar(solicitud.aApartamento(identificacion), solicitud.aEstancia(desde, hasta));
+        boolean detallado = authentication.getAuthorities().stream()
+                .anyMatch(autoridad -> autoridad.getAuthority().equals("RECEPCIONISTA")
+                        || autoridad.getAuthority().equals("ADMINISTRADOR"));
+        return ResponseEntity.ok(calendarioMapper.aResponse(identificacion, desde, hasta, noches, detallado));
     }
 
     /** Operación de negocio: exige tarifa en todas las temporadas (7.4). */

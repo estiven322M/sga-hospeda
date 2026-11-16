@@ -45,4 +45,10 @@ public interface ConfiguracionAlojamiento {
     /** RP-03 (L-20): edad en años desde la que un ocupante cuenta como adulto responsable. */
     int edadAdultoResponsableAnios();
 
+    /** L-18: medios de pago que el alojamiento acepta (p. ej. EFECTIVO, TARJETA, TRANSFERENCIA). Al menos dos. */
+    java.util.List<String> mediosPagoAceptados();
+
+    /** 7.5: máximo de noches que admite una consulta de calendario de ocupación. */
+    int calendarioMaximoNoches();
+
 }

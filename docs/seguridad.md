@@ -66,6 +66,12 @@ usuarios.
 | `POST /api/reservas/{codigo}/folio/pagos` | ✘ | ✔ | ✔ | ✘ |
 | `PUT /api/reservas/{codigo}/folio/cerrar` | ✘ | ✔ sin autorización | ✔ | ✘ |
 | `GET /api/reservas-externas/rechazos` | ✘ | ✘ | ✔ | ✘ |
+| `GET /api/alojamiento` (datos públicos: Inicio, detalle y mapa) | público | público | público | público |
+| `PUT /api/alojamiento`, `GET /api/alojamiento/parametros` (solo lectura) | ✘ | ✘ | ✔ | ✘ |
+| `GET /api/servicios-adicionales` | ✘ | ✔ | ✔ | ✘ |
+| `POST /api/servicios-adicionales`, `PUT .../{codigo}`, `PUT .../baja`, `PUT .../activar` | ✘ | ✘ | ✔ | ✘ |
+| `POST /api/reservas/{codigo}/folio/cargos` (cargo de servicio adicional) | ✘ | ✔ | ✔ | ✘ |
+| `GET /api/apartamentos/{id}/calendario` | ✔ solo libre o no disponible | ✔ con el código y el estado de la reserva | ✔ con el código y el estado de la reserva | ✘ |
 
 ## 3.1 CORS (para el frontend, Guía 15 4.2)
 

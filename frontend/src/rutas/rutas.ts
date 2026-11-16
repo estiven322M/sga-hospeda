@@ -19,11 +19,13 @@ export const RUTAS = {
   reservas: '/recepcion/reservas',
   nuevaReservaRecepcion: '/recepcion/reservas/nueva',
   gestionReserva: (codigo: string) => `/recepcion/reservas/${codigo}`,
+  calendarioOcupacion: '/recepcion/calendario',
 
   // Personal de servicio
   preparacion: '/servicio/preparacion',
 
   // Administración
+  alojamiento: '/administracion/alojamiento',
   apartamentos: '/administracion/apartamentos',
   apartamentoNuevo: '/administracion/apartamentos/nuevo',
   apartamentoEditar: (identificacion: string) => `/administracion/apartamentos/${identificacion}/editar`,
@@ -44,9 +46,11 @@ export const PATRONES = {
   reservas: 'recepcion/reservas',
   nuevaReservaRecepcion: 'recepcion/reservas/nueva',
   gestionReserva: 'recepcion/reservas/:codigo',
+  calendarioOcupacion: 'recepcion/calendario',
 
   preparacion: 'servicio/preparacion',
 
+  alojamiento: 'administracion/alojamiento',
   apartamentos: 'administracion/apartamentos',
   apartamentoNuevo: 'administracion/apartamentos/nuevo',
   apartamentoEditar: 'administracion/apartamentos/:identificacion/editar',

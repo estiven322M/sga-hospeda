@@ -68,6 +68,12 @@ tags:
     description: Cargos, ajustes, pagos y saldo de una reserva
   - name: Estado operativo
     description: Condición física presente de un apartamento (preparación y fuera de servicio)
+  - name: Alojamiento
+    description: Datos del alojamiento (identidad, ubicación, horarios, normas y mascotas) y sus parámetros de configuración
+  - name: Servicios adicionales
+    description: Servicios que el alojamiento ofrece y pueden generar un cargo en el folio (L-17)
+  - name: Calendario
+    description: Estado de cada noche de un apartamento (libre, reservada o bloqueada)
 
 paths:
 
@@ -301,7 +307,9 @@ paths:
         **Roles:** ADMINISTRADOR.
 
         Cambia nombre, dormitorios y capacidad. La identificación no cambia.
-        Cambiar la capacidad no afecta las reservas ya creadas (7.3).
+        Cambiar la capacidad no afecta las reservas ya creadas (7.3). Si se BAJA la capacidad, la respuesta incluye en
+        `reservasPorEncimaDeLaCapacidad` las reservas activas con más ocupantes que la nueva capacidad, para advertir al
+        administrador; la actualización nunca se bloquea y esas reservas no se modifican.
         Mapea a: `ActualizarApartamentoUseCase`
       operationId: actualizarApartamento
       parameters:
@@ -318,11 +326,11 @@ paths:
               capacidad: 6
       responses:
         '200':
-          description: Apartamento actualizado
+          description: Apartamento actualizado. Si se bajó la capacidad, trae el aviso con las reservas que quedan por encima (la actualización no se bloquea)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApartamentoResponse'
+                $ref: '#/components/schemas/ApartamentoActualizadoResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
         '404':
@@ -1558,6 +1566,374 @@ paths:
         '403':
           $ref: '#/components/responses/SinPermiso'
 
+  # ==================== ALOJAMIENTO (7.3, L-01, L-02, L-16, L-18) ====================
+
+  /api/alojamiento:
+    get:
+      tags: [Alojamiento]
+      summary: Consultar los datos del alojamiento (público)
+      description: |
+        **Público:** no exige token. Lo usan Inicio, el detalle de un apartamento y el mapa.
+
+        Nombre, descripción, ciudad, dirección, ubicación (latitud y longitud), horas de entrada y de salida (L-12), normas de
+        convivencia, política de mascotas (L-16) y medios de pago aceptados (L-18, configuración del sistema). El alojamiento
+        se siembra desde application.properties la primera vez que arranca el sistema.
+        Mapea a: `ConsultarAlojamientoUseCase`
+      operationId: consultarAlojamiento
+      security: []
+      responses:
+        '200':
+          description: Datos del alojamiento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlojamientoResponse'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    put:
+      tags: [Alojamiento]
+      summary: Editar los datos del alojamiento
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Reemplaza los datos editables. Las reglas las valida el dominio y responden 409: la hora de salida debe ser anterior a la
+        de entrada, la ubicación debe ser posible y la política de mascotas es una decisión explícita (no puede quedar vacía).
+        Las horas de entrada y salida editadas rigen de inmediato en las reglas de llegada y no-show. Los medios de pago no se
+        editan aquí: son configuración del sistema.
+        Mapea a: `ActualizarAlojamientoUseCase`
+      operationId: actualizarAlojamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActualizarAlojamientoRequest'
+            example:
+              nombre: Hospeda Salento
+              descripcion: Apartamentos turísticos con vista al Valle del Cocora.
+              ciudad: Salento, Quindío
+              direccion: Carrera 6 # 3-45, Salento, Quindío
+              latitud: 4.6368
+              longitud: -75.57
+              horaEntrada: '15:00'
+              horaSalida: '11:00'
+              normasConvivencia: Silencio entre las 10 p. m. y las 7 a. m.
+              politicaMascotas: No se aceptan mascotas.
+      responses:
+        '200':
+          description: Alojamiento actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlojamientoResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/alojamiento/parametros:
+    get:
+      tags: [Alojamiento]
+      summary: Consultar los parámetros del sistema (solo lectura)
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Los parámetros de la sección 6 (umbral de edad facturable, tiempo de preparación, plazo de confirmación, hora límite de
+        no-show, anticipo, reglas propias, medios de pago y máximo de noches del calendario). Son configuración del sistema: se
+        muestran en solo lectura y cambiarlos exige modificar la configuración y reiniciar.
+        Mapea a: `ConsultarParametrosUseCase`
+      operationId: consultarParametros
+      responses:
+        '200':
+          description: Parámetros de configuración
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParametrosResponse'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  # ==================== SERVICIOS ADICIONALES (L-17) ====================
+
+  /api/servicios-adicionales:
+    post:
+      tags: [Servicios adicionales]
+      summary: Crear un servicio adicional
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Un servicio nuevo nace activo. Reglas del dominio (409): el código es único; un servicio que genera cargo debe tener un
+        valor mayor que cero y uno que no lo genera (cortesía) no lleva valor.
+        Mapea a: `CrearServicioAdicionalUseCase`
+      operationId: crearServicioAdicional
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearServicioAdicionalRequest'
+            example:
+              codigo: DESAYUNO
+              nombre: Desayuno típico
+              descripcion: Desayuno cafetero servido en el apartamento, por persona.
+              generaCargo: true
+              valor: 25000
+      responses:
+        '201':
+          description: Servicio adicional creado
+          headers:
+            Location:
+              description: URL del servicio creado
+              schema:
+                type: string
+                example: http://localhost:8080/api/servicios-adicionales/DESAYUNO
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioAdicionalResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+    get:
+      tags: [Servicios adicionales]
+      summary: Listar los servicios adicionales
+      description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
+        De 10 en 10 y ordenados por código. Con `soloActivos=true` solo los que se pueden cargar a un folio.
+        Mapea a: `ListarServiciosAdicionalesUseCase`
+      operationId: listarServiciosAdicionales
+      parameters:
+        - name: soloActivos
+          in: query
+          required: false
+          description: Si es true, solo los servicios activos
+          schema:
+            type: boolean
+            default: false
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página de servicios adicionales
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaServicioAdicionalResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/servicios-adicionales/{codigo}:
+    put:
+      tags: [Servicios adicionales]
+      summary: Editar un servicio adicional
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Reemplaza los datos editables; el código no cambia. Los cargos ya registrados en folios conservan su valor.
+        Mapea a: `ActualizarServicioAdicionalUseCase`
+      operationId: actualizarServicioAdicional
+      parameters:
+        - $ref: '#/components/parameters/CodigoServicio'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActualizarServicioAdicionalRequest'
+            example:
+              nombre: Desayuno típico
+              descripcion: Desayuno cafetero servido en el apartamento, por persona.
+              generaCargo: true
+              valor: 28000
+      responses:
+        '200':
+          description: Servicio adicional actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioAdicionalResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/servicios-adicionales/{codigo}/baja:
+    put:
+      tags: [Servicios adicionales]
+      summary: Dar de baja un servicio adicional (baja lógica)
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        El servicio deja de poderse cargar a un folio; el registro y los cargos ya hechos se conservan. 409 si ya estaba de baja.
+        Mapea a: `CambiarActividadServicioAdicionalUseCase`
+      operationId: darDeBajaServicioAdicional
+      parameters:
+        - $ref: '#/components/parameters/CodigoServicio'
+      responses:
+        '200':
+          description: Servicio adicional dado de baja
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioAdicionalResponse'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/servicios-adicionales/{codigo}/activar:
+    put:
+      tags: [Servicios adicionales]
+      summary: Volver a dar de alta un servicio adicional
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        409 si ya estaba activo.
+        Mapea a: `CambiarActividadServicioAdicionalUseCase`
+      operationId: activarServicioAdicional
+      parameters:
+        - $ref: '#/components/parameters/CodigoServicio'
+      responses:
+        '200':
+          description: Servicio adicional activado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioAdicionalResponse'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  # ==================== CARGO DE SERVICIO ADICIONAL EN EL FOLIO (L-17, 7.7) ====================
+
+  /api/reservas/{codigo}/folio/cargos:
+    post:
+      tags: [Folios]
+      summary: Registrar un cargo de servicio adicional en el folio
+      description: |
+        **Roles:** RECEPCIONISTA, ADMINISTRADOR.
+
+        Registra el servicio indicado por su código, con una cantidad; el valor del cargo es el valor del servicio por la
+        cantidad. Reglas del dominio (409): el folio debe estar abierto, el servicio debe estar activo y generar cargo, y la
+        reserva debe estar CONFIRMADA o EN_CURSO. Un cargo no se edita ni se borra (RN-16). Devuelve el folio con el saldo actualizado.
+        Mapea a: `RegistrarCargoServicioUseCase`
+      operationId: registrarCargoServicio
+      parameters:
+        - $ref: '#/components/parameters/CodigoReserva'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrarCargoServicioRequest'
+            example:
+              codigoServicio: DESAYUNO
+              cantidad: 2
+      responses:
+        '201':
+          description: Cargo registrado
+          headers:
+            Location:
+              description: URL del folio de la reserva
+              schema:
+                type: string
+                example: http://localhost:8080/api/reservas/RES-2026-00001/folio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FolioResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  # ==================== CALENDARIO DE OCUPACIÓN (7.1, 7.5) ====================
+
+  /api/apartamentos/{identificacion}/calendario:
+    get:
+      tags: [Calendario]
+      summary: Calendario de ocupación de un apartamento
+      description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR.
+
+        El estado de cada noche del rango `[desde, hasta)`, de máximo 62 noches (configurable; 409 si se excede). Recepción y
+        administración ven LIBRE, RESERVADA o BLOQUEADA y, en las noches reservadas, el código y el estado de la reserva. El
+        huésped solo ve LIBRE o NO_DISPONIBLE, sin saber por qué ni de quién es la reserva.
+        Mapea a: `ConsultarCalendarioUseCase`
+      operationId: consultarCalendario
+      parameters:
+        - $ref: '#/components/parameters/IdentificacionApartamento'
+        - name: desde
+          in: query
+          required: true
+          description: Primera noche del rango (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: true
+          description: Fecha de fin del rango (la noche de esta fecha no se incluye)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Calendario del apartamento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarioResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+
 components:
 
   securitySchemes:
@@ -1606,6 +1982,14 @@ components:
       schema:
         type: string
         example: APT-101
+    CodigoServicio:
+      name: codigo
+      in: path
+      required: true
+      description: Código único del servicio adicional
+      schema:
+        type: string
+        example: DESAYUNO
     Temporada:
       name: temporada
       in: path
@@ -2574,3 +2958,264 @@ components:
         autorizacionCierre:
           type: [string, "null"]
           description: Quién autorizó el cierre con saldo y por qué (CU-11). Es null si el folio no se ha cerrado o se cerró sin saldo pendiente.
+    AlojamientoResponse:
+      type: object
+      required: [nombre, descripcion, ciudad, direccion, latitud, longitud, horaEntrada, horaSalida, normasConvivencia, politicaMascotas, mediosPago]
+      properties:
+        nombre:
+          type: string
+        descripcion:
+          type: string
+        ciudad:
+          type: string
+        direccion:
+          type: string
+        latitud:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitud:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        horaEntrada:
+          type: string
+          format: time
+          description: Hora desde la que el grupo puede entrar
+        horaSalida:
+          type: string
+          format: time
+          description: Hora máxima de salida. Debe ser anterior a la hora de entrada
+        normasConvivencia:
+          type: string
+        politicaMascotas:
+          type: string
+          description: Decisión explícita sobre las mascotas (L-16)
+        mediosPago:
+          type: array
+          description: Medios de pago aceptados (L-18). Es configuración del sistema, no se edita aquí
+          items:
+            type: string
+          example: [EFECTIVO, TARJETA, TRANSFERENCIA]
+    ActualizarAlojamientoRequest:
+      type: object
+      required: [nombre, descripcion, ciudad, direccion, latitud, longitud, horaEntrada, horaSalida, normasConvivencia, politicaMascotas]
+      properties:
+        nombre:
+          type: string
+          maxLength: 80
+        descripcion:
+          type: string
+          maxLength: 1000
+        ciudad:
+          type: string
+          maxLength: 80
+        direccion:
+          type: string
+          maxLength: 160
+        latitud:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitud:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        horaEntrada:
+          type: string
+          format: time
+        horaSalida:
+          type: string
+          format: time
+        normasConvivencia:
+          type: string
+          maxLength: 2000
+        politicaMascotas:
+          type: string
+          maxLength: 2000
+    ParametrosResponse:
+      type: object
+      description: Los parámetros de la sección 6, en solo lectura. Son configuración del sistema.
+      required: [umbralEdadFacturableAnios, tiempoPreparacionHoras, plazoConfirmacionHoras, horaLimiteNoShow, anticipoPorcentaje, estanciaMinimaPorTemporada, nochesDescuentoEstanciaLarga, porcentajeDescuentoEstanciaLarga, edadAdultoResponsableAnios, mediosPago, calendarioMaximoNoches, zonaHoraria, nota]
+      properties:
+        umbralEdadFacturableAnios:
+          type: integer
+        tiempoPreparacionHoras:
+          type: integer
+        plazoConfirmacionHoras:
+          type: integer
+        horaLimiteNoShow:
+          type: string
+          format: time
+        anticipoPorcentaje:
+          type: integer
+        estanciaMinimaPorTemporada:
+          type: object
+          description: Mínimo de noches por nombre de temporada (RP-01)
+          additionalProperties:
+            type: integer
+        nochesDescuentoEstanciaLarga:
+          type: integer
+        porcentajeDescuentoEstanciaLarga:
+          type: integer
+        edadAdultoResponsableAnios:
+          type: integer
+        mediosPago:
+          type: array
+          items:
+            type: string
+        calendarioMaximoNoches:
+          type: integer
+        zonaHoraria:
+          type: string
+        nota:
+          type: string
+          description: Aviso de que son configuración del sistema
+    CrearServicioAdicionalRequest:
+      type: object
+      required: [codigo, nombre, generaCargo, valor]
+      properties:
+        codigo:
+          type: string
+          maxLength: 30
+        nombre:
+          type: string
+          maxLength: 80
+        descripcion:
+          type: string
+          maxLength: 300
+        generaCargo:
+          type: boolean
+        valor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Pesos COP, sin decimales. Mayor que cero si genera cargo; cero si no lo genera
+    ActualizarServicioAdicionalRequest:
+      type: object
+      required: [nombre, generaCargo, valor]
+      properties:
+        nombre:
+          type: string
+          maxLength: 80
+        descripcion:
+          type: string
+          maxLength: 300
+        generaCargo:
+          type: boolean
+        valor:
+          type: integer
+          format: int64
+          minimum: 0
+    ServicioAdicionalResponse:
+      type: object
+      required: [codigo, nombre, descripcion, generaCargo, valor, moneda, activo]
+      properties:
+        codigo:
+          type: string
+        nombre:
+          type: string
+        descripcion:
+          type: string
+        generaCargo:
+          type: boolean
+        valor:
+          type: integer
+          format: int64
+        moneda:
+          type: string
+          example: COP
+        activo:
+          type: boolean
+          description: Si se puede cargar a un folio. La baja es lógica
+    PaginaServicioAdicionalResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServicioAdicionalResponse'
+    RegistrarCargoServicioRequest:
+      type: object
+      required: [codigoServicio, cantidad]
+      properties:
+        codigoServicio:
+          type: string
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 100
+    CalendarioResponse:
+      type: object
+      required: [identificacionApartamento, desde, hasta, noches]
+      properties:
+        identificacionApartamento:
+          type: string
+        desde:
+          type: string
+          format: date
+        hasta:
+          type: string
+          format: date
+        noches:
+          type: array
+          items:
+            $ref: '#/components/schemas/NocheCalendarioResponse'
+    NocheCalendarioResponse:
+      type: object
+      required: [noche, estado]
+      properties:
+        noche:
+          type: string
+          format: date
+        estado:
+          type: string
+          enum: [LIBRE, RESERVADA, BLOQUEADA, NO_DISPONIBLE]
+          description: Recepción y administración ven LIBRE, RESERVADA o BLOQUEADA; el huésped solo ve LIBRE o NO_DISPONIBLE
+        codigoReserva:
+          type: [string, "null"]
+          description: Solo para recepción y administración, en las noches reservadas
+        estadoReserva:
+          description: Solo para recepción y administración, en las noches reservadas
+          oneOf:
+            - $ref: '#/components/schemas/EstadoReserva'
+            - type: "null"
+    ApartamentoActualizadoResponse:
+      type: object
+      description: Los campos de ApartamentoResponse más el aviso de capacidad (7.3)
+      required: [identificacion, nombre, descripcion, dormitorios, capacidad, dotacion, caracteristicas, estadoOperativo, activo, reservasPorEncimaDeLaCapacidad]
+      properties:
+        identificacion:
+          type: string
+        nombre:
+          type: string
+        descripcion:
+          type: string
+        dormitorios:
+          type: integer
+        capacidad:
+          type: integer
+        dotacion:
+          type: array
+          items:
+            type: string
+        caracteristicas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Caracteristica'
+        estadoOperativo:
+          $ref: '#/components/schemas/EstadoOperativo'
+        activo:
+          type: boolean
+        reservasPorEncimaDeLaCapacidad:
+          type: array
+          description: Reservas activas con más ocupantes que la nueva capacidad. Vacía si no se bajó la capacidad o no hay ninguna
+          items:
+            $ref: '#/components/schemas/ReservaResumenResponse'

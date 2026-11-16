@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { InformacionAlojamiento } from '../componentes/InformacionAlojamiento';
 import { RUTAS } from '../rutas/rutas';
 
 /** Página de inicio: presenta el alojamiento y lleva a lo que más se hace. Se carga de inmediato (sin lazy). */
@@ -51,6 +52,11 @@ export default function Inicio() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Horarios, normas de convivencia y mascotas: vienen de GET /alojamiento (público); si no cargan, no se muestra nada */}
+      <div className="mt-4">
+        <InformacionAlojamiento />
       </div>
     </section>
   );
