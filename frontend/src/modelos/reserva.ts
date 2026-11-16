@@ -95,6 +95,11 @@ export interface CrearReservaRequest {
   /** Obligatorio con canal EXTERNO y prohibido con los demás (RN-19). Máximo 60 caracteres. */
   identificadorExterno?: string;
   horaEstimadaLlegada?: HoraISO;
+  /**
+   * Opcional. A este correo se avisa (reserva creada, confirmada y cancelada) si el titular no tiene cuenta; si la tiene, se usa el
+   * de su cuenta. No es un dato de la reserva: el backend no lo devuelve.
+   */
+  correoTitular?: string;
   titular: OcupanteRequest;
   /** Al menos 1. Debe incluir un adulto responsable (RP-03). */
   ocupantes: OcupanteRequest[];

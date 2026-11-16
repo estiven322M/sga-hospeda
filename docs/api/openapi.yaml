@@ -74,6 +74,10 @@ tags:
     description: Servicios que el alojamiento ofrece y pueden generar un cargo en el folio (L-17)
   - name: Calendario
     description: Estado de cada noche de un apartamento (libre, reservada o bloqueada)
+  - name: Usuarios
+    description: Gestión de usuarios y roles (administrador), perfil propio y cambio de contraseña
+  - name: Notificaciones
+    description: Bandeja de los avisos por correo al titular (integración de salida, 10.3.2-A)
 
 paths:
 
@@ -1934,6 +1938,363 @@ paths:
           $ref: '#/components/responses/SinPermiso'
 
 
+  /api/auth/recuperacion/solicitar:
+    post:
+      tags: [Autenticación]
+      summary: Solicitar un código de recuperación de contraseña
+      description: |
+        **Público.** Si el correo es de un usuario activo, se le envía un código de 6 dígitos válido 15 minutos y de un solo
+        uso (se guarda solo su hash). La respuesta es SIEMPRE la misma, exista o no el correo, para no revelar qué cuentas
+        están registradas. El envío usa el puerto de notificaciones: si falla, la respuesta no cambia y el fallo queda en el log.
+        Con el proveedor local el código se lee en `GET /api/notificaciones` (solo administrador).
+      operationId: solicitarRecuperacion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitarRecuperacionRequest'
+            example:
+              correo: huesped1@sga.local
+      responses:
+        '200':
+          description: Solicitud recibida (respuesta genérica)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensajeResponse'
+              example:
+                mensaje: Si el correo está registrado, enviamos un código de recuperación que vence en 15 minutos
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+
+  /api/auth/recuperacion/confirmar:
+    post:
+      tags: [Autenticación]
+      summary: Cambiar la contraseña con el código recibido
+      description: |
+        **Público.** Cambia la contraseña con el código de 6 dígitos del correo. La contraseña nueva sigue las reglas del
+        registro. El código sirve una sola vez, vence a los 15 minutos y se bloquea tras 5 intentos fallidos. Cualquier
+        problema (correo desconocido, código incorrecto, vencido o ya usado) responde el MISMO 409, sin revelar el motivo.
+      operationId: confirmarRecuperacion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmarRecuperacionRequest'
+            example:
+              correo: huesped1@sga.local
+              codigo: '048213'
+              contrasenaNueva: Nueva2026Clave
+      responses:
+        '200':
+          description: Contraseña cambiada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensajeResponse'
+              example:
+                mensaje: La contraseña se cambió correctamente; ya puede iniciar sesión
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          description: El código no es válido o ya venció (mismo mensaje en todos los casos)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-16T15:00:00Z'
+                status: 409
+                error: Conflict
+                mensaje: El código no es válido o ya venció
+                path: /api/auth/recuperacion/confirmar
+
+  /api/usuarios:
+    get:
+      tags: [Usuarios]
+      summary: Listar usuarios
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        De 10 en 10 y ordenados por nombre, con filtro opcional por rol. Incluye a los usuarios desactivados (`activo: false`).
+        Nunca devuelve la contraseña ni su hash.
+        Mapea a: `GestionUsuariosService.listar`
+      operationId: listarUsuarios
+      parameters:
+        - name: rol
+          in: query
+          required: false
+          description: Filtro por rol
+          schema:
+            $ref: '#/components/schemas/RolUsuario'
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página de usuarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaUsuarioResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+    post:
+      tags: [Usuarios]
+      summary: Crear un usuario interno con su rol
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Los roles internos (RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO) solo los asigna un administrador; los huéspedes
+        se registran solos en `/api/auth/registro`. Correo y documento únicos (409). La contraseña se guarda con BCrypt.
+        Mapea a: `GestionUsuariosService.crearInterno`
+      operationId: crearUsuarioInterno
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearUsuarioInternoRequest'
+            example:
+              nombre: Carolina Pérez
+              correo: carolina@sga.local
+              contrasena: Interno2026
+              telefono: '3001234567'
+              documento: '1094777888'
+              fechaNacimiento: '1992-06-18'
+              rol: RECEPCIONISTA
+      responses:
+        '201':
+          description: Usuario creado
+          headers:
+            Location:
+              description: URL del usuario creado
+              schema:
+                type: string
+                example: http://localhost:8080/api/usuarios/6
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/usuarios/yo:
+    get:
+      tags: [Usuarios]
+      summary: Consultar mi perfil
+      description: |
+        **Roles:** cualquier usuario autenticado.
+
+        El perfil es el del dueño del token (el sujeto del JWT es el correo); no hay parámetro para consultar el de otro.
+        Mapea a: `GestionUsuariosService.perfil`
+      operationId: consultarMiPerfil
+      responses:
+        '200':
+          description: Perfil del usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioResponse'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    put:
+      tags: [Usuarios]
+      summary: Actualizar mi nombre y mi teléfono
+      description: |
+        **Roles:** cualquier usuario autenticado.
+
+        Solo se editan el nombre y el teléfono (7.2): el correo, el documento y el rol no cambian por esta vía.
+        Mapea a: `GestionUsuariosService.actualizarPerfil`
+      operationId: actualizarMiPerfil
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActualizarPerfilRequest'
+            example:
+              nombre: Laura Gómez
+              telefono: '3109998877'
+      responses:
+        '200':
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/usuarios/yo/contrasena:
+    put:
+      tags: [Usuarios]
+      summary: Cambiar mi contraseña
+      description: |
+        **Roles:** cualquier usuario autenticado.
+
+        Exige la contraseña actual y una nueva con las mismas reglas del registro (mínimo 8 caracteres, una mayúscula y un
+        número). 409 si la actual no es correcta o si la nueva es igual a la actual.
+        Mapea a: `GestionUsuariosService.cambiarContrasena`
+      operationId: cambiarMiContrasena
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambiarContrasenaRequest'
+            example:
+              contrasenaActual: Huesped2026
+              contrasenaNueva: Nueva2026Clave
+      responses:
+        '200':
+          description: Contraseña cambiada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensajeResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/usuarios/{id}/rol:
+    put:
+      tags: [Usuarios]
+      summary: Cambiar el rol de un usuario
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        El rol nuevo rige desde el siguiente inicio de sesión. Un administrador no puede cambiar su propio rol (409).
+        Mapea a: `GestionUsuariosService.cambiarRol`
+      operationId: cambiarRolUsuario
+      parameters:
+        - $ref: '#/components/parameters/IdUsuario'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambiarRolRequest'
+            example:
+              rol: PERSONAL_SERVICIO
+      responses:
+        '200':
+          description: Rol cambiado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/usuarios/{id}/desactivar:
+    put:
+      tags: [Usuarios]
+      summary: Desactivar un usuario (eliminación lógica)
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        El usuario se conserva pero ya no puede iniciar sesión. 409 si es uno mismo o si es titular de reservas PENDIENTE,
+        CONFIRMADA o EN_CURSO (7.2): esa regla la decide el dominio por documento. Desactivar al usuario no elimina al titular ni
+        sus reservas históricas. No hay DELETE. Si el usuario ya estaba desactivado, responde 200 sin cambios.
+        Mapea a: `GestionUsuariosService.desactivar` y `BajaUsuarioService`
+      operationId: desactivarUsuario
+      parameters:
+        - $ref: '#/components/parameters/IdUsuario'
+      responses:
+        '200':
+          description: Usuario desactivado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioResponse'
+        '409':
+          description: Es uno mismo o es titular de reservas activas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-16T15:00:00Z'
+                status: 409
+                error: Conflict
+                mensaje: 'No se puede desactivar al usuario: es titular de reservas PENDIENTE (1); cancélelas o espere a que terminen'
+                path: /api/usuarios/6/desactivar
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/notificaciones:
+    get:
+      tags: [Notificaciones]
+      summary: Listar la bandeja de notificaciones
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Los avisos por correo que el sistema intentó enviar al titular (reserva creada, confirmada y cancelada, y códigos de
+        recuperación), de 10 en 10 y de la más reciente a la más antigua. Es la bandeja en memoria de la integración de salida
+        (10.3.2-A): con el proveedor `local` (el que viene activo, sin internet ni credenciales) es el buzón de demostración y
+        muestra el contenido completo; con `smtp` muestra el resultado de cada envío (ENVIADA o FALLIDA) y deja el contenido
+        de los avisos sensibles omitido. Se vacía al reiniciar el servidor. El estado SIN_CORREO indica que no se conocía ningún
+        correo del titular. Un fallo de envío NUNCA impide reservar, confirmar, cobrar ni cerrar un folio (I-05).
+        Mapea a: `ListarNotificacionesUseCase`
+      operationId: listarNotificaciones
+      parameters:
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página de notificaciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaNotificacionResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
 components:
 
   securitySchemes:
@@ -1982,6 +2343,15 @@ components:
       schema:
         type: string
         example: APT-101
+    IdUsuario:
+      name: id
+      in: path
+      required: true
+      description: Identificador numérico del usuario
+      schema:
+        type: integer
+        format: int64
+        example: 6
     CodigoServicio:
       name: codigo
       in: path
@@ -2493,6 +2863,13 @@ components:
           type: string
           format: time
           description: Opcional al crear; obligatoria para confirmar (RN-09)
+        correoTitular:
+          type: string
+          format: email
+          maxLength: 120
+          description: |
+            Opcional. Correo al que se avisa (reserva creada, confirmada y cancelada) si el titular no tiene cuenta; si el titular
+            tiene cuenta (mismo documento) se usa el correo de su cuenta. No es un dato del negocio y no se devuelve en la reserva.
         titular:
           $ref: '#/components/schemas/OcupanteRequest'
         ocupantes:
@@ -3219,3 +3596,162 @@ components:
           description: Reservas activas con más ocupantes que la nueva capacidad. Vacía si no se bajó la capacidad o no hay ninguna
           items:
             $ref: '#/components/schemas/ReservaResumenResponse'
+    RolUsuario:
+      type: string
+      enum: [HUESPED, RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO]
+    TipoNotificacion:
+      type: string
+      enum: [RESERVA_CREADA, RESERVA_CONFIRMADA, RESERVA_CANCELADA, CODIGO_RECUPERACION]
+    EstadoNotificacion:
+      type: string
+      description: ENVIADA (salió), FALLIDA (el proveedor falló) o SIN_CORREO (no se conocía ningún correo del titular)
+      enum: [ENVIADA, FALLIDA, SIN_CORREO]
+    MensajeResponse:
+      type: object
+      required: [mensaje]
+      properties:
+        mensaje:
+          type: string
+    UsuarioResponse:
+      type: object
+      required: [id, nombre, correo, telefono, documento, fechaNacimiento, rol, activo]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+        correo:
+          type: string
+        telefono:
+          type: string
+        documento:
+          type: string
+        fechaNacimiento:
+          type: string
+          format: date
+        rol:
+          $ref: '#/components/schemas/RolUsuario'
+        activo:
+          type: boolean
+          description: false cuando el usuario fue desactivado (eliminación lógica)
+    PaginaUsuarioResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/UsuarioResponse'
+    CrearUsuarioInternoRequest:
+      type: object
+      required: [nombre, correo, contrasena, telefono, documento, fechaNacimiento, rol]
+      properties:
+        nombre:
+          type: string
+          maxLength: 100
+        correo:
+          type: string
+          format: email
+          maxLength: 120
+        contrasena:
+          type: string
+          description: Mínimo 8 caracteres, al menos una mayúscula y un número
+        telefono:
+          type: string
+          pattern: '^\+?\d{7,15}$'
+        documento:
+          type: string
+          maxLength: 15
+        fechaNacimiento:
+          type: string
+          format: date
+        rol:
+          type: string
+          enum: [RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO]
+    CambiarRolRequest:
+      type: object
+      required: [rol]
+      properties:
+        rol:
+          $ref: '#/components/schemas/RolUsuario'
+    ActualizarPerfilRequest:
+      type: object
+      required: [nombre, telefono]
+      properties:
+        nombre:
+          type: string
+          maxLength: 100
+        telefono:
+          type: string
+          pattern: '^\+?\d{7,15}$'
+    CambiarContrasenaRequest:
+      type: object
+      required: [contrasenaActual, contrasenaNueva]
+      properties:
+        contrasenaActual:
+          type: string
+        contrasenaNueva:
+          type: string
+          description: Mínimo 8 caracteres, al menos una mayúscula y un número (las reglas del registro)
+    SolicitarRecuperacionRequest:
+      type: object
+      required: [correo]
+      properties:
+        correo:
+          type: string
+          format: email
+    ConfirmarRecuperacionRequest:
+      type: object
+      required: [correo, codigo, contrasenaNueva]
+      properties:
+        correo:
+          type: string
+          format: email
+        codigo:
+          type: string
+          pattern: '^\d{6}$'
+          description: Código de 6 dígitos recibido por correo
+        contrasenaNueva:
+          type: string
+          description: Mínimo 8 caracteres, al menos una mayúscula y un número
+    NotificacionResponse:
+      type: object
+      required: [tipo, asunto, mensaje, estado, registradaEn]
+      properties:
+        tipo:
+          $ref: '#/components/schemas/TipoNotificacion'
+        destinatario:
+          type: string
+          nullable: true
+          description: Nulo cuando no se conocía ningún correo (estado SIN_CORREO)
+        asunto:
+          type: string
+        mensaje:
+          type: string
+          description: Contenido del aviso; "(contenido sensible omitido)" para el código de recuperación cuando el proveedor es `smtp`
+        codigoReserva:
+          type: string
+          nullable: true
+          description: Nulo en el aviso de recuperación de contraseña
+        estado:
+          $ref: '#/components/schemas/EstadoNotificacion'
+        detalle:
+          type: string
+          nullable: true
+          description: Explica el fallo o la ausencia de correo; nulo si se envió
+        registradaEn:
+          type: string
+          format: date-time
+    PaginaNotificacionResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/NotificacionResponse'

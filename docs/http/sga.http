@@ -4235,3 +4235,1012 @@ Content-Type: application/json
         client.assert(response.body.reservasPorEncimaDeLaCapacidad.length === 0, "subir la capacidad no avisa de nada");
     });
 %}
+
+# =====================================================================================================
+# PARTE 10 · NOTIFICACIONES AL TITULAR, GESTIÓN DE USUARIOS, PERFIL Y RECUPERACIÓN DE CONTRASEÑA (J7: 7.2, 10.3.2-A, I-01 a I-08)
+#   El administrador crea usuarios internos, cambia roles y los desactiva (lógico: nunca a un titular con reservas PENDIENTE,
+#   CONFIRMADA o EN_CURSO, ni a sí mismo). Cada usuario edita su nombre y su teléfono (no su correo) y cambia su contraseña.
+#   La recuperación envía un código de 6 dígitos (15 minutos, un solo uso) al correo, con una respuesta genérica que no revela
+#   si el correo existe. Con el proveedor de notificaciones local (el que viene activo) el código y los avisos de la reserva
+#   se leen en GET /api/notificaciones (solo ADMINISTRADOR). Todas las aserciones comprueban el CUERPO.
+# =====================================================================================================
+
+### 10.1 [7.2] El administrador lista los usuarios de 10 en 10, sin contraseñas -> 200
+GET {{host}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.1 [7.2] El administrador lista los usuarios de 10 en 10, sin contraseñas", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tamanio === 10 && response.body.pagina === 0, "página de 10: " + response.body.tamanio);
+        client.assert(response.body.contenido.length >= 6, "los 6 usuarios iniciales (más el huésped registrado): " + response.body.contenido.length);
+        client.assert(response.body.contenido.some(u => u.correo === "admin@sga.local" && u.rol === "ADMINISTRADOR" && u.activo === true), "debe listar al administrador activo");
+        client.assert(JSON.stringify(response.body).toLowerCase().indexOf("contrasena") < 0 && JSON.stringify(response.body).indexOf("$2a$") < 0, "nunca se devuelve la contraseña ni su hash");
+    });
+%}
+
+### 10.2 [7.2] Filtro por rol: solo huéspedes -> 200
+GET {{host}}/api/usuarios?rol=HUESPED
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.2 [7.2] Filtro por rol: solo huéspedes", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length >= 3 && response.body.contenido.every(u => u.rol === "HUESPED"), "solo huéspedes: " + JSON.stringify(response.body.contenido.map(u => u.rol)));
+    });
+%}
+
+### 10.3 [400 · usuarios] Rol inexistente en el filtro -> 400
+GET {{host}}/api/usuarios?rol=DUENO
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.3 [400 · usuarios] Rol inexistente en el filtro", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.4 [403 · usuarios] Recepción intenta listar usuarios -> 403
+GET {{host}}/api/usuarios
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("10.4 [403 · usuarios] Recepción intenta listar usuarios", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.5 [403 · usuarios] Un huésped intenta listar usuarios -> 403
+GET {{host}}/api/usuarios
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("10.5 [403 · usuarios] Un huésped intenta listar usuarios", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.6 [401 · usuarios] Listar usuarios sin token -> 401
+GET {{host}}/api/usuarios
+
+> {%
+    client.test("10.6 [401 · usuarios] Listar usuarios sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.7 [7.2] El administrador crea un usuario interno con su rol -> 201 con Location
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Carolina Pérez",
+  "correo": "carolina@sga.local",
+  "contrasena": "Interno2026",
+  "telefono": "3001234567",
+  "documento": "1094777888",
+  "fechaNacimiento": "1992-06-18",
+  "rol": "RECEPCIONISTA"
+}
+
+> {%
+    client.test("10.7 [7.2] El administrador crea un usuario interno con su rol", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.headers.valueOf("Location").endsWith("/api/usuarios/" + response.body.id), "Location: " + response.headers.valueOf("Location"));
+        client.assert(response.body.correo === "carolina@sga.local" && response.body.rol === "RECEPCIONISTA" && response.body.activo === true, "usuario creado: " + JSON.stringify(response.body));
+        client.assert(JSON.stringify(response.body).toLowerCase().indexOf("contrasena") < 0 && JSON.stringify(response.body).indexOf("$2a$") < 0, "nunca se devuelve la contraseña ni su hash");
+        client.global.set("idInterno", response.body.id);
+    });
+%}
+
+### 10.8 [409 · 7.2 correo único] Crear un usuario con un correo ya registrado (sin distinguir mayúsculas) -> 409
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Carolina Pérez",
+  "correo": "Carolina@SGA.local",
+  "contrasena": "Interno2026",
+  "telefono": "3001234567",
+  "documento": "1094777889",
+  "fechaNacimiento": "1992-06-18",
+  "rol": "RECEPCIONISTA"
+}
+
+> {%
+    client.test("10.8 [409 · 7.2 correo único] Crear un usuario con un correo ya registrado (sin distinguir mayúsculas)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Ya existe un usuario registrado con ese correo"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.9 [409 · 7.2 documento único] Crear un usuario con un documento ya registrado -> 409
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Carolina Pérez",
+  "correo": "otra@sga.local",
+  "contrasena": "Interno2026",
+  "telefono": "3001234567",
+  "documento": "1094777888",
+  "fechaNacimiento": "1992-06-18",
+  "rol": "RECEPCIONISTA"
+}
+
+> {%
+    client.test("10.9 [409 · 7.2 documento único] Crear un usuario con un documento ya registrado", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Ya existe un usuario registrado con ese documento"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.10 [400 · usuarios] Rol HUESPED en un usuario interno y contraseña débil -> 400
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Carolina Pérez",
+  "correo": "debil@sga.local",
+  "contrasena": "corta",
+  "telefono": "3001234567",
+  "documento": "1094777890",
+  "fechaNacimiento": "1992-06-18",
+  "rol": "HUESPED"
+}
+
+> {%
+    client.test("10.10 [400 · usuarios] Rol HUESPED en un usuario interno y contraseña débil", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.rol, "debe marcar el campo rol: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.errores && response.body.errores.contrasena, "debe marcar el campo contrasena: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.11 [403 · usuarios] Recepción intenta crear un usuario -> 403
+POST {{host}}/api/usuarios
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "nombre": "Carolina Pérez",
+  "correo": "prohibido@sga.local",
+  "contrasena": "Interno2026",
+  "telefono": "3001234567",
+  "documento": "1094777891",
+  "fechaNacimiento": "1992-06-18",
+  "rol": "ADMINISTRADOR"
+}
+
+> {%
+    client.test("10.11 [403 · usuarios] Recepción intenta crear un usuario", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.12 [7.2] El usuario interno recién creado inicia sesión con su rol -> 200
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "carolina@sga.local",
+  "contrasena": "Interno2026"
+}
+
+> {%
+    client.test("10.12 [7.2] El usuario interno recién creado inicia sesión con su rol", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.roles.length === 1 && response.body.roles[0] === "RECEPCIONISTA", "roles: " + response.body.roles);
+        client.global.set("tokenInterno", response.body.token);
+    });
+%}
+
+### 10.13 [7.2] El administrador cambia el rol del usuario interno -> 200
+PUT {{host}}/api/usuarios/{{idInterno}}/rol
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"rol": "PERSONAL_SERVICIO"}
+
+> {%
+    client.test("10.13 [7.2] El administrador cambia el rol del usuario interno", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.rol === "PERSONAL_SERVICIO" && response.body.correo === "carolina@sga.local", "rol: " + response.body.rol);
+    });
+%}
+
+### 10.14 [403 · usuarios] Recepción intenta cambiar un rol -> 403
+PUT {{host}}/api/usuarios/{{idInterno}}/rol
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"rol": "ADMINISTRADOR"}
+
+> {%
+    client.test("10.14 [403 · usuarios] Recepción intenta cambiar un rol", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.15 [400 · usuarios] Cambiar el rol a un valor inexistente -> 400
+PUT {{host}}/api/usuarios/{{idInterno}}/rol
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"rol": "DUENO"}
+
+> {%
+    client.test("10.15 [400 · usuarios] Cambiar el rol a un valor inexistente", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.rol, "debe marcar el campo rol: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.16 [404 · usuarios] Cambiar el rol de un usuario que no existe -> 404
+PUT {{host}}/api/usuarios/999999/rol
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"rol": "RECEPCIONISTA"}
+
+> {%
+    client.test("10.16 [404 · usuarios] Cambiar el rol de un usuario que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.17 [7.2] El administrador consulta su propio perfil (guarda su id) -> 200
+GET {{host}}/api/usuarios/yo
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.17 [7.2] El administrador consulta su propio perfil (guarda su id)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.correo === "admin@sga.local" && response.body.rol === "ADMINISTRADOR", "perfil: " + JSON.stringify(response.body));
+        client.assert(JSON.stringify(response.body).toLowerCase().indexOf("contrasena") < 0 && JSON.stringify(response.body).indexOf("$2a$") < 0, "nunca se devuelve la contraseña ni su hash");
+        client.global.set("idAdmin", response.body.id);
+    });
+%}
+
+### 10.18 [409 · 7.2 sin cambiarse a sí mismo] El administrador intenta cambiar su propio rol -> 409
+PUT {{host}}/api/usuarios/{{idAdmin}}/rol
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"rol": "RECEPCIONISTA"}
+
+> {%
+    client.test("10.18 [409 · 7.2 sin cambiarse a sí mismo] El administrador intenta cambiar su propio rol", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No puede cambiar su propio rol"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.19 [409 · 7.2 sin desactivarse a sí mismo] El administrador intenta desactivar su propia cuenta -> 409
+PUT {{host}}/api/usuarios/{{idAdmin}}/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.19 [409 · 7.2 sin desactivarse a sí mismo] El administrador intenta desactivar su propia cuenta", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No puede desactivar su propia cuenta"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.20 [401 · perfil] Consultar el perfil sin token -> 401
+GET {{host}}/api/usuarios/yo
+
+> {%
+    client.test("10.20 [401 · perfil] Consultar el perfil sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.21 [7.2] Cada usuario ve SU perfil: el personal de servicio -> 200
+GET {{host}}/api/usuarios/yo
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("10.21 [7.2] Cada usuario ve SU perfil: el personal de servicio", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.correo === "servicio@sga.local" && response.body.rol === "PERSONAL_SERVICIO", "perfil: " + JSON.stringify(response.body));
+    });
+%}
+
+### 10.22 [7.2] Actualizar nombre y teléfono; el correo, el documento y el rol NO cambian aunque se envíen -> 200
+PUT {{host}}/api/usuarios/yo
+Authorization: Bearer {{tokenInterno}}
+Content-Type: application/json
+
+{"nombre": "Carolina Pérez Gómez", "telefono": "3109998877", "correo": "otro@sga.local", "documento": "1", "rol": "ADMINISTRADOR"}
+
+> {%
+    client.test("10.22 [7.2] Actualizar nombre y teléfono; el correo, el documento y el rol NO cambian aunque se envíen", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.nombre === "Carolina Pérez Gómez" && response.body.telefono === "3109998877", "nombre y teléfono: " + JSON.stringify(response.body));
+        client.assert(response.body.correo === "carolina@sga.local" && response.body.documento === "1094777888", "el correo y el documento no se editan");
+        client.assert(response.body.rol === "PERSONAL_SERVICIO", "el rol no se cambia desde el perfil: " + response.body.rol);
+    });
+%}
+
+### 10.23 [400 · perfil] Nombre vacío y teléfono inválido -> 400
+PUT {{host}}/api/usuarios/yo
+Authorization: Bearer {{tokenInterno}}
+Content-Type: application/json
+
+{"nombre": "", "telefono": "abc"}
+
+> {%
+    client.test("10.23 [400 · perfil] Nombre vacío y teléfono inválido", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.nombre, "debe marcar el campo nombre: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.errores && response.body.errores.telefono, "debe marcar el campo telefono: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.24 [400 · 7.2 contraseña segura] Cambiar a una contraseña débil -> 400
+PUT {{host}}/api/usuarios/yo/contrasena
+Authorization: Bearer {{tokenInterno}}
+Content-Type: application/json
+
+{"contrasenaActual": "Interno2026", "contrasenaNueva": "corta"}
+
+> {%
+    client.test("10.24 [400 · 7.2 contraseña segura] Cambiar a una contraseña débil", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.contrasenaNueva, "debe marcar el campo contrasenaNueva: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.25 [409 · 7.2 contraseña actual] Cambiar la contraseña con una actual incorrecta -> 409
+PUT {{host}}/api/usuarios/yo/contrasena
+Authorization: Bearer {{tokenInterno}}
+Content-Type: application/json
+
+{"contrasenaActual": "Equivocada1", "contrasenaNueva": "Nueva2026Clave"}
+
+> {%
+    client.test("10.25 [409 · 7.2 contraseña actual] Cambiar la contraseña con una actual incorrecta", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La contraseña actual no es correcta"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.26 [409 · 7.2 contraseña distinta] La nueva contraseña es igual a la actual -> 409
+PUT {{host}}/api/usuarios/yo/contrasena
+Authorization: Bearer {{tokenInterno}}
+Content-Type: application/json
+
+{"contrasenaActual": "Interno2026", "contrasenaNueva": "Interno2026"}
+
+> {%
+    client.test("10.26 [409 · 7.2 contraseña distinta] La nueva contraseña es igual a la actual", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La contraseña nueva debe ser distinta de la actual"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.27 [7.2] Cambiar la contraseña con la actual y una nueva segura -> 200
+PUT {{host}}/api/usuarios/yo/contrasena
+Authorization: Bearer {{tokenInterno}}
+Content-Type: application/json
+
+{"contrasenaActual": "Interno2026", "contrasenaNueva": "Nueva2026Clave"}
+
+> {%
+    client.test("10.27 [7.2] Cambiar la contraseña con la actual y una nueva segura", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.mensaje === "La contraseña se cambió correctamente", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 10.28 [401 · login] La contraseña anterior ya no inicia sesión -> 401
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "carolina@sga.local",
+  "contrasena": "Interno2026"
+}
+
+> {%
+    client.test("10.28 [401 · login] La contraseña anterior ya no inicia sesión", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.29 [7.2] La contraseña nueva sí inicia sesión -> 200
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "carolina@sga.local",
+  "contrasena": "Nueva2026Clave"
+}
+
+> {%
+    client.test("10.29 [7.2] La contraseña nueva sí inicia sesión", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.token === "string", "debe traer el token");
+    });
+%}
+
+### 10.30 [7.2] Solicitar el código de recuperación (público) -> 200 con respuesta genérica
+POST {{host}}/api/auth/recuperacion/solicitar
+Content-Type: application/json
+
+{"correo": "carolina@sga.local"}
+
+> {%
+    client.test("10.30 [7.2] Solicitar el código de recuperación (público)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.mensaje === "Si el correo está registrado, enviamos un código de recuperación que vence en 15 minutos", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 10.31 [7.2] Un correo que no existe recibe EXACTAMENTE la misma respuesta -> 200
+POST {{host}}/api/auth/recuperacion/solicitar
+Content-Type: application/json
+
+{"correo": "nadie.registrado@correo.com"}
+
+> {%
+    client.test("10.31 [7.2] Un correo que no existe recibe EXACTAMENTE la misma respuesta", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.mensaje === "Si el correo está registrado, enviamos un código de recuperación que vence en 15 minutos", "no debe revelar si el correo existe: " + response.body.mensaje);
+    });
+%}
+
+### 10.32 [400 · recuperación] Solicitar con un correo mal escrito -> 400
+POST {{host}}/api/auth/recuperacion/solicitar
+Content-Type: application/json
+
+{"correo": "no-es-un-correo"}
+
+> {%
+    client.test("10.32 [400 · recuperación] Solicitar con un correo mal escrito", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.correo, "debe marcar el campo correo: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.33 [10.3.2-A] La bandeja de notificaciones (proveedor local) trae el código de 6 dígitos enviado -> 200
+GET {{host}}/api/notificaciones
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.33 [10.3.2-A] La bandeja de notificaciones (proveedor local) trae el código de 6 dígitos enviado", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        var aviso = response.body.contenido[0];
+        client.assert(aviso.tipo === "CODIGO_RECUPERACION" && aviso.destinatario === "carolina@sga.local" && aviso.estado === "ENVIADA", "aviso: " + JSON.stringify(aviso));
+        var codigo = /es (\d{6})\./.exec(aviso.mensaje);
+        client.assert(codigo !== null, "el mensaje lleva el código de 6 dígitos: " + aviso.mensaje);
+        client.assert(aviso.codigoReserva === null, "el aviso de recuperación no pertenece a una reserva");
+        client.global.set("codigoRecuperacion", codigo[1]);
+    });
+%}
+
+### 10.34 [409 · 7.2 código] Confirmar con un código incorrecto -> 409
+POST {{host}}/api/auth/recuperacion/confirmar
+Content-Type: application/json
+
+{"correo": "carolina@sga.local", "codigo": "000000", "contrasenaNueva": "Recuperada2026"}
+
+> {%
+    client.test("10.34 [409 · 7.2 código] Confirmar con un código incorrecto", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El código no es válido o ya venció"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.35 [409 · 7.2 código] Un correo desconocido recibe el mismo rechazo (no se revela el motivo) -> 409
+POST {{host}}/api/auth/recuperacion/confirmar
+Content-Type: application/json
+
+{"correo": "nadie.registrado@correo.com", "codigo": "123456", "contrasenaNueva": "Recuperada2026"}
+
+> {%
+    client.test("10.35 [409 · 7.2 código] Un correo desconocido recibe el mismo rechazo (no se revela el motivo)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El código no es válido o ya venció"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.36 [400 · recuperación] Confirmar con un código de 2 dígitos y una contraseña débil -> 400
+POST {{host}}/api/auth/recuperacion/confirmar
+Content-Type: application/json
+
+{"correo": "carolina@sga.local", "codigo": "12", "contrasenaNueva": "corta"}
+
+> {%
+    client.test("10.36 [400 · recuperación] Confirmar con un código de 2 dígitos y una contraseña débil", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.codigo, "debe marcar el campo codigo: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.errores && response.body.errores.contrasenaNueva, "debe marcar el campo contrasenaNueva: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.37 [7.2] Confirmar con el código recibido cambia la contraseña -> 200
+POST {{host}}/api/auth/recuperacion/confirmar
+Content-Type: application/json
+
+{"correo": "carolina@sga.local", "codigo": "{{codigoRecuperacion}}", "contrasenaNueva": "Recuperada2026"}
+
+> {%
+    client.test("10.37 [7.2] Confirmar con el código recibido cambia la contraseña", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.mensaje === "La contraseña se cambió correctamente; ya puede iniciar sesión", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 10.38 [409 · 7.2 un solo uso] El mismo código no sirve por segunda vez -> 409
+POST {{host}}/api/auth/recuperacion/confirmar
+Content-Type: application/json
+
+{"correo": "carolina@sga.local", "codigo": "{{codigoRecuperacion}}", "contrasenaNueva": "OtraClave2026"}
+
+> {%
+    client.test("10.38 [409 · 7.2 un solo uso] El mismo código no sirve por segunda vez", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El código no es válido o ya venció"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.39 [7.2] Inicia sesión con la contraseña recuperada -> 200
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "carolina@sga.local",
+  "contrasena": "Recuperada2026"
+}
+
+> {%
+    client.test("10.39 [7.2] Inicia sesión con la contraseña recuperada", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.token === "string", "debe traer el token");
+    });
+%}
+
+### 10.40 [10.3.2-A] Reserva DIRECTO con el correo de contacto del titular (sin cuenta) -> 201
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-11-20",
+  "fechaSalida": "2028-11-23",
+  "canalOrigen": "DIRECTO",
+  "correoTitular": "Visita@Correo.com",
+  "titular": {
+    "documento": "CC-9940",
+    "nombre": "Visita Con Correo",
+    "fechaNacimiento": "1990-01-01"
+  },
+  "ocupantes": [
+    {
+      "documento": "CC-9940",
+      "nombre": "Visita Con Correo",
+      "fechaNacimiento": "1990-01-01"
+    }
+  ]
+}
+
+> {%
+    client.test("10.40 [10.3.2-A] Reserva DIRECTO con el correo de contacto del titular (sin cuenta)", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(JSON.stringify(response.body).indexOf("correo") < 0, "el correo de contacto no es un dato de la reserva");
+        client.global.set("codigoNotificada", response.body.codigo);
+        client.global.set("valorNotificada", response.body.valorTotal);
+    });
+%}
+
+### 10.41 [10.3.2-A] La bandeja muestra el aviso de reserva creada al correo de contacto -> 200
+GET {{host}}/api/notificaciones
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.41 [10.3.2-A] La bandeja muestra el aviso de reserva creada al correo de contacto", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        var aviso = response.body.contenido[0];
+        client.assert(aviso.tipo === "RESERVA_CREADA" && aviso.destinatario === "visita@correo.com" && aviso.estado === "ENVIADA", "aviso: " + JSON.stringify(aviso));
+        client.assert(aviso.codigoReserva === client.global.get("codigoNotificada"), "código de la reserva: " + aviso.codigoReserva);
+        client.assert(aviso.asunto === "Reserva " + aviso.codigoReserva + " registrada" && aviso.mensaje.indexOf("2028-11-20 al 2028-11-23 (3 noches)") >= 0, "asunto y mensaje: " + aviso.asunto + " | " + aviso.mensaje);
+    });
+%}
+
+### 10.42 [10.3.2-A] Registrar el pago del valor total (cubre el anticipo) -> 201
+POST {{host}}/api/reservas/{{codigoNotificada}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"medio": "EFECTIVO", "fecha": "2026-11-16", "valor": {{valorNotificada}}}
+
+> {%
+    client.test("10.42 [10.3.2-A] Registrar el pago del valor total (cubre el anticipo)", function () {
+        client.assert(response.status === 201, "código " + response.status);
+    });
+%}
+
+### 10.43 [10.3.2-A] Confirmar la reserva avisa al mismo correo de contacto -> 200
+PUT {{host}}/api/reservas/{{codigoNotificada}}/confirmar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"horaEstimadaLlegada": "16:00", "autor": "Recepción"}
+
+> {%
+    client.test("10.43 [10.3.2-A] Confirmar la reserva avisa al mismo correo de contacto", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CONFIRMADA", "estado: " + response.body.estado);
+    });
+%}
+
+### 10.44 [10.3.2-A] La bandeja muestra el aviso de reserva confirmada -> 200
+GET {{host}}/api/notificaciones
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.44 [10.3.2-A] La bandeja muestra el aviso de reserva confirmada", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido[0].tipo === "RESERVA_CONFIRMADA" && response.body.contenido[0].destinatario === "visita@correo.com" && response.body.contenido[0].estado === "ENVIADA", "aviso: " + JSON.stringify(response.body.contenido[0]));
+    });
+%}
+
+### 10.45 [10.3.2-A] Cancelar la reserva -> 200
+PUT {{host}}/api/reservas/{{codigoNotificada}}/cancelar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"motivo": "Cambio de planes", "autor": "Recepción"}
+
+> {%
+    client.test("10.45 [10.3.2-A] Cancelar la reserva", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CANCELADA", "estado: " + response.body.estado);
+    });
+%}
+
+### 10.46 [10.3.2-A] La bandeja muestra el aviso de reserva cancelada -> 200
+GET {{host}}/api/notificaciones
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.46 [10.3.2-A] La bandeja muestra el aviso de reserva cancelada", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido[0].tipo === "RESERVA_CANCELADA" && response.body.contenido[0].estado === "ENVIADA", "aviso: " + JSON.stringify(response.body.contenido[0]));
+    });
+%}
+
+### 10.47 [10.3.2-A · I-05] Reserva de un titular SIN cuenta y SIN correo: se crea igual -> 201
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-11-26",
+  "fechaSalida": "2028-11-29",
+  "canalOrigen": "DIRECTO",
+  "titular": {
+    "documento": "CC-9941",
+    "nombre": "Visita Sin Correo",
+    "fechaNacimiento": "1990-01-01"
+  },
+  "ocupantes": [
+    {
+      "documento": "CC-9941",
+      "nombre": "Visita Sin Correo",
+      "fechaNacimiento": "1990-01-01"
+    }
+  ]
+}
+
+> {%
+    client.test("10.47 [10.3.2-A · I-05] Reserva de un titular SIN cuenta y SIN correo: se crea igual", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.global.set("codigoSinCorreo", response.body.codigo);
+    });
+%}
+
+### 10.48 [10.3.2-A · I-04] Queda registrado que no se pudo notificar: SIN_CORREO -> 200
+GET {{host}}/api/notificaciones
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.48 [10.3.2-A · I-04] Queda registrado que no se pudo notificar: SIN_CORREO", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        var aviso = response.body.contenido[0];
+        client.assert(aviso.tipo === "RESERVA_CREADA" && aviso.estado === "SIN_CORREO" && aviso.codigoReserva === client.global.get("codigoSinCorreo"), "aviso: " + JSON.stringify(aviso));
+        client.assert(aviso.destinatario === null && aviso.detalle === "No hay un correo conocido para el titular", "detalle: " + aviso.detalle);
+    });
+%}
+
+### 10.49 [400 · notificaciones] Un correo de titular mal escrito se rechaza antes de crear la reserva -> 400
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-12-04",
+  "fechaSalida": "2028-12-07",
+  "canalOrigen": "DIRECTO",
+  "correoTitular": "no-es-un-correo",
+  "titular": {
+    "documento": "CC-9942",
+    "nombre": "Visita Mala",
+    "fechaNacimiento": "1990-01-01"
+  },
+  "ocupantes": [
+    {
+      "documento": "CC-9942",
+      "nombre": "Visita Mala",
+      "fechaNacimiento": "1990-01-01"
+    }
+  ]
+}
+
+> {%
+    client.test("10.49 [400 · notificaciones] Un correo de titular mal escrito se rechaza antes de crear la reserva", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.correoTitular, "debe marcar el campo correoTitular: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.50 [403 · notificaciones] Recepción intenta ver la bandeja -> 403
+GET {{host}}/api/notificaciones
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("10.50 [403 · notificaciones] Recepción intenta ver la bandeja", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.51 [403 · notificaciones] Un huésped intenta ver la bandeja -> 403
+GET {{host}}/api/notificaciones
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("10.51 [403 · notificaciones] Un huésped intenta ver la bandeja", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.52 [401 · notificaciones] La bandeja sin token -> 401
+GET {{host}}/api/notificaciones
+
+> {%
+    client.test("10.52 [401 · notificaciones] La bandeja sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.53 [10.3.2-A] La bandeja pagina de 10 en 10 -> 200
+GET {{host}}/api/notificaciones?pagina=0
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.53 [10.3.2-A] La bandeja pagina de 10 en 10", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tamanio === 10 && response.body.totalElementos >= 7, "total de avisos: " + response.body.totalElementos);
+        client.assert(response.body.contenido.length <= 10, "máximo 10 por página: " + response.body.contenido.length);
+    });
+%}
+
+### 10.54 [7.2] Reserva PENDIENTE cuyo titular es el documento del usuario interno -> 201
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-12-10",
+  "fechaSalida": "2028-12-13",
+  "canalOrigen": "DIRECTO",
+  "titular": {
+    "documento": "1094777888",
+    "nombre": "Carolina Pérez",
+    "fechaNacimiento": "1990-01-01"
+  },
+  "ocupantes": [
+    {
+      "documento": "1094777888",
+      "nombre": "Carolina Pérez",
+      "fechaNacimiento": "1990-01-01"
+    }
+  ]
+}
+
+> {%
+    client.test("10.54 [7.2] Reserva PENDIENTE cuyo titular es el documento del usuario interno", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.global.set("codigoDelUsuario", response.body.codigo);
+    });
+%}
+
+### 10.55 [409 · 7.2 no desactivar a un titular con reservas activas] El usuario es titular de una reserva PENDIENTE -> 409
+PUT {{host}}/api/usuarios/{{idInterno}}/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.55 [409 · 7.2 no desactivar a un titular con reservas activas] El usuario es titular de una reserva PENDIENTE", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede desactivar al usuario: es titular de reservas PENDIENTE"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.56 [403 · usuarios] Recepción intenta desactivar un usuario -> 403
+PUT {{host}}/api/usuarios/{{idInterno}}/desactivar
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("10.56 [403 · usuarios] Recepción intenta desactivar un usuario", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.57 [7.2] Cancelar la reserva del usuario -> 200
+PUT {{host}}/api/reservas/{{codigoDelUsuario}}/cancelar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"motivo": "Cambio de planes", "autor": "Recepción"}
+
+> {%
+    client.test("10.57 [7.2] Cancelar la reserva del usuario", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CANCELADA", "estado: " + response.body.estado);
+    });
+%}
+
+### 10.58 [7.2] Sin reservas activas el administrador lo desactiva (eliminación lógica) -> 200
+PUT {{host}}/api/usuarios/{{idInterno}}/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.58 [7.2] Sin reservas activas el administrador lo desactiva (eliminación lógica)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.activo === false && response.body.correo === "carolina@sga.local", "usuario: " + JSON.stringify(response.body));
+    });
+%}
+
+### 10.59 [401 · 7.2] El usuario desactivado ya no puede iniciar sesión -> 401
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "correo": "carolina@sga.local",
+  "contrasena": "Recuperada2026"
+}
+
+> {%
+    client.test("10.59 [401 · 7.2] El usuario desactivado ya no puede iniciar sesión", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.60 [7.2] Desactivar no elimina al titular ni sus reservas históricas -> 200
+GET {{host}}/api/reservas/{{codigoDelUsuario}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("10.60 [7.2] Desactivar no elimina al titular ni sus reservas históricas", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CANCELADA" && response.body.titular.documento === "1094777888", "la reserva y su titular se conservan: " + JSON.stringify(response.body.titular));
+    });
+%}
+
+### 10.61 [7.2] El usuario desactivado sigue en el listado, marcado como inactivo -> 200
+GET {{host}}/api/usuarios?rol=PERSONAL_SERVICIO
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.61 [7.2] El usuario desactivado sigue en el listado, marcado como inactivo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.some(u => u.correo === "carolina@sga.local" && u.activo === false), "debe aparecer inactivo: " + JSON.stringify(response.body.contenido));
+    });
+%}
+
+### 10.62 [404 · usuarios] Desactivar un usuario que no existe -> 404
+PUT {{host}}/api/usuarios/999999/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("10.62 [404 · usuarios] Desactivar un usuario que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 10.63 [409 · 7.2 recuperación] Un usuario desactivado no recibe código: el mismo 200
+POST {{host}}/api/auth/recuperacion/solicitar
+Content-Type: application/json
+
+{"correo": "carolina@sga.local"}
+
+> {%
+    client.test("10.63 [409 · 7.2 recuperación] Un usuario desactivado no recibe código: el mismo 200", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.mensaje === "Si el correo está registrado, enviamos un código de recuperación que vence en 15 minutos", "respuesta genérica: " + response.body.mensaje);
+    });
+%}

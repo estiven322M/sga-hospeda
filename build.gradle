@@ -44,6 +44,9 @@ dependencies {
     // En Spring Boot 4 se llama 'security-oauth2-resource-server' (antes 'oauth2-resource-server')
     implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 
+    // Correo (10.3.2-A): cliente SMTP del adaptador NotificadorCorreoSmtp. Solo se usa con sga.notificaciones.proveedor=smtp
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
     // MapStruct: genera en compilación los mappers DTO <-> dominio y JPA <-> dominio
     implementation 'org.mapstruct:mapstruct:1.6.3'
 

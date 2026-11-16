@@ -6,6 +6,7 @@ import java.util.List;
 
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -26,6 +27,10 @@ public record CrearReservaRequest(
         String identificadorExterno,
         // Opcional al crear; obligatoria para confirmar (RN-09)
         LocalTime horaEstimadaLlegada,
+        // Opcional: a este correo se avisa al titular si no tiene cuenta (10.3.2-A). No es un dato del negocio.
+        @Email(message = "El correo del titular no tiene un formato válido")
+        @Size(max = 120, message = "El correo del titular no puede superar 120 caracteres")
+        String correoTitular,
         @NotNull(message = "La reserva debe tener titular")
         @Valid
         OcupanteRequest titular,

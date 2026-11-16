@@ -49,7 +49,32 @@ Para compilar y ejecutar este backend se requiere:
 - **Datos de prueba:** se cargan solos al iniciar (apartamentos de ejemplo, temporadas BASE, MEDIA y ALTA, una política de cancelación, reservas en todos los estados y una por canal). Se desactivan con `sga.datos-prueba.habilitado=false` en `application.properties`. Los valores de la Ficha del Alojamiento están en `CatalogoDatosPrueba` y se ajustan en esa única clase.
 - **CORS (para el frontend):** la API acepta peticiones del navegador desde los orígenes de la propiedad `sga.cors.origenes-permitidos` de `application.properties` (por defecto `http://localhost:5173`, el servidor de Vite; varios, separados por comas). Métodos GET, POST, PUT y OPTIONS; encabezados `Authorization` y `Content-Type`; `Location` expuesta. Un origen no autorizado recibe 403 en el preflight.
 - **Endpoints para el frontend:** `GET /api/reservas/mias` (solo HUESPED: sus reservas por el claim `documento` del token, de 10 en 10, con filtro `estado`); `GET /api/reservas` admite además `salidaDesde`, `salidaHasta` (llegadas y salidas previstas del día) y `nombreTitular` (contiene, sin distinguir mayúsculas; `titular` sigue siendo el documento exacto); `GET /api/apartamentos` admite `caracteristicas` (deben tenerse todas) y `estadoOperativo`; `GET /api/caracteristicas` publica el catálogo.
+- **Notificaciones, usuarios y recuperación de contraseña (J7):** `GET /api/notificaciones` (administrador: bandeja de avisos); `GET/POST /api/usuarios`, `PUT /api/usuarios/{id}/rol` y `PUT /api/usuarios/{id}/desactivar` (administrador); `GET/PUT /api/usuarios/yo` y `PUT /api/usuarios/yo/contrasena` (cualquier rol: el perfil propio); `POST /api/auth/recuperacion/solicitar` y `/confirmar` (públicos). `POST /api/reservas` admite el campo opcional `correoTitular`.
 - **Colección de pruebas:** `docs/http/sga.http` (cliente HTTP de IntelliJ, entorno `local`). Se ejecuta **una sola vez, de arriba hacia abajo, con la aplicación recién arrancada**; si se repite en la misma sesión, las reservas de 2028 ya existen y varias solicitudes darán 409. Todos sus pasos llevan `client.test` sobre el cuerpo; para ejecutarla sin IntelliJ: `node docs/http/ejecutar-coleccion.js docs/http/sga.http http://localhost:8080`. El resultado de la última corrida está en `docs/http/resultado-corrida.md`.
+
+### Notificaciones por correo (integración de salida, 10.3.2-A)
+
+El sistema avisa al titular cuando su reserva se **crea, confirma o cancela**, y envía el **código de recuperación de contraseña**. Detrás del puerto `Notificador` hay dos adaptadores y se elige con una propiedad:
+
+| `sga.notificaciones.proveedor` | Qué hace |
+|---|---|
+| `local` (**por defecto**) | No sale a internet ni pide credenciales: registra el aviso en el log y en una bandeja en memoria. Los avisos (y el código de recuperación) se leen en **`GET /api/notificaciones`** o en la página *Notificaciones* del administrador. |
+| `smtp` | Envía correos reales por SMTP (Gmail). Tiempo máximo de espera: `sga.notificaciones.tiempo-espera-ms` (5000 ms). |
+
+A quién se escribe: el correo de la **cuenta** del titular (mismo documento); si no tiene cuenta, el `correoTitular` opcional dado al crear la reserva; si no hay ninguno, el aviso queda registrado como `SIN_CORREO`. **Un fallo del correo nunca impide reservar, confirmar, cobrar ni cerrar un folio:** se notifica después de confirmar la transacción, se captura toda excepción, se registra en el log y el aviso queda `FALLIDA` en la bandeja.
+
+**Cómo activar Gmail (envío real):**
+1. En la cuenta de Google active la **verificación en dos pasos** y cree una **contraseña de aplicación** (Cuenta de Google → Seguridad → Contraseñas de aplicaciones). Son 16 caracteres; no es la contraseña de la cuenta.
+2. Copie `src/main/resources/application-secrets.properties.example` como `application-secrets.properties` (no se versiona) y complete:
+   ```properties
+   sga.notificaciones.proveedor=smtp
+   spring.mail.username=su.cuenta@gmail.com
+   spring.mail.password=la-contraseña-de-aplicación-de-16-caracteres
+   ```
+   o defina las variables de entorno `SGA_NOTIFICACIONES_PROVEEDOR=smtp`, `SPRING_MAIL_USERNAME` y `SPRING_MAIL_PASSWORD`.
+3. Reinicie la aplicación. Cree una reserva con `correoTitular` (o recupere una contraseña) y revise la bandeja del administrador: `ENVIADA` si salió, `FALLIDA` con la causa si no (el contenido del código de recuperación nunca queda en la bandeja con el proveedor real).
+
+Las pruebas automáticas **nunca** llaman a un servidor de correo real: usan el adaptador local o un cliente simulado (el fallo se prueba contra un puerto cerrado de la misma máquina).
 
 ---
 

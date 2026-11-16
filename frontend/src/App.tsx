@@ -11,6 +11,7 @@ import {
   ROLES_HUESPED,
   ROLES_RECEPCION,
   ROLES_SERVICIO,
+  ROLES_TODOS,
 } from './rutas/acceso';
 import { RutaProtegida } from './rutas/RutaProtegida';
 import { RutaPublica } from './rutas/RutaPublica';
@@ -22,6 +23,8 @@ const Login = lazy(() => import('./paginas/Login'));
 const Registro = lazy(() => import('./paginas/Registro'));
 const NoAutorizado = lazy(() => import('./paginas/NoAutorizado'));
 const NoEncontrada = lazy(() => import('./paginas/NoEncontrada'));
+const RecuperarContrasena = lazy(() => import('./paginas/RecuperarContrasena'));
+const Perfil = lazy(() => import('./paginas/Perfil'));
 
 // Huésped
 const Buscar = lazy(() => import('./paginas/huesped/Buscar'));
@@ -47,6 +50,8 @@ const Bloqueos = lazy(() => import('./paginas/administracion/Bloqueos'));
 const TemporadasTarifas = lazy(() => import('./paginas/administracion/TemporadasTarifas'));
 const PoliticaCancelacion = lazy(() => import('./paginas/administracion/PoliticaCancelacion'));
 const RechazosExternos = lazy(() => import('./paginas/administracion/RechazosExternos'));
+const Usuarios = lazy(() => import('./paginas/administracion/Usuarios'));
+const Notificaciones = lazy(() => import('./paginas/administracion/Notificaciones'));
 
 /**
  * Todas las rutas de la aplicación, declaradas desde el paso J1 para que nadie tenga que editar este archivo:
@@ -71,6 +76,12 @@ export default function App() {
         <Route element={<RutaPublica />}>
           <Route path="login" element={<Login />} />
           <Route path="registro" element={<Registro />} />
+          <Route path={PATRONES.recuperarContrasena} element={<RecuperarContrasena />} />
+        </Route>
+
+        {/* Mi perfil y el cambio de contraseña: cualquier usuario con sesión */}
+        <Route element={<RutaProtegida roles={ROLES_TODOS} />}>
+          <Route path={PATRONES.perfil} element={<Perfil />} />
         </Route>
 
         {/* Buscar y cotizar: huésped, recepción y administración */}
@@ -109,6 +120,8 @@ export default function App() {
           <Route path={PATRONES.temporadasTarifas} element={<TemporadasTarifas />} />
           <Route path={PATRONES.politicaCancelacion} element={<PoliticaCancelacion />} />
           <Route path={PATRONES.rechazosExternos} element={<RechazosExternos />} />
+          <Route path={PATRONES.usuarios} element={<Usuarios />} />
+          <Route path={PATRONES.notificaciones} element={<Notificaciones />} />
         </Route>
 
         <Route path="*" element={<NoEncontrada />} />

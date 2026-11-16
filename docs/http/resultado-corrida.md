@@ -5,29 +5,29 @@ sobre el **cuerpo** de cada respuesta (`client.test`), no solo sobre el código 
 
 | Dato | Valor |
 |---|---|
-| Fecha | 2026-11-16 a las 03:11:50 (hora de Bogotá) |
-| Código base | `57916d7` (`main`) más los cambios del paso J6 (rama `feature/alojamiento-servicios`) |
+| Fecha | 2026-11-16 a las 04:11:38 (hora de Bogotá) |
+| Código base | `47f1d5e` (`main`) más los cambios del paso J7 (rama `feature/notificaciones-usuarios`) |
 | Aplicación | `./gradlew bootRun` recién arrancada, con los datos de prueba sembrados (H2 en memoria) |
 | Cliente | [`ejecutar-coleccion.js`](ejecutar-coleccion.js): ejecuta cada solicitud en orden y corre sus bloques `client.test` con la misma API del cliente HTTP de IntelliJ (`client.assert`, `client.global`, `response.body`, `response.headers.valueOf`) |
-| **Solicitudes ejecutadas** | **220** |
-| **`client.test` ejecutados** | **220** |
-| **`client.test` que pasaron** | **220** |
+| **Solicitudes ejecutadas** | **283** |
+| **`client.test` ejecutados** | **283** |
+| **`client.test` que pasaron** | **283** |
 | **`client.test` que fallaron** | **0** |
 
-Cada solicitud tiene al menos un `client.test` (220 de 220). Toda respuesta 409 verifica `status` = 409, que
+Cada solicitud tiene al menos un `client.test` (283 de 283). Toda respuesta 409 verifica `status` = 409, que
 `mensaje` incluya el texto de la regla violada, que `errores` sea nulo y que no haya trazas técnicas.
 
 ## Códigos HTTP observados
 
 | Código | Solicitudes |
 |---|---|
-| 200 | 84 |
-| 201 | 17 |
-| 400 | 21 |
-| 401 | 11 |
-| 403 | 21 |
-| 404 | 10 |
-| 409 | 56 |
+| 200 | 110 |
+| 201 | 22 |
+| 400 | 29 |
+| 401 | 16 |
+| 403 | 28 |
+| 404 | 12 |
+| 409 | 66 |
 
 ## Solicitudes por parte de la colección
 
@@ -43,6 +43,7 @@ Cada solicitud tiene al menos un `client.test` (220 de 220). Toda respuesta 409 
 | 7 | Reglas propias (L-20) | 19 |
 | 8 | Soporte del frontend: CORS, mis reservas, filtros | 18 |
 | 9 | Alojamiento, servicios adicionales, medios de pago y calendarios (J6) | 52 |
+| 10 | Notificaciones al titular, usuarios, perfil y recuperación de contraseña (J7) | 63 |
 | - | Pasos cuyo título está en un comentario (se numeran por su comentario) | 3 |
 
 ## Pasos manuales y límites
@@ -54,6 +55,10 @@ Cada solicitud tiene al menos un `client.test` (220 de 220). Toda respuesta 409 
   la llegada y el no-show con éxito (RN-10, RN-11, L-15), el vencimiento automático (RN-21) y el tiempo de preparación entre reservas
   (RN-20, que depende de los parámetros). Su camino completo, con el reloj movido por la prueba, está en los recorridos
   `RecorridoOperacionDiariaIntegracionTest` y `RecorridoVencimientoIntegracionTest` (ver la matriz de trazabilidad).
+- **Las notificaciones de la PARTE 10 se leen en la bandeja local.** La colección corre con el proveedor `local` (el que viene activo): los avisos y el
+  código de recuperación se leen en `GET /api/notificaciones`. Con `sga.notificaciones.proveedor=smtp` el contenido del código no queda en la bandeja y
+  los pasos 10.33 a 10.39 no podrían leerlo; el comportamiento con el proveedor real y su fallo se prueba en `RecorridoNotificacionFallidaIntegracionTest`
+  (SMTP apuntando a un puerto cerrado de la misma máquina, sin servicios externos).
 - **La colección no es idempotente:** se ejecuta sobre una aplicación recién arrancada. En una segunda pasada sin reiniciar, el registro
   de Ana (0.6) y la reserva externa (3.26) responden 409 y los pasos que dependen de la primera pasada cambian de resultado.
 - Las aserciones de los pasos 1.x a 6.x que no son de L-06 ni de L-20 se generaron a partir de las respuestas observadas en una corrida

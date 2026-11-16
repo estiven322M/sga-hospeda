@@ -8,7 +8,7 @@ Reglas del proyecto que aplican aquí: entidades JPA **separadas** del dominio, 
 mapper persistencia ↔ dominio, repos Spring Data + **adaptadores que implementan los puertos**, **eliminación lógica**
 (nunca física) y datos de prueba que se cargan solos al iniciar. Persistir no debe cambiar el dominio.
 
-## 1. Puertos que debes implementar (10)
+## 1. Puertos que debes implementar (12 con JPA; los de notificación son en memoria)
 
 ```java
 // ApartamentoRepository
@@ -74,6 +74,9 @@ CodigoReserva generar(LocalDate fecha);                             // formato R
 | `PoliticaCancelacionRepository` | Las versiones **no se modifican ni se borran** (las reservas las tienen congeladas). |
 | `AlojamientoRepository` (J6) | Hay UN solo alojamiento: `obtener` devuelve vacío hasta que se siembra y `guardar` inserta la primera vez y reemplaza después (la fila lleva siempre el identificador 1). Lo siembra `InicializadorAlojamiento` desde `application.properties` y es idempotente: no pisa lo que el administrador editó. |
 | `ServicioAdicionalRepository` (J6) | Identidad por **código**. `guardar` crea o actualiza (la baja lógica es el campo `activo`, nunca se borra). `listarTodos` y `listarActivos` de 10 en 10 ordenados por código. El valor se guarda en pesos COP enteros. |
+| `ContactoReservaRepository` (J7) | Un correo de contacto por reserva (clave: código de la reserva). `guardar` crea o reemplaza; `buscar` devuelve vacío si la reserva no tiene uno. No es un dato de la reserva: el agregado no lo conoce. |
+| `CodigoRecuperacionRepository` (J7) | Un código vigente por correo (clave: correo): `guardar` crea o reemplaza (un código nuevo borra al anterior) y también persiste `usado` e `intentos_fallidos`. Guarda solo el **hash**. `buscarPorCorreo` lo reconstruye con `CodigoRecuperacion.reconstruir`. |
+| `Notificador` y `BandejaNotificaciones` (J7) | **No usan JPA.** Los adaptadores viven en `infrastructure/notificaciones`: `NotificadorLocal` (por defecto) y `NotificadorCorreoSmtp` (con `sga.notificaciones.proveedor=smtp`) y `BandejaEnMemoria` (últimos 500 avisos, del más reciente al más antiguo, 10 por página; se vacía al reiniciar). |
 | `GeneradorCodigoReserva.generar` | Dos peticiones simultáneas no pueden obtener el mismo código. Usa un contador persistente por año: la fila se crea solo si no existe (`INSERT … WHERE NOT EXISTS`, nunca un `save`/`merge`, que la reiniciaría a 0) y se incrementa con un único `UPDATE ultimo = ultimo + 1`. |
 
 ## 3. Cómo reconstruir las entidades del dominio desde la base de datos
@@ -88,6 +91,7 @@ El dominio no tiene setters ni constructor vacío. Para restaurar entidades:
 | `Folio` | Reproduce sus movimientos: `new Folio(reserva, cargoAlojamiento)` (el primer cargo), luego `registrarCargo`, `registrarAjuste` y `registrarPago` en el orden guardado y, si estaba cerrado, `cerrar(autorizacion)`. |
 | `Ocupante` | `new Ocupante(documento, nombre, fechaNacimiento, fechaActual)`; para restaurar pasa la fecha de hoy (`LocalDate.now(...)`) como `fechaActual`. |
 | `Bloqueo`, `Temporada`, `PoliticaCancelacion` | Sus constructores públicos. |
+| `CodigoRecuperacion` (J7) | `CodigoRecuperacion.reconstruir(correo, hash, expiraEn, usado, intentosFallidos)`: restaura el estado tal cual, sin validar la vigencia. |
 | `Alojamiento`, `ServicioAdicional` (J6) | `new Alojamiento(...)` con `new Ubicacion(latitud, longitud)`; `ServicioAdicional.reconstruir(codigo, nombre, descripcion, generaCargo, valor, activo)` (el constructor deja el servicio activo). |
 | Objetos de valor (`Dinero`, `Estancia`, `CodigoReserva`...) | Sus constructores; ya validan. `Dinero` se guarda como entero de pesos COP (sin decimales). |
 

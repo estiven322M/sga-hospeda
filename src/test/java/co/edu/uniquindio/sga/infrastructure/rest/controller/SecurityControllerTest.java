@@ -35,6 +35,7 @@ import co.edu.uniquindio.sga.infrastructure.rest.exception.GlobalExceptionHandle
 class SecurityControllerTest {
 
     @Mock private SecurityService securityService;
+    @Mock private co.edu.uniquindio.sga.application.security.RecuperacionContrasenaService recuperacion;
     private MockMvc mvc;
 
     private static final String LOGIN = """
@@ -45,7 +46,7 @@ class SecurityControllerTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.standaloneSetup(new SecurityController(securityService))
+        mvc = MockMvcBuilders.standaloneSetup(new SecurityController(securityService, recuperacion))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -126,6 +127,53 @@ class SecurityControllerTest {
                 .andExpect(jsonPath("$.errores.telefono").exists())
                 .andExpect(jsonPath("$.errores.documento").exists())
                 .andExpect(jsonPath("$.errores.fechaNacimiento").exists());
+    }
+
+    @Test
+    void solicitarRecuperacionResponde200ConUnMensajeGenerico() throws Exception {
+        mvc.perform(post("/api/auth/recuperacion/solicitar").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"nadie@correo.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mensaje", containsString("Si el correo está registrado")));
+        verify(recuperacion).solicitar("nadie@correo.com");
+    }
+
+    @Test
+    void solicitarRecuperacionConUnCorreoInvalidoResponde400() throws Exception {
+        mvc.perform(post("/api/auth/recuperacion/solicitar").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"no-es-un-correo\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.correo").exists());
+        verify(recuperacion, never()).solicitar(any());
+    }
+
+    @Test
+    void confirmarRecuperacionResponde200() throws Exception {
+        mvc.perform(post("/api/auth/recuperacion/confirmar").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"laura@correo.com\",\"codigo\":\"123456\",\"contrasenaNueva\":\"Nueva2026\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mensaje", containsString("cambió")));
+    }
+
+    @Test
+    void confirmarRecuperacionConUnCodigoRechazadoResponde409SinRevelarElMotivo() throws Exception {
+        org.mockito.Mockito.doThrow(new co.edu.uniquindio.sga.domain.exception.ReglaDominioException(
+                "El código no es válido o ya venció")).when(recuperacion).confirmar(any());
+
+        mvc.perform(post("/api/auth/recuperacion/confirmar").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"laura@correo.com\",\"codigo\":\"123456\",\"contrasenaNueva\":\"Nueva2026\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("El código no es válido o ya venció"));
+    }
+
+    @Test
+    void confirmarRecuperacionConDatosInvalidosResponde400PorCampo() throws Exception {
+        mvc.perform(post("/api/auth/recuperacion/confirmar").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"laura@correo.com\",\"codigo\":\"12\",\"contrasenaNueva\":\"corta\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.codigo").exists())
+                .andExpect(jsonPath("$.errores.contrasenaNueva").exists());
+        verify(recuperacion, never()).confirmar(any());
     }
 
     @Test

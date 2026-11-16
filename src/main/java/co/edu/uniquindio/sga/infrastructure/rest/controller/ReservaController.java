@@ -34,6 +34,7 @@ import co.edu.uniquindio.sga.application.usecase.ConsultarReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.CrearReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.DeclararNoShowUseCase;
 import co.edu.uniquindio.sga.application.usecase.ListarMisReservasUseCase;
+import co.edu.uniquindio.sga.application.usecase.NotificarReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.ListarReservasUseCase;
 import co.edu.uniquindio.sga.application.usecase.RegistrarLlegadaUseCase;
 import co.edu.uniquindio.sga.application.usecase.RegistrarSalidaUseCase;
@@ -75,6 +76,7 @@ public class ReservaController {
     private final RegistrarLlegadaUseCase registrarLlegada;
     private final RegistrarSalidaUseCase registrarSalida;
     private final DeclararNoShowUseCase declararNoShow;
+    private final NotificarReservaUseCase notificar;
     private final ReservaMapper mapper;
     private final SolicitudMapper solicitud;
     private final Clock reloj;
@@ -84,7 +86,7 @@ public class ReservaController {
                              ModificarReservaUseCase modificarReserva,
                              CancelarReservaUseCase cancelarReserva, ConfirmarReservaUseCase confirmarReserva,
                              RegistrarLlegadaUseCase registrarLlegada, RegistrarSalidaUseCase registrarSalida,
-                             DeclararNoShowUseCase declararNoShow,
+                             DeclararNoShowUseCase declararNoShow, NotificarReservaUseCase notificar,
                              ReservaMapper mapper, SolicitudMapper solicitud, Clock reloj) {
         this.crearReserva = crearReserva;
         this.consultarReserva = consultarReserva;
@@ -96,6 +98,7 @@ public class ReservaController {
         this.registrarLlegada = registrarLlegada;
         this.registrarSalida = registrarSalida;
         this.declararNoShow = declararNoShow;
+        this.notificar = notificar;
         this.mapper = mapper;
         this.solicitud = solicitud;
         this.reloj = reloj;
@@ -118,6 +121,8 @@ public class ReservaController {
                 solicitud.aIdentificadorExterno(request.identificadorExterno()),
                 request.horaEstimadaLlegada(),
                 ahora);
+        // El caso de uso ya confirmó su transacción: el aviso al titular no puede deshacer ni retrasar la reserva (I-05)
+        notificar.reservaCreada(reserva, request.correoTitular(), ahora);
         URI ubicacion = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{codigo}").buildAndExpand(reserva.getCodigo().valor()).toUri();
         return ResponseEntity.created(ubicacion).body(mapper.aDetalle(reserva));
@@ -200,8 +205,10 @@ public class ReservaController {
     @Operation(summary = "Confirmar una reserva")
     public ResponseEntity<ReservaDetalleResponse> confirmar(@PathVariable String codigo,
                                                            @Valid @RequestBody ConfirmarReservaRequest request) {
+        LocalDateTime ahora = LocalDateTime.now(reloj);
         Reserva reserva = confirmarReserva.ejecutar(
-                solicitud.aCodigo(codigo), request.horaEstimadaLlegada(), request.autor(), LocalDateTime.now(reloj));
+                solicitud.aCodigo(codigo), request.horaEstimadaLlegada(), request.autor(), ahora);
+        notificar.reservaConfirmada(reserva, ahora);
         return ResponseEntity.ok(mapper.aDetalle(reserva));
     }
 
@@ -245,8 +252,10 @@ public class ReservaController {
     @Operation(summary = "Cancelar una reserva (CU-05)")
     public ResponseEntity<ReservaDetalleResponse> cancelar(@PathVariable String codigo,
                                                           @Valid @RequestBody CancelarReservaRequest request) {
+        LocalDateTime ahora = LocalDateTime.now(reloj);
         Reserva reserva = cancelarReserva.ejecutar(
-                solicitud.aCodigo(codigo), request.motivo(), request.autor(), LocalDateTime.now(reloj));
+                solicitud.aCodigo(codigo), request.motivo(), request.autor(), ahora);
+        notificar.reservaCancelada(reserva, ahora);
         return ResponseEntity.ok(mapper.aDetalle(reserva));
     }
 }

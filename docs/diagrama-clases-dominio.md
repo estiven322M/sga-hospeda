@@ -1,7 +1,19 @@
-# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 3, paso J6)
+# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 3, paso J7)
 
 El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencian entre sí **solo por identificador**
 (`Reserva` guarda `IdentificacionApartamento`; `Folio` guarda `CodigoReserva`).
+
+**Cambios del paso J7 (Entrega 3)** (marcados con `«nuevo J7»`):
+- Integración de salida de notificaciones (10.3.2-A): puertos `Notificador` (enviar un aviso; puede lanzar `NotificacionFallidaException`) y `BandejaNotificaciones`
+  (constancia de los avisos intentados), con los objetos de valor `Notificacion` (tipo, destinatario opcional, asunto, mensaje, código de reserva opcional),
+  `RegistroNotificacion` (+ estado ENVIADA, FALLIDA o SIN_CORREO), `CorreoElectronico` (se normaliza a minúsculas; formato validado) y los enums `TipoNotificacion` y
+  `EstadoNotificacion`. `RedactorNotificaciones` redacta el aviso de reserva creada, confirmada y cancelada y el del código de recuperación. El dominio no conoce
+  al proveedor ni a Spring Mail.
+- `ContactoReservaRepository`: correo opcional que se da al reservar; es un dato de contacto, NO de la `Reserva` (el agregado no cambió).
+- `CodigoRecuperacion` (7.2): entidad con su hash, su vencimiento, `usado` e intentos fallidos. Reglas: 6 dígitos, vigencia, **un solo uso**, tope de intentos; todo rechazo
+  dice lo mismo. Puerto `CodigoRecuperacionRepository`.
+- `BajaUsuarioService` (7.2): no se desactiva a un usuario que sea titular de reservas PENDIENTE, CONFIRMADA o EN_CURSO. El usuario sigue fuera del dominio (3.6): el
+  puente es el documento y el servicio solo consulta `ReservaRepository`.
 
 **Cambios del paso J6 (Entrega 3)** (marcados con `«nuevo J6»` en el diagrama):
 - `Alojamiento` (L-01, L-02, L-12, L-16): nombre, descripción, ciudad, dirección, `Ubicacion` (latitud y longitud), horas de entrada y salida, normas de
@@ -267,6 +279,50 @@ classDiagram
         +darDeBaja()
         +activar()
     }
+    class CodigoRecuperacion {
+        <<entidad «nuevo J7»>>
+        -correo
+        -hash
+        -expiraEn
+        -usado
+        -intentosFallidos
+        +emitir(correo, hash, ahora, vigenciaMinutos)$
+        +generarTexto(azar)$
+        +consumir(coincide, ahora, intentosMaximos)
+    }
+    class CorreoElectronico {
+        <<record «nuevo J7»>>
+        valor
+    }
+    class Notificacion {
+        <<record «nuevo J7»>>
+        tipo
+        destinatario
+        asunto
+        mensaje
+        codigoReserva
+        generadaEn
+        +mensajeRegistrable()
+    }
+    class RegistroNotificacion {
+        <<record «nuevo J7»>>
+        estado
+        detalle
+        registradaEn
+    }
+    class TipoNotificacion {
+        <<enum «nuevo J7»>>
+        RESERVA_CREADA
+        RESERVA_CONFIRMADA
+        RESERVA_CANCELADA
+        CODIGO_RECUPERACION
+    }
+    class EstadoNotificacion {
+        <<enum «nuevo J7»>>
+        ENVIADA
+        FALLIDA
+        SIN_CORREO
+    }
     class NocheCalendario {
         <<record «nuevo J6»>>
         noche
@@ -424,6 +480,12 @@ classDiagram
     }
     class AlojamientoRepository { <<puerto «nuevo J6»>> }
     class ServicioAdicionalRepository { <<puerto «nuevo J6»>> }
+    class Notificador { <<puerto «nuevo J7»>> }
+    class BandejaNotificaciones { <<puerto «nuevo J7»>> }
+    class ContactoReservaRepository { <<puerto «nuevo J7»>> }
+    class CodigoRecuperacionRepository { <<puerto «nuevo J7»>> }
+    class RedactorNotificaciones { <<servicio «nuevo J7»>> }
+    class BajaUsuarioService { <<servicio «nuevo J7»>> }
 
     class ReservaRepository { <<puerto>> }
     class ApartamentoRepository { <<puerto>> }
@@ -461,4 +523,15 @@ classDiagram
     CalendarioOcupacionService ..> BloqueoRepository
     CalendarioOcupacionService ..> ConfiguracionAlojamiento
     ControlCapacidadService ..> ReservaRepository
+    RedactorNotificaciones ..> Reserva
+    RedactorNotificaciones ..> Notificacion
+    Notificacion "1" o-- "0..1" CorreoElectronico
+    RegistroNotificacion "1" o-- "1" EstadoNotificacion
+    Notificacion "1" o-- "1" TipoNotificacion
+    CodigoRecuperacion "1" *-- "1" CorreoElectronico
+    BajaUsuarioService ..> ReservaRepository : titular con reservas activas (7.2)
+    Notificador ..> Notificacion
+    BandejaNotificaciones ..> RegistroNotificacion
+    CodigoRecuperacionRepository ..> CodigoRecuperacion
+    ContactoReservaRepository ..> CorreoElectronico
 ```
