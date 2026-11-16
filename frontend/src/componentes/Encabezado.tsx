@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
+import { establecerFotoDePerfil, useFotoPerfil } from '../hooks/useFotoPerfil';
 import type { RolUsuario } from '../modelos/auth';
 import { RUTAS } from '../rutas/rutas';
+import { obtenerMiPerfil } from '../servicios/usuarioServicio';
+import { Avatar } from './Avatar';
 import { MenuDesplegable } from './MenuDesplegable';
 
 interface EncabezadoProps {
@@ -48,6 +51,21 @@ export function Encabezado({ nombreAlojamiento }: EncabezadoProps) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const navigate = useNavigate();
   const { sesion, tieneRol, cerrarSesion } = useAuth();
+  const foto = useFotoPerfil();
+
+  // La foto de perfil no viaja en el token: se pide con el perfil al iniciar sesión. Si falla, se ven las iniciales.
+  const token = sesion?.token ?? null;
+  useEffect(() => {
+    if (!token) {
+      establecerFotoDePerfil(null);
+      return;
+    }
+    const controlador = new AbortController();
+    obtenerMiPerfil(controlador.signal)
+      .then((perfil) => establecerFotoDePerfil(perfil.fotoUrl))
+      .catch(() => establecerFotoDePerfil(null));
+    return () => controlador.abort();
+  }, [token]);
 
   function salir() {
     cerrarSesion();
@@ -109,7 +127,12 @@ export function Encabezado({ nombreAlojamiento }: EncabezadoProps) {
               <div className="d-flex align-items-center gap-2">
                 {/* El menú del usuario: su perfil y el cambio de contraseña */}
                 <ul className="navbar-nav" onClick={() => setMenuAbierto(false)}>
-                  <MenuDesplegable titulo={sesion.nombre ?? sesion.correo ?? 'Mi cuenta'} opciones={OPCIONES_USUARIO} alineadoALaDerecha />
+                  <MenuDesplegable titulo={
+                      <span className="d-inline-flex align-items-center gap-2">
+                        <Avatar nombre={sesion.nombre ?? sesion.correo} fotoUrl={foto} tamano={28} />
+                        {sesion.nombre ?? sesion.correo ?? 'Mi cuenta'}
+                      </span>
+                    } opciones={OPCIONES_USUARIO} alineadoALaDerecha />
                 </ul>
                 <span className="navbar-text small">
                   {sesion.roles.map((rol) => (

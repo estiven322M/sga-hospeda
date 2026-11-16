@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router';
 
 interface OpcionMenu {
@@ -7,7 +7,8 @@ interface OpcionMenu {
 }
 
 interface MenuDesplegableProps {
-  titulo: string;
+  /** Lo que se ve en el botón del menú: un texto o, en el menú del usuario, su foto con su nombre. */
+  titulo: ReactNode;
   opciones: readonly OpcionMenu[];
   /** El menú se abre hacia la izquierda (el del usuario, pegado al borde derecho de la barra). */
   alineadoALaDerecha?: boolean;

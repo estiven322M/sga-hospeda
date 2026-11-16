@@ -12,7 +12,7 @@ import co.edu.uniquindio.sga.domain.valueobject.Tarifa;
 
 /**
  * 7.4: todo apartamento activo debe tener tarifa en todas las temporadas; el sistema impide
- * activar un apartamento sin tarifas completas. Necesita conocer temporadas y tarifas (otros agregados).
+ * activar un apartamento sin tarifas completas. 7.3: tampoco se activa sin al menos una imagen. Necesita conocer temporadas y tarifas (otros agregados).
  */
 public class ActivacionApartamentoService {
 
@@ -35,6 +35,10 @@ public class ActivacionApartamentoService {
         if (!faltantes.isEmpty()) {
             throw new ReglaDominioException(
                     "No se puede activar el apartamento: faltan tarifas para las temporadas " + faltantes);
+        }
+        // 7.3: un apartamento activo tiene entre 1 y 10 imágenes; sin ninguna no puede venderse
+        if (apartamento.cantidadImagenes() < 1) {
+            throw new ReglaDominioException("No se puede activar el apartamento: debe tener al menos una imagen");
         }
         apartamento.activar();
     }

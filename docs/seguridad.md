@@ -74,6 +74,9 @@ usuarios.
 | `GET /api/usuarios` (filtro `rol`), `POST /api/usuarios` (usuario interno), `PUT /api/usuarios/{id}/rol`, `PUT /api/usuarios/{id}/desactivar` | ✘ | ✘ | ✔ | ✘ |
 | `GET /api/usuarios/yo`, `PUT /api/usuarios/yo`, `PUT /api/usuarios/yo/contrasena` (siempre el propio, por el sujeto del token) | ✔ | ✔ | ✔ | ✔ |
 | `GET /api/notificaciones` (bandeja de avisos) | ✘ | ✘ | ✔ | ✘ |
+| `POST /api/apartamentos/{id}/imagenes` (multipart), `PUT .../imagenes/{idImagen}/principal`, `PUT .../imagenes/{idImagen}/retirar` | ✘ | ✘ | ✔ | ✘ |
+| `PUT /api/usuarios/yo/foto` (multipart; siempre la del dueño del token) | ✔ | ✔ | ✔ | ✔ |
+| `GET /imagenes/**` (archivos del almacén local: los pide `<img>`, que no envía el token) | público | público | público | público |
 | `GET /api/apartamentos/{id}/calendario` | ✔ solo libre o no disponible | ✔ con el código y el estado de la reserva | ✔ con el código y el estado de la reserva | ✘ |
 
 ## 3.0 Usuarios, perfil y recuperación de contraseña (7.2, J7)
@@ -94,6 +97,17 @@ El usuario sigue fuera del dominio (3.6): `UsuarioEntity` y `RolUsuario` viven e
   ("El código no es válido o ya venció") ante un correo desconocido, un código incorrecto, vencido, usado o bloqueado: no se revela el motivo.
 - **El código llega por el puerto Notificador.** Con el proveedor local se lee en `GET /api/notificaciones` (solo administrador); con `smtp` viaja por correo
   y en la bandeja queda "(contenido sensible omitido)". La respuesta de la solicitud nunca lo trae.
+
+## 3.0b Imágenes (7.3) y foto de perfil (7.2, J8)
+
+- **Subida:** `multipart/form-data`, solo ADMINISTRADOR para las imágenes de apartamentos; la foto de perfil es de cualquier rol y siempre la del sujeto del token.
+- **El formato se reconoce por el contenido** (firma de los primeros bytes: JPG, PNG o WEBP), nunca por la extensión ni por el tipo que declare el cliente: un texto
+  renombrado a `.jpg` se rechaza (409). El tamaño máximo (5 MB y 2 MB) es un parámetro de `application.properties`; Spring tiene un techo propio más alto
+  (`spring.servlet.multipart.max-file-size`) para que la regla del negocio responda con su mensaje claro.
+- **Archivos públicos:** `GET /imagenes/**` es público porque el navegador pide las imágenes con `<img>`, que no envía el token. Solo sirve la carpeta del almacén local
+  (`sga.imagenes.local.carpeta`); un nombre con `..` no sale de ella. Los nombres de archivo que genera el sistema son UUID: no se pueden adivinar ni los pone el cliente.
+- **Credenciales de Cloudinary:** `sga.imagenes.cloudinary.cloud-name`, `api-key` y `api-secret` nunca se versionan (`application-secrets.properties` o variables de
+  entorno) y nunca se escriben en el log; con el proveedor `cloudinary` y sin ellas la aplicación no arranca.
 
 ## 3.1 CORS (para el frontend, Guía 15 4.2)
 

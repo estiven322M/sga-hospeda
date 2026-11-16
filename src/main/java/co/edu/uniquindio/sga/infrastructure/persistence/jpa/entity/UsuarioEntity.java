@@ -48,6 +48,9 @@ public class UsuarioEntity {
     @Column(name = "rol", nullable = false, length = 20)
     private RolUsuario rol;
 
+    @Column(name = "foto_url", length = 500)
+    private String fotoUrl;             // 7.2: foto de perfil (nula si no ha subido una)
+
     @Column(name = "activo", nullable = false)
     private boolean activo;             // eliminación lógica (7.2 y 12.4): un usuario inactivo no inicia sesión
 
@@ -78,6 +81,11 @@ public class UsuarioEntity {
         this.telefono = telefono;
     }
 
+    /** 7.2: la URL pública de la foto de perfil, ya guardada en el almacén de imágenes. */
+    public void cambiarFoto(String url) {
+        this.fotoUrl = url;
+    }
+
     /** Recibe la contraseña ya cifrada por el PasswordEncoder. */
     public void cambiarContrasena(String contrasenaCifrada) {
         this.contrasena = contrasenaCifrada;
@@ -97,6 +105,7 @@ public class UsuarioEntity {
     public LocalDate getFechaNacimiento() { return fechaNacimiento; }
     public RolUsuario getRol() { return rol; }
     public boolean isActivo() { return activo; }
+    public String getFotoUrl() { return fotoUrl; }
 
     @Override
     public boolean equals(Object o) {

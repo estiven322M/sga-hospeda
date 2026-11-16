@@ -2,7 +2,10 @@ package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import java.net.URI;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
+import co.edu.uniquindio.sga.infrastructure.rest.mapper.ImagenSubidaMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,9 +52,11 @@ public class UsuarioController {
     private static final String CUALQUIER_ROL = "hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR', 'PERSONAL_SERVICIO')";
 
     private final GestionUsuariosService usuarios;
+    private final ImagenSubidaMapper imagenSubida;
 
-    public UsuarioController(GestionUsuariosService usuarios) {
+    public UsuarioController(GestionUsuariosService usuarios, ImagenSubidaMapper imagenSubida) {
         this.usuarios = usuarios;
+        this.imagenSubida = imagenSubida;
     }
 
     @GetMapping
@@ -87,6 +92,18 @@ public class UsuarioController {
     public ResponseEntity<UsuarioResponse> actualizarMiPerfil(@Valid @RequestBody ActualizarPerfilRequest request,
                                                               Authentication authentication) {
         return ResponseEntity.ok(usuarios.actualizarPerfil(authentication.getName(), request));
+    }
+
+    /**
+     * 7.2: foto de perfil (multipart, parte "foto"; una imagen JPG, PNG o WEBP de hasta 2 MB), guardada con el mismo puerto de
+     * almacenamiento que las imágenes de los apartamentos. Es siempre la del dueño del token. 409 si pesa de más o no es una
+     * imagen admitida; 503 si el almacén externo no pudo guardarla (la foto anterior se conserva).
+     */
+    @PutMapping(value = "/yo/foto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize(CUALQUIER_ROL)
+    @Operation(summary = "Cambiar mi foto de perfil (multipart)")
+    public ResponseEntity<UsuarioResponse> cambiarMiFoto(@RequestParam("foto") MultipartFile foto, Authentication authentication) {
+        return ResponseEntity.ok(usuarios.actualizarFoto(authentication.getName(), imagenSubida.aContenido(foto)));
     }
 
     @PutMapping("/yo/contrasena")

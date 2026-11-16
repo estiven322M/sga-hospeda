@@ -5,7 +5,13 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.multipart.MultipartFile;
+import co.edu.uniquindio.sga.application.usecase.AgregarImagenesApartamentoUseCase;
+import co.edu.uniquindio.sga.application.usecase.EstablecerImagenPrincipalUseCase;
+import co.edu.uniquindio.sga.application.usecase.RetirarImagenApartamentoUseCase;
+import co.edu.uniquindio.sga.infrastructure.rest.mapper.ImagenSubidaMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,6 +67,10 @@ public class ApartamentoController {
     private final ActivarApartamentoUseCase activarApartamento;
     private final DarDeBajaApartamentoUseCase darDeBajaApartamento;
     private final ConsultarCalendarioUseCase consultarCalendario;
+    private final AgregarImagenesApartamentoUseCase agregarImagenes;
+    private final EstablecerImagenPrincipalUseCase establecerImagenPrincipal;
+    private final RetirarImagenApartamentoUseCase retirarImagen;
+    private final ImagenSubidaMapper imagenSubida;
     private final ApartamentoMapper mapper;
     private final ReservaMapper reservaMapper;
     private final CalendarioMapper calendarioMapper;
@@ -73,6 +83,9 @@ public class ApartamentoController {
                                  ActivarApartamentoUseCase activarApartamento,
                                  DarDeBajaApartamentoUseCase darDeBajaApartamento,
                                  ConsultarCalendarioUseCase consultarCalendario,
+                                 AgregarImagenesApartamentoUseCase agregarImagenes,
+                                 EstablecerImagenPrincipalUseCase establecerImagenPrincipal,
+                                 RetirarImagenApartamentoUseCase retirarImagen, ImagenSubidaMapper imagenSubida,
                                  ApartamentoMapper mapper, ReservaMapper reservaMapper,
                                  CalendarioMapper calendarioMapper, SolicitudMapper solicitud) {
         this.crearApartamento = crearApartamento;
@@ -82,6 +95,10 @@ public class ApartamentoController {
         this.activarApartamento = activarApartamento;
         this.darDeBajaApartamento = darDeBajaApartamento;
         this.consultarCalendario = consultarCalendario;
+        this.agregarImagenes = agregarImagenes;
+        this.establecerImagenPrincipal = establecerImagenPrincipal;
+        this.retirarImagen = retirarImagen;
+        this.imagenSubida = imagenSubida;
         this.mapper = mapper;
         this.reservaMapper = reservaMapper;
         this.calendarioMapper = calendarioMapper;
@@ -132,7 +149,7 @@ public class ApartamentoController {
         ApartamentoResponse datos = mapper.aResponse(resultado.apartamento());
         return ResponseEntity.ok(new ApartamentoActualizadoResponse(datos.identificacion(), datos.nombre(),
                 datos.descripcion(), datos.dormitorios(), datos.capacidad(), datos.dotacion(), datos.caracteristicas(),
-                datos.estadoOperativo(), datos.activo(),
+                datos.estadoOperativo(), datos.activo(), datos.imagenPrincipal(), datos.imagenes(),
                 resultado.reservasPorEncimaDeLaCapacidad().stream().map(reservaMapper::aResumen).toList()));
     }
 
@@ -154,6 +171,41 @@ public class ApartamentoController {
                 .anyMatch(autoridad -> autoridad.getAuthority().equals("RECEPCIONISTA")
                         || autoridad.getAuthority().equals("ADMINISTRADOR"));
         return ResponseEntity.ok(calendarioMapper.aResponse(identificacion, desde, hasta, noches, detallado));
+    }
+
+    /**
+     * 7.3: sube hasta 10 imágenes a la galería (multipart, parte "imagenes"; JPG, PNG o WEBP de hasta 5 MB cada una). La primera de un
+     * apartamento sin imágenes queda como principal. 409 si no caben (máximo 10), si pesan de más o si no son JPG, PNG ni WEBP;
+     * 503 si el almacén externo no pudo guardarlas (no se registra ninguna del lote).
+     */
+    @PostMapping(value = "/{identificacion}/imagenes", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
+    @Operation(summary = "Subir imágenes a la galería de un apartamento (multipart)")
+    public ResponseEntity<ApartamentoResponse> agregarImagenes(@PathVariable String identificacion,
+                                                               @RequestParam("imagenes") List<MultipartFile> imagenes) {
+        var apartamento = agregarImagenes.ejecutar(solicitud.aApartamento(identificacion), imagenSubida.aContenidos(imagenes));
+        URI ubicacion = ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/apartamentos/{identificacion}")
+                .buildAndExpand(identificacion).toUri();
+        return ResponseEntity.created(ubicacion).body(mapper.aResponse(apartamento));
+    }
+
+    /** 7.3: elige la imagen principal (siempre hay exactamente una). Operación de negocio: 200. */
+    @PutMapping("/{identificacion}/imagenes/{idImagen}/principal")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
+    @Operation(summary = "Elegir la imagen principal de un apartamento")
+    public ResponseEntity<ApartamentoResponse> establecerImagenPrincipal(@PathVariable String identificacion,
+                                                                         @PathVariable String idImagen) {
+        return ResponseEntity.ok(mapper.aResponse(
+                establecerImagenPrincipal.ejecutar(solicitud.aApartamento(identificacion), idImagen)));
+    }
+
+    /** 7.3: retiro lógico de una imagen (no hay DELETE). Un apartamento activo conserva al menos una (409). */
+    @PutMapping("/{identificacion}/imagenes/{idImagen}/retirar")
+    @PreAuthorize("hasAuthority('ADMINISTRADOR')")
+    @Operation(summary = "Retirar una imagen de un apartamento (retiro lógico)")
+    public ResponseEntity<ApartamentoResponse> retirarImagen(@PathVariable String identificacion,
+                                                             @PathVariable String idImagen) {
+        return ResponseEntity.ok(mapper.aResponse(retirarImagen.ejecutar(solicitud.aApartamento(identificacion), idImagen)));
     }
 
     /** Operación de negocio: exige tarifa en todas las temporadas (7.4). */

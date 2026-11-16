@@ -6,6 +6,7 @@ import { Campo } from '../../componentes/Campo';
 import { CampoCasilla } from '../../componentes/CampoCasilla';
 import { Cargando } from '../../componentes/Cargando';
 import { Paginacion } from '../../componentes/Paginacion';
+import { MapaDelAlojamiento } from '../../componentes/MapaDelAlojamiento';
 import { TarjetaApartamento } from '../../componentes/TarjetaApartamento';
 import { esquemaBusqueda, faltantesDeBusqueda, solicitudDeBusqueda, type FormularioBusqueda } from '../../esquemas/busqueda';
 import { useAuth } from '../../hooks/useAuth';
@@ -194,6 +195,10 @@ export default function Buscar() {
               </fieldset>
             </form>
           </FormProvider>
+          {/* 7.5: el mapa con la ubicación del alojamiento; sin internet se ve la dirección con las coordenadas */}
+          <div className="mt-4">
+            <MapaDelAlojamiento />
+          </div>
         </div>
 
         <div className="col-12 col-lg-8" aria-live="polite">

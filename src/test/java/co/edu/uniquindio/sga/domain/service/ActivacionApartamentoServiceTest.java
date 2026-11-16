@@ -25,9 +25,11 @@ class ActivacionApartamentoServiceTest {
     private final TemporadaRepository temporadas = mock(TemporadaRepository.class);
     private final ActivacionApartamentoService servicio = new ActivacionApartamentoService(tarifario, temporadas);
 
-    /** Un apartamento recién creado: nace inactivo (7.4). */
+    /** Un apartamento recién creado: nace inactivo (7.4), con una imagen (7.3). */
     private Apartamento apartamentoDadoDeBaja() {
-        return ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        Apartamento apartamento = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        apartamento.agregarImagenes(List.of(co.edu.uniquindio.sga.testsupport.ImagenesDePrueba.referencia(1)));
+        return apartamento;
     }
 
     @Test
@@ -59,5 +61,27 @@ class ActivacionApartamentoServiceTest {
 
         assertTrue(ex.getMessage().contains("ALTA"));
         assertFalse(apt.isActivo());
+    }
+
+    @Test
+    void rechazaActivarUnApartamentoSinImagenes() {
+        Apartamento sinImagenes = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-102"), "Sin fotos", 2, 4);
+        when(temporadas.listarTodas()).thenReturn(List.of(new Temporada("BASE", true, List.of())));
+        when(tarifario.listarTarifas(sinImagenes.getIdentificacion())).thenReturn(List.of(new Tarifa("BASE", Dinero.de(80_000))));
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class, () -> servicio.activar(sinImagenes));
+
+        assertEquals("No se puede activar el apartamento: debe tener al menos una imagen", ex.getMessage());
+        assertFalse(sinImagenes.isActivo());
+    }
+
+    @Test
+    void siSeRetiranTodasLasImagenesYaNoSePuedeActivar() {
+        Apartamento apt = apartamentoDadoDeBaja();
+        apt.retirarImagen(apt.getImagenPrincipal().orElseThrow().id());   // inactivo: puede quedarse sin imágenes
+        when(temporadas.listarTodas()).thenReturn(List.of(new Temporada("BASE", true, List.of())));
+        when(tarifario.listarTarifas(apt.getIdentificacion())).thenReturn(List.of(new Tarifa("BASE", Dinero.de(80_000))));
+
+        assertThrows(ReglaDominioException.class, () -> servicio.activar(apt));
     }
 }

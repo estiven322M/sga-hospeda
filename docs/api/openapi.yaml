@@ -374,6 +374,114 @@ paths:
         '403':
           $ref: '#/components/responses/SinPermiso'
 
+  /api/apartamentos/{identificacion}/imagenes:
+    post:
+      tags: [Apartamentos]
+      summary: Subir imágenes a la galería de un apartamento
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        `multipart/form-data` con una o varias partes `imagenes` (JPG, PNG o WEBP, hasta 5 MB cada una; el tamaño máximo es un
+        parámetro de application.properties). Un apartamento tiene a lo sumo 10 imágenes (7.3); la primera de un apartamento sin
+        imágenes queda como principal. El formato se reconoce por el contenido del archivo, no por su extensión ni por el tipo que
+        declare el cliente. Se revisa TODO el lote antes de subir nada: si no cabe (409), si una pesa de más (409) o si una no es
+        JPG, PNG ni WEBP (409), no se sube ni se registra ninguna. Si el almacén externo falla, 503 y no se registra ninguna del lote.
+        Los archivos se guardan con el puerto `AlmacenImagenes` (local en disco por defecto, o Cloudinary con
+        `sga.imagenes.proveedor=cloudinary`).
+        Mapea a: `AgregarImagenesApartamentoUseCase`
+      operationId: subirImagenesApartamento
+      parameters:
+        - $ref: '#/components/parameters/IdentificacionApartamento'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubirImagenesRequest'
+      responses:
+        '201':
+          description: Imágenes agregadas; devuelve el apartamento con su galería
+          headers:
+            Location:
+              description: URL del apartamento
+              schema:
+                type: string
+                example: http://localhost:8080/api/apartamentos/APT-101
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApartamentoResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/apartamentos/{identificacion}/imagenes/{idImagen}/principal:
+    put:
+      tags: [Apartamentos]
+      summary: Elegir la imagen principal de un apartamento
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        La imagen elegida pasa a ser la principal y la anterior deja de serlo: siempre hay exactamente una (7.3).
+        Mapea a: `EstablecerImagenPrincipalUseCase`
+      operationId: establecerImagenPrincipal
+      parameters:
+        - $ref: '#/components/parameters/IdentificacionApartamento'
+        - $ref: '#/components/parameters/IdImagen'
+      responses:
+        '200':
+          description: Apartamento con su galería actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApartamentoResponse'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/apartamentos/{identificacion}/imagenes/{idImagen}/retirar:
+    put:
+      tags: [Apartamentos]
+      summary: Retirar una imagen de un apartamento (retiro lógico)
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        La imagen sale de la galería pero el registro se conserva y el archivo del almacén no se borra (no hay DELETE). Si era la
+        principal, la primera de las que quedan pasa a serlo. 409 si el apartamento está activo y es su última imagen (7.3: un
+        apartamento activo conserva al menos una).
+        Mapea a: `RetirarImagenApartamentoUseCase`
+      operationId: retirarImagenApartamento
+      parameters:
+        - $ref: '#/components/parameters/IdentificacionApartamento'
+        - $ref: '#/components/parameters/IdImagen'
+      responses:
+        '200':
+          description: Apartamento con su galería actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApartamentoResponse'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
   /api/apartamentos/{identificacion}/baja:
     put:
       tags: [Apartamentos]
@@ -2148,6 +2256,45 @@ paths:
         '404':
           $ref: '#/components/responses/NoEncontrado'
 
+  /api/usuarios/yo/foto:
+    put:
+      tags: [Usuarios]
+      summary: Cambiar mi foto de perfil
+      description: |
+        **Roles:** cualquier usuario autenticado.
+
+        `multipart/form-data` con una parte `foto`: una imagen JPG, PNG o WEBP de hasta 2 MB (parámetro de application.properties),
+        guardada con el mismo puerto de almacenamiento que las imágenes de los apartamentos. La foto es siempre la del dueño del
+        token. 409 si pesa de más o no es una imagen admitida; 503 si el almacén externo falla (la foto anterior se conserva).
+        Sin foto, la pantalla muestra las iniciales.
+        Mapea a: `GestionUsuariosService.actualizarFoto`
+      operationId: cambiarMiFoto
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubirFotoRequest'
+      responses:
+        '200':
+          description: Perfil con la URL de la foto nueva
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
   /api/usuarios/yo/contrasena:
     put:
       tags: [Usuarios]
@@ -2352,6 +2499,14 @@ components:
         type: integer
         format: int64
         example: 6
+    IdImagen:
+      name: idImagen
+      in: path
+      required: true
+      description: Identificador de la imagen dentro de la galería del apartamento
+      schema:
+        type: string
+        example: 3f2b8c1e-5d4a-4b7e-9c10-2a6d8e4f1b73
     CodigoServicio:
       name: codigo
       in: path
@@ -2426,6 +2581,18 @@ components:
             error: Not Found
             mensaje: 'No se encontró la reserva con código: RES-2026-00099'
             path: /api/reservas/RES-2026-00099
+    ServicioNoDisponible:
+      description: El almacén externo de imágenes no pudo guardar el archivo (tiempo agotado, sin conexión, credenciales rechazadas). No se registró nada y el resto del sistema sigue funcionando; el administrador puede reintentar
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-16T15:00:00Z'
+            status: 503
+            error: Service Unavailable
+            mensaje: El servicio de imágenes no está disponible en este momento; intente de nuevo más tarde. El resto del sistema sigue funcionando
+            path: /api/apartamentos/APT-101/imagenes
     ReglaDeNegocio:
       description: Una regla del negocio lo impide (RN-xx, L-xx)
       content:
@@ -2975,7 +3142,16 @@ components:
           $ref: '#/components/schemas/EstadoOperativo'
         activo:
           type: boolean
-          description: Si se puede vender. Los apartamentos nuevos nacen inactivos.
+          description: Si se puede vender. Los apartamentos nuevos nacen inactivos y solo se activan con al menos una imagen y tarifas completas.
+        imagenPrincipal:
+          type: string
+          nullable: true
+          description: URL de la imagen principal (7.3); nula si el apartamento aún no tiene imágenes
+        imagenes:
+          type: array
+          description: La galería, sin las imágenes retiradas, en el orden en que se agregaron (máximo 10)
+          items:
+            $ref: '#/components/schemas/ImagenResponse'
     BloqueoResponse:
       type: object
       properties:
@@ -3145,6 +3321,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Caracteristica'
+        imagenPrincipal:
+          type: string
+          nullable: true
+          description: URL de la imagen principal (7.3); nula si el apartamento aún no tiene imágenes
+        imagenes:
+          type: array
+          description: La galería, sin las imágenes retiradas, en el orden en que se agregaron (máximo 10)
+          items:
+            $ref: '#/components/schemas/ImagenResponse'
         subtotalBruto:
           type: integer
           format: int64
@@ -3567,7 +3752,7 @@ components:
     ApartamentoActualizadoResponse:
       type: object
       description: Los campos de ApartamentoResponse más el aviso de capacidad (7.3)
-      required: [identificacion, nombre, descripcion, dormitorios, capacidad, dotacion, caracteristicas, estadoOperativo, activo, reservasPorEncimaDeLaCapacidad]
+      required: [identificacion, nombre, descripcion, dormitorios, capacidad, dotacion, caracteristicas, estadoOperativo, activo, imagenes, reservasPorEncimaDeLaCapacidad]
       properties:
         identificacion:
           type: string
@@ -3591,6 +3776,15 @@ components:
           $ref: '#/components/schemas/EstadoOperativo'
         activo:
           type: boolean
+        imagenPrincipal:
+          type: string
+          nullable: true
+          description: URL de la imagen principal (7.3); nula si el apartamento aún no tiene imágenes
+        imagenes:
+          type: array
+          description: La galería, sin las imágenes retiradas, en el orden en que se agregaron (máximo 10)
+          items:
+            $ref: '#/components/schemas/ImagenResponse'
         reservasPorEncimaDeLaCapacidad:
           type: array
           description: Reservas activas con más ocupantes que la nueva capacidad. Vacía si no se bajó la capacidad o no hay ninguna
@@ -3635,6 +3829,10 @@ components:
         activo:
           type: boolean
           description: false cuando el usuario fue desactivado (eliminación lógica)
+        fotoUrl:
+          type: string
+          nullable: true
+          description: URL de la foto de perfil (7.2); nula si no ha subido una (la pantalla muestra sus iniciales)
     PaginaUsuarioResponse:
       allOf:
         - $ref: '#/components/schemas/PaginaBase'
@@ -3755,3 +3953,36 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/NotificacionResponse'
+    ImagenResponse:
+      type: object
+      required: [id, url, principal]
+      properties:
+        id:
+          type: string
+          description: Identificador de la imagen (sirve para elegirla como principal o retirarla)
+        url:
+          type: string
+          description: URL pública de la imagen (almacén local o Cloudinary)
+        principal:
+          type: boolean
+          description: Exactamente una imagen de la galería es la principal
+    SubirImagenesRequest:
+      type: object
+      required: [imagenes]
+      properties:
+        imagenes:
+          type: array
+          minItems: 1
+          maxItems: 10
+          description: Una o varias imágenes JPG, PNG o WEBP de hasta 5 MB cada una (tamaño configurable). El formato se reconoce por el contenido del archivo, no por su extensión.
+          items:
+            type: string
+            format: binary
+    SubirFotoRequest:
+      type: object
+      required: [foto]
+      properties:
+        foto:
+          type: string
+          format: binary
+          description: Una imagen JPG, PNG o WEBP de hasta 2 MB (tamaño configurable)

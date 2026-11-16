@@ -26,6 +26,7 @@ import co.edu.uniquindio.sga.domain.repository.TemporadaRepository;
 import co.edu.uniquindio.sga.domain.entity.Alojamiento;
 import co.edu.uniquindio.sga.domain.service.ActivacionApartamentoService;
 import co.edu.uniquindio.sga.domain.service.BajaUsuarioService;
+import co.edu.uniquindio.sga.domain.service.ValidadorImagenes;
 import co.edu.uniquindio.sga.domain.service.RedactorNotificaciones;
 import co.edu.uniquindio.sga.domain.service.CalendarioOcupacionService;
 import co.edu.uniquindio.sga.domain.service.CargoServicioAdicionalService;
@@ -200,6 +201,13 @@ public class DomainServiceConfig {
     @Bean
     public RetencionCancelacionService retencionCancelacionService(ConfiguracionAlojamiento configuracion) {
         return new RetencionCancelacionService(configuracion);
+    }
+
+    /** 7.3 y 7.2: tamaños máximos de las imágenes, en MB, desde application.properties (regla 10). */
+    @Bean
+    public ValidadorImagenes validadorImagenes(@Value("${sga.imagenes.tamano-maximo-mb}") int maximoApartamentoMb,
+                                               @Value("${sga.imagenes.tamano-maximo-perfil-mb}") int maximoPerfilMb) {
+        return new ValidadorImagenes(maximoApartamentoMb * 1024L * 1024L, maximoPerfilMb * 1024L * 1024L);
     }
 
     @Bean

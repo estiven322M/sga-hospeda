@@ -42,3 +42,6 @@ out/
 .DS_Store
 Thumbs.db
 /.metadata/
+
+# Imágenes del almacén local (7.3): se generan al arrancar y con las subidas de prueba
+/imagenes/

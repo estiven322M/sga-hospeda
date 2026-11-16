@@ -1,7 +1,15 @@
-# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 3, paso J7)
+# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 3, paso J8)
 
 El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencian entre sí **solo por identificador**
 (`Reserva` guarda `IdentificacionApartamento`; `Folio` guarda `CodigoReserva`).
+
+**Cambios del paso J8 (Entrega 3)** (marcados con `«nuevo J8»`):
+- `Apartamento` tiene sus imágenes (7.3): `ImagenApartamento` (id, url, referencia en el almacén, `principal`, `retirada`). Reglas del agregado: a lo sumo 10 sin retirar;
+  exactamente una principal cuando hay alguna (la primera lo es; elegir otra o retirar la principal lo mantiene); el retiro es lógico; un apartamento activo conserva al menos
+  una. `verificarCupoImagenes` se revisa ANTES de subir nada al almacén. `reconstruir(..., imagenes)` valida la coherencia.
+- `ActivacionApartamentoService` exige además al menos una imagen para activar (después de las tarifas completas).
+- Puerto `AlmacenImagenes` (guardar una imagen y devolver su URL y referencia) con `ContenidoImagen` (bytes + formato verificado por su firma: `TipoImagen` JPG, PNG o WEBP) y
+  `ReferenciaImagen`. `ValidadorImagenes` aplica los tamaños máximos configurables (apartamento y foto de perfil). `AlmacenamientoImagenesException` NO es una regla del negocio.
 
 **Cambios del paso J7 (Entrega 3)** (marcados con `«nuevo J7»`):
 - Integración de salida de notificaciones (10.3.2-A): puertos `Notificador` (enviar un aviso; puede lanzar `NotificacionFallidaException`) y `BandejaNotificaciones`
@@ -323,6 +331,35 @@ classDiagram
         FALLIDA
         SIN_CORREO
     }
+    class ImagenApartamento {
+        <<record «nuevo J8»>>
+        id
+        url
+        referencia
+        principal
+        retirada
+        +comoPrincipal()
+        +retirar()
+    }
+    class ContenidoImagen {
+        <<record «nuevo J8»>>
+        nombre
+        tipo
+        bytes
+        +de(nombre, bytes)$
+    }
+    class ReferenciaImagen {
+        <<record «nuevo J8»>>
+        url
+        referencia
+    }
+    class TipoImagen {
+        <<enum «nuevo J8»>>
+        JPEG
+        PNG
+        WEBP
+        +detectar(bytes)$
+    }
     class NocheCalendario {
         <<record «nuevo J6»>>
         noche
@@ -480,6 +517,8 @@ classDiagram
     }
     class AlojamientoRepository { <<puerto «nuevo J6»>> }
     class ServicioAdicionalRepository { <<puerto «nuevo J6»>> }
+    class AlmacenImagenes { <<puerto «nuevo J8»>> }
+    class ValidadorImagenes { <<servicio «nuevo J8»>> }
     class Notificador { <<puerto «nuevo J7»>> }
     class BandejaNotificaciones { <<puerto «nuevo J7»>> }
     class ContactoReservaRepository { <<puerto «nuevo J7»>> }
@@ -523,6 +562,12 @@ classDiagram
     CalendarioOcupacionService ..> BloqueoRepository
     CalendarioOcupacionService ..> ConfiguracionAlojamiento
     ControlCapacidadService ..> ReservaRepository
+    Apartamento "1" *-- "0..10" ImagenApartamento : galería (7.3)
+    ContenidoImagen "1" o-- "1" TipoImagen
+    AlmacenImagenes ..> ContenidoImagen
+    AlmacenImagenes ..> ReferenciaImagen
+    ValidadorImagenes ..> ContenidoImagen : tamaño máximo
+    ActivacionApartamentoService ..> Apartamento : exige 1 imagen (7.3)
     RedactorNotificaciones ..> Reserva
     RedactorNotificaciones ..> Notificacion
     Notificacion "1" o-- "0..1" CorreoElectronico

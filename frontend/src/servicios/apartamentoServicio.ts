@@ -72,6 +72,42 @@ export async function listarApartamentosFiltrados(
 }
 
 /** POST /apartamentos (ADMINISTRADOR): nace inactivo hasta tener tarifa en todas las temporadas. 409 si la identificación existe. */
+/** Una subida de varias imágenes puede tardar más que las consultas (10 s): se le da más tiempo. */
+const TIEMPO_SUBIDA_MS = 120_000;
+
+/**
+ * POST /apartamentos/{id}/imagenes (ADMINISTRADOR, multipart): sube hasta 10 imágenes (JPG, PNG o WEBP, de hasta 5 MB). 201 con el
+ * apartamento y su galería. No se fija Content-Type: el navegador arma multipart/form-data con su "boundary" (Guía 21).
+ * 409: formato, peso o máximo 10. 503: el almacén de imágenes no respondió (no se registró ninguna).
+ */
+export async function subirImagenes(
+  identificacion: string,
+  archivos: readonly File[],
+  alProgreso?: (fraccion: number) => void,
+): Promise<ApartamentoResponse> {
+  const datos = new FormData();
+  for (const archivo of archivos) datos.append('imagenes', archivo);
+  const respuesta = await api.post<ApartamentoResponse>(`/apartamentos/${encodeURIComponent(identificacion)}/imagenes`, datos, {
+    timeout: TIEMPO_SUBIDA_MS,
+    onUploadProgress: (evento) => alProgreso?.(evento.progress ?? 0),
+  });
+  return respuesta.data;
+}
+
+/** PUT .../imagenes/{idImagen}/principal (ADMINISTRADOR): la elegida pasa a ser la principal; siempre hay exactamente una. */
+export async function establecerImagenPrincipal(identificacion: string, idImagen: string): Promise<ApartamentoResponse> {
+  const respuesta = await api.put<ApartamentoResponse>(
+    `/apartamentos/${encodeURIComponent(identificacion)}/imagenes/${encodeURIComponent(idImagen)}/principal`, null);
+  return respuesta.data;
+}
+
+/** PUT .../imagenes/{idImagen}/retirar (ADMINISTRADOR): retiro lógico. 409 si es la última de un apartamento activo. */
+export async function retirarImagen(identificacion: string, idImagen: string): Promise<ApartamentoResponse> {
+  const respuesta = await api.put<ApartamentoResponse>(
+    `/apartamentos/${encodeURIComponent(identificacion)}/imagenes/${encodeURIComponent(idImagen)}/retirar`, null);
+  return respuesta.data;
+}
+
 export async function crearApartamento(solicitud: CrearApartamentoRequest): Promise<ApartamentoResponse> {
   const respuesta = await api.post<ApartamentoResponse>('/apartamentos', solicitud);
   return respuesta.data;

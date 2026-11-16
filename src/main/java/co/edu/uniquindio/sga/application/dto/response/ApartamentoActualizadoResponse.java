@@ -21,5 +21,9 @@ public record ApartamentoActualizadoResponse(
         Set<Caracteristica> caracteristicas,
         EstadoOperativo estadoOperativo,
         boolean activo,
+        /** URL de la imagen principal (7.3); nula si el apartamento aún no tiene imágenes. */
+        String imagenPrincipal,
+        /** La galería: las imágenes sin retirar, en el orden en que se agregaron. */
+        List<ImagenResponse> imagenes,
         List<ReservaResumenResponse> reservasPorEncimaDeLaCapacidad) {
 }

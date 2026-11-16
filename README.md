@@ -50,6 +50,7 @@ Para compilar y ejecutar este backend se requiere:
 - **CORS (para el frontend):** la API acepta peticiones del navegador desde los orígenes de la propiedad `sga.cors.origenes-permitidos` de `application.properties` (por defecto `http://localhost:5173`, el servidor de Vite; varios, separados por comas). Métodos GET, POST, PUT y OPTIONS; encabezados `Authorization` y `Content-Type`; `Location` expuesta. Un origen no autorizado recibe 403 en el preflight.
 - **Endpoints para el frontend:** `GET /api/reservas/mias` (solo HUESPED: sus reservas por el claim `documento` del token, de 10 en 10, con filtro `estado`); `GET /api/reservas` admite además `salidaDesde`, `salidaHasta` (llegadas y salidas previstas del día) y `nombreTitular` (contiene, sin distinguir mayúsculas; `titular` sigue siendo el documento exacto); `GET /api/apartamentos` admite `caracteristicas` (deben tenerse todas) y `estadoOperativo`; `GET /api/caracteristicas` publica el catálogo.
 - **Notificaciones, usuarios y recuperación de contraseña (J7):** `GET /api/notificaciones` (administrador: bandeja de avisos); `GET/POST /api/usuarios`, `PUT /api/usuarios/{id}/rol` y `PUT /api/usuarios/{id}/desactivar` (administrador); `GET/PUT /api/usuarios/yo` y `PUT /api/usuarios/yo/contrasena` (cualquier rol: el perfil propio); `POST /api/auth/recuperacion/solicitar` y `/confirmar` (públicos). `POST /api/reservas` admite el campo opcional `correoTitular`.
+- **Imágenes (J8):** `POST /api/apartamentos/{id}/imagenes` (multipart, parte `imagenes`, hasta 10 por apartamento, JPG, PNG o WEBP de hasta 5 MB), `PUT .../imagenes/{idImagen}/principal` y `PUT .../imagenes/{idImagen}/retirar` (solo administrador); `PUT /api/usuarios/yo/foto` (multipart, parte `foto`, hasta 2 MB, cualquier rol). Los archivos del almacén local se sirven en `/imagenes/**`. Las respuestas del apartamento y de la disponibilidad traen `imagenPrincipal` e `imagenes`.
 - **Colección de pruebas:** `docs/http/sga.http` (cliente HTTP de IntelliJ, entorno `local`). Se ejecuta **una sola vez, de arriba hacia abajo, con la aplicación recién arrancada**; si se repite en la misma sesión, las reservas de 2028 ya existen y varias solicitudes darán 409. Todos sus pasos llevan `client.test` sobre el cuerpo; para ejecutarla sin IntelliJ: `node docs/http/ejecutar-coleccion.js docs/http/sga.http http://localhost:8080`. El resultado de la última corrida está en `docs/http/resultado-corrida.md`.
 
 ### Notificaciones por correo (integración de salida, 10.3.2-A)
@@ -75,6 +76,25 @@ A quién se escribe: el correo de la **cuenta** del titular (mismo documento); s
 3. Reinicie la aplicación. Cree una reserva con `correoTitular` (o recupere una contraseña) y revise la bandeja del administrador: `ENVIADA` si salió, `FALLIDA` con la causa si no (el contenido del código de recuperación nunca queda en la bandeja con el proveedor real).
 
 Las pruebas automáticas **nunca** llaman a un servidor de correo real: usan el adaptador local o un cliente simulado (el fallo se prueba contra un puerto cerrado de la misma máquina).
+
+### Imágenes de apartamentos (integración de salida, 7.3)
+
+Cada apartamento tiene de 1 a 10 imágenes, con una principal; **activar un apartamento exige al menos una**. Las imágenes se guardan detrás del puerto `AlmacenImagenes`:
+
+| `sga.imagenes.proveedor` | Qué hace |
+|---|---|
+| `local` (**por defecto**) | Guarda en la carpeta `./imagenes` (`sga.imagenes.local.carpeta`) y la aplicación la sirve en `/imagenes/**`. No necesita internet ni credenciales. Los datos de prueba siembran 2 imágenes de ejemplo por apartamento aquí. |
+| `cloudinary` | Sube a Cloudinary (plan gratuito, sin tarjeta) con tiempo máximo de espera `sga.imagenes.tiempo-espera-ms` (10000 ms). |
+
+Si el almacén externo falla, el administrador ve un aviso claro (503), no se registra ninguna imagen del lote y **nada más se afecta**: las imágenes ya guardadas se siguen mostrando y reservar, cobrar y cerrar un folio no usan el almacén. Los tamaños máximos son parámetros: `sga.imagenes.tamano-maximo-mb` (5) y `sga.imagenes.tamano-maximo-perfil-mb` (2). El formato (JPG, PNG o WEBP) se reconoce por el contenido del archivo, no por su extensión.
+
+**Cómo activar Cloudinary:**
+1. Cree una cuenta gratuita en cloudinary.com y copie del panel el *Cloud name*, la *API Key* y el *API Secret*.
+2. Copie `src/main/resources/application-secrets.properties.example` como `application-secrets.properties` (no se versiona) y complete `sga.imagenes.cloudinary.cloud-name`, `api-key` y `api-secret`; luego agregue `sga.imagenes.proveedor=cloudinary` (o use las variables de entorno `SGA_IMAGENES_PROVEEDOR`, `SGA_IMAGENES_CLOUDINARY_CLOUD_NAME`, `..._API_KEY` y `..._API_SECRET`).
+3. Reinicie. Si faltan credenciales, la aplicación no arranca y dice cuáles. Las imágenes subidas quedan en la carpeta `sga/` de su cuenta de Cloudinary.
+
+### Mapa del alojamiento (frontend)
+El frontend muestra la ubicación del alojamiento (latitud y longitud de `GET /api/alojamiento`) con **Leaflet y OpenStreetMap** (no necesitan cuenta ni clave) en la búsqueda y en el detalle del apartamento. Si el mapa no carga (sin internet), se ve la dirección con las coordenadas y un enlace, sin romper la página.
 
 ---
 

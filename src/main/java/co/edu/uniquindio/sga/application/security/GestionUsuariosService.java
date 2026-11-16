@@ -29,6 +29,12 @@ public interface GestionUsuariosService {
 
     UsuarioResponse perfil(String correo);
 
+    /**
+     * 7.2: cambia la foto de perfil (una imagen JPG, PNG o WEBP de hasta 2 MB) guardándola en el almacén de imágenes. Si el almacén
+     * falla se lanza AlmacenamientoImagenesException (503) y la foto anterior se conserva.
+     */
+    UsuarioResponse actualizarFoto(String correo, co.edu.uniquindio.sga.domain.valueobject.ContenidoImagen foto);
+
     /** Solo nombre y teléfono: el correo no se edita (7.2). */
     UsuarioResponse actualizarPerfil(String correo, ActualizarPerfilRequest solicitud);
 

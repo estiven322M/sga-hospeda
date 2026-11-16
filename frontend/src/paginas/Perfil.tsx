@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CambioContrasena } from '../componentes/CambioContrasena';
 import { Cargando } from '../componentes/Cargando';
 import { EdicionPerfil } from '../componentes/EdicionPerfil';
+import { FotoPerfil } from '../componentes/FotoPerfil';
 import { useConsulta } from '../hooks/useConsulta';
 import type { UsuarioResponse } from '../modelos/usuario';
 import { obtenerMiPerfil } from '../servicios/usuarioServicio';
@@ -31,6 +32,7 @@ export default function Perfil() {
             <div className="card h-100">
               <div className="card-body">
                 <h2 className="h5 card-title">Mis datos</h2>
+                <FotoPerfil nombre={perfil.nombre} fotoUrl={perfil.fotoUrl} alCambiar={(url) => setActualizado({ ...perfil, fotoUrl: url })} />
                 {/* key: si el servidor devuelve otros datos, el formulario se vuelve a armar con ellos */}
                 <EdicionPerfil key={`${perfil.nombre}|${perfil.telefono}`} perfil={perfil} alActualizar={setActualizado} />
                 <p className="text-body-secondary small mt-3 mb-0">

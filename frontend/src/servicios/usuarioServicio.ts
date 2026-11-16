@@ -52,6 +52,17 @@ export async function actualizarMiPerfil(solicitud: ActualizarPerfilRequest): Pr
   return respuesta.data;
 }
 
+/**
+ * PUT /usuarios/yo/foto (multipart, parte "foto"): una imagen JPG, PNG o WEBP de hasta 2 MB. Devuelve el perfil con la URL nueva.
+ * 409: formato o peso. 503: el almacén de imágenes no respondió (la foto anterior se conserva).
+ */
+export async function cambiarMiFoto(archivo: File): Promise<UsuarioResponse> {
+  const datos = new FormData();
+  datos.append('foto', archivo);
+  const respuesta = await api.put<UsuarioResponse>('/usuarios/yo/foto', datos, { timeout: 60_000 });
+  return respuesta.data;
+}
+
 /** PUT /usuarios/yo/contrasena. 409 si la actual es incorrecta o la nueva es igual a la actual. */
 export async function cambiarMiContrasena(solicitud: CambiarContrasenaRequest): Promise<MensajeResponse> {
   const respuesta = await api.put<MensajeResponse>('/usuarios/yo/contrasena', solicitud);

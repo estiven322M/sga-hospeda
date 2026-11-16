@@ -1,5 +1,6 @@
 import type { FechaISO, Pesos } from './comun';
 import type { Caracteristica } from './apartamento';
+import type { ImagenResponse } from './imagen';
 import type { OcupanteRequest } from './ocupante';
 
 /** Una noche del desglose (RN-05): la tarifa de su temporada por los ocupantes facturables. */
@@ -61,6 +62,9 @@ export interface ApartamentoDisponibleResponse {
   dormitorios: number;
   capacidad: number;
   caracteristicas: Caracteristica[];
+  /** URL de la imagen principal (7.5: la tarjeta muestra la principal); nula si no tiene imágenes. */
+  imagenPrincipal: string | null;
+  imagenes: ImagenResponse[];
   subtotalBruto: Pesos;
   porcentajeDescuento: number;
   descuento: Pesos;

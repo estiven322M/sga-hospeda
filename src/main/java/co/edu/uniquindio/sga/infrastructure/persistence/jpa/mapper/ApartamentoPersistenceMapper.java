@@ -2,6 +2,8 @@ package co.edu.uniquindio.sga.infrastructure.persistence.jpa.mapper;
 
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.ImagenApartamento;
+import co.edu.uniquindio.sga.infrastructure.persistence.jpa.entity.ImagenApartamentoEmbeddable;
 import co.edu.uniquindio.sga.infrastructure.persistence.jpa.entity.ApartamentoEntity;
 import org.springframework.stereotype.Component;
 
@@ -12,13 +14,19 @@ public class ApartamentoPersistenceMapper {
         return new ApartamentoEntity(apartamento.getIdentificacion().valor(), apartamento.getNombre(),
                 apartamento.getDescripcion(), apartamento.getDormitorios(), apartamento.getCapacidad(),
                 apartamento.getDotacion(), apartamento.getCaracteristicas(), apartamento.getEstadoOperativo(),
-                apartamento.isActivo());
+                apartamento.isActivo(),
+                apartamento.getTodasLasImagenes().stream()
+                        .map(i -> new ImagenApartamentoEmbeddable(i.id(), i.url(), i.referencia(), i.principal(), i.retirada()))
+                        .toList());
     }
 
     public Apartamento aDominio(ApartamentoEntity entidad) {
         return Apartamento.reconstruir(new IdentificacionApartamento(entidad.getIdentificacion()),
                 entidad.getNombre(), entidad.getDescripcion(), entidad.getDormitorios(), entidad.getCapacidad(),
                 entidad.getDotacion(), entidad.getCaracteristicas(),
-                entidad.getEstadoOperativo(), entidad.isActivo());
+                entidad.getEstadoOperativo(), entidad.isActivo(),
+                entidad.getImagenes().stream()
+                        .map(i -> new ImagenApartamento(i.getId(), i.getUrl(), i.getReferencia(), i.isPrincipal(), i.isRetirada()))
+                        .toList());
     }
 }
