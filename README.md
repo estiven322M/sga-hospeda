@@ -61,6 +61,7 @@ El sistema avisa al titular cuando su reserva se **crea, confirma o cancela**, y
 |---|---|
 | `local` (**por defecto**) | No sale a internet ni pide credenciales: registra el aviso en el log y en una bandeja en memoria. Los avisos (y el código de recuperación) se leen en **`GET /api/notificaciones`** o en la página *Notificaciones* del administrador. |
 | `smtp` | Envía correos reales por SMTP (Gmail). Tiempo máximo de espera: `sga.notificaciones.tiempo-espera-ms` (5000 ms). |
+| `brevo` | Envía por la API HTTPS de Brevo (para Render, donde el SMTP está bloqueado). Ver "Notificaciones por Brevo". |
 
 A quién se escribe: el correo de la **cuenta** del titular (mismo documento); si no tiene cuenta, el `correoTitular` opcional dado al crear la reserva; si no hay ninguno, el aviso queda registrado como `SIN_CORREO`. **Un fallo del correo nunca impide reservar, confirmar, cobrar ni cerrar un folio:** se notifica después de confirmar la transacción, se captura toda excepción, se registra en el log y el aviso queda `FALLIDA` en la bandeja.
 
@@ -76,6 +77,39 @@ A quién se escribe: el correo de la **cuenta** del titular (mismo documento); s
 3. Reinicie la aplicación. Cree una reserva con `correoTitular` (o recupere una contraseña) y revise la bandeja del administrador: `ENVIADA` si salió, `FALLIDA` con la causa si no (el contenido del código de recuperación nunca queda en la bandeja con el proveedor real).
 
 Las pruebas automáticas **nunca** llaman a un servidor de correo real: usan el adaptador local o un cliente simulado (el fallo se prueba contra un puerto cerrado de la misma máquina).
+
+### Notificaciones por Brevo y despliegue en Render (alternativa al SMTP)
+
+Render (plan gratuito) **bloquea los puertos SMTP salientes** (25, 465 y 587), así que allí `smtp` con Gmail no llega a enviar. Por eso hay un tercer adaptador del mismo puerto `Notificador`: `brevo`, que envía por **HTTPS** (puerto 443) a la API de Brevo (cuenta gratuita, 300 correos al día, sin tarjeta). Se usa el cliente HTTP del JDK, sin dependencias nuevas, con el mismo tiempo máximo de espera (`sga.notificaciones.tiempo-espera-ms`) y el mismo comportamiento ante fallos que el resto: el aviso queda `FALLIDA` en la bandeja, se registra en el log y la operación de negocio continúa. La clave **nunca** se escribe en el log, en la bandeja ni en el cuerpo de la petición (solo en el encabezado `api-key`).
+
+**Cómo activarlo en Render** (Environment → Add Environment Variable):
+
+| Variable | Valor |
+|---|---|
+| `SGA_NOTIFICACIONES_PROVEEDOR` | `brevo` |
+| `SGA_NOTIFICACIONES_BREVO_API_KEY` | la clave API de Brevo (Brevo → SMTP y API → Claves API) |
+| `SGA_NOTIFICACIONES_BREVO_REMITENTE` | el correo remitente **verificado** en Brevo (Brevo → Remitentes) |
+
+Opcional: `SGA_NOTIFICACIONES_BREVO_NOMBRE_REMITENTE` (por defecto *SGA Hospeda*). Si el proveedor es `brevo` y falta la clave o el remitente, la aplicación **no arranca** y dice cuál falta. En local, las mismas dos propiedades van en `application-secrets.properties` (plantilla `.example`, no se versiona). Sin tocar nada, el proveedor sigue siendo `local`.
+
+**Verificado con envío real:** con `sga.notificaciones.proveedor=brevo` se creó un usuario y se pidió el código de recuperación (`POST /api/auth/recuperacion/solicitar`): Brevo aceptó el correo y la bandeja del administrador lo mostró `ENVIADA`, sin el contenido del código. Las pruebas automáticas **no** llaman a Brevo: `NotificadorBrevoTest` usa un servidor simulado en `127.0.0.1` (éxito, rechazo, tiempo de espera, puerto cerrado, escape del JSON y arranque sin clave).
+
+### Canal externo (7.8, 10.3.1): credencial, API del canal, bitácora y simulador
+
+Un **canal externo** (una plataforma o una agencia) se registra como `CanalVenta` y usa la API `/api/canal/**` con una **credencial propia** en el encabezado `X-Canal-Credencial` (no usa JWT; tiene su propia cadena de seguridad). Las tres operaciones del contrato son `POST /api/canal/disponibilidad`, `POST /api/canal/reservas` y `PUT /api/canal/reservas/{id}/cancelar` (más `GET /api/canal/reservas/{id}` para consultar una reserva propia). El administrador gestiona los canales en el frontend (*Canales*, *Conflictos* y *Bitácora*) o con `/api/canales`.
+
+- **La credencial se muestra una sola vez** al crear el canal (256 bits aleatorios, prefijo `sgc_`); el sistema solo guarda su hash SHA-256. Una credencial ausente, desconocida o de un canal desactivado da el **mismo 401** (no revela cuál). Desactivar un canal es una baja lógica y su misma credencial vuelve a servir al activarlo.
+- **Canal + identificador** es único (RN-19): el identificador del canal se guarda con el código del canal por delante (`DEMO:RES-1`), así dos canales pueden usar el mismo identificador sin chocar. El mismo mensaje dos veces responde 409 y **no crea otra reserva**; un conflicto con una reserva vigente (RN-18) responde 409, **no la sobrescribe** y queda como conflicto que el administrador revisa y resuelve con una nota.
+- **Bitácora:** cada mensaje queda con fecha, canal, operación, identificador, resultado (`ACEPTADA`, `RECHAZADA`, `REPETIDA`, `INVALIDA`, `NO_ENCONTRADA`, `NO_AUTORIZADA`, `ERROR`) y código HTTP, con filtros por canal y fechas. Una credencial **desconocida** no se atribuye a ningún canal: solo queda en el log del servidor.
+- **Canal de demostración:** con los datos de prueba se siembra el canal `DEMO` con la credencial pública `sgc_demo_simulador_canal_2026_no_usar_en_produccion` (propiedad `sga.canal-demo.credencial`; **no usar en producción**: desactive los datos de prueba o el canal).
+
+**Simulador** (Node 18+, sin dependencias), con la aplicación en marcha:
+```
+node simulador-canal/simulador.mjs               # aceptada, conflicto, repetido y cancelación
+node simulador-canal/simulador.mjs conflicto     # un solo escenario: aceptada | conflicto | repetido | cancelacion
+SGA_URL=https://mi-api.onrender.com SGA_CANAL_CREDENCIAL=sgc_... node simulador-canal/simulador.mjs
+```
+Con `SGA_ADMIN_CORREO` y `SGA_ADMIN_CLAVE` también verifica la bitácora y el conflicto como administrador. Usa fechas de 2031 (`SGA_FECHA_BASE` las cambia) y un identificador distinto en cada corrida.
 
 ### Imágenes de apartamentos (integración de salida, 7.3)
 
@@ -105,6 +139,7 @@ El frontend muestra la ubicación del alojamiento (latitud y longitud de `GET /a
 - `docs/contrato-persistencia.md`: contrato entre la capa de aplicación y la persistencia.
 - `docs/seguridad.md`: seguridad con JWT, CORS, matriz de roles por endpoint y decisiones (Guía 12).
 - `docs/http/resultado-corrida.md`: evidencia de la ejecución completa de `sga.http` con aserciones de cuerpo.
+- `simulador-canal/`: simulador de un canal externo (ver "Canal externo" en la sección 5).
 
 ---
 

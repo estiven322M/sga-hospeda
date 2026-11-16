@@ -35,7 +35,9 @@ export const RUTAS = {
   bloqueos: '/administracion/bloqueos',
   temporadasTarifas: '/administracion/temporadas-tarifas',
   politicaCancelacion: '/administracion/politica-cancelacion',
-  rechazosExternos: '/administracion/rechazos-externos',
+  canales: '/administracion/canales',
+  conflictosCanal: '/administracion/conflictos',
+  bitacoraCanal: '/administracion/bitacora-canal',
   usuarios: '/administracion/usuarios',
   notificaciones: '/administracion/notificaciones',
 } as const;
@@ -66,7 +68,9 @@ export const PATRONES = {
   bloqueos: 'administracion/bloqueos',
   temporadasTarifas: 'administracion/temporadas-tarifas',
   politicaCancelacion: 'administracion/politica-cancelacion',
-  rechazosExternos: 'administracion/rechazos-externos',
+  canales: 'administracion/canales',
+  conflictosCanal: 'administracion/conflictos',
+  bitacoraCanal: 'administracion/bitacora-canal',
   usuarios: 'administracion/usuarios',
   notificaciones: 'administracion/notificaciones',
 } as const;

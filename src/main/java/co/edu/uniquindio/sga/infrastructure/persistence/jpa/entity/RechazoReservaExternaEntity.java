@@ -17,7 +17,7 @@ import java.util.Objects;
 
 /**
  * Constancia de una reserva externa rechazada (RN-18). El dominio no le da identidad, por eso usa un identificador
- * generado. No se actualiza ni se borra: solo se inserta.
+ * generado. Sus datos no se modifican nunca; lo único que se escribe después es su REVISIÓN (7.8). Nunca se borra.
  */
 @Entity
 @Table(name = "rechazo_reserva_externa",
@@ -47,7 +47,31 @@ public class RechazoReservaExternaEntity {
     @Column(name = "rechazada_en", nullable = false)
     private LocalDateTime rechazadaEn;
 
+    /** 7.8: el administrador lo revisó (con su nota). */
+    @Column(name = "revisado", nullable = false)
+    private boolean revisado;
+
+    @Column(name = "nota_revision", length = 500)
+    private String notaRevision;
+
+    @Column(name = "revisado_por", length = 100)
+    private String revisadoPor;
+
+    @Column(name = "revisado_en")
+    private LocalDateTime revisadoEn;
+
     protected RechazoReservaExternaEntity() {
+    }
+
+    public RechazoReservaExternaEntity(Long id, CanalOrigen canalOrigen, String identificadorExterno, String apartamentoId,
+                                       EstanciaEmbeddable estancia, String motivo, LocalDateTime rechazadaEn, boolean revisado,
+                                       String notaRevision, String revisadoPor, LocalDateTime revisadoEn) {
+        this(canalOrigen, identificadorExterno, apartamentoId, estancia, motivo, rechazadaEn);
+        this.id = id;
+        this.revisado = revisado;
+        this.notaRevision = notaRevision;
+        this.revisadoPor = revisadoPor;
+        this.revisadoEn = revisadoEn;
     }
 
     public RechazoReservaExternaEntity(CanalOrigen canalOrigen, String identificadorExterno, String apartamentoId,
@@ -60,6 +84,11 @@ public class RechazoReservaExternaEntity {
         this.rechazadaEn = rechazadaEn;
     }
 
+    public Long getId() { return id; }
+    public boolean isRevisado() { return revisado; }
+    public String getNotaRevision() { return notaRevision; }
+    public String getRevisadoPor() { return revisadoPor; }
+    public LocalDateTime getRevisadoEn() { return revisadoEn; }
     public CanalOrigen getCanalOrigen() { return canalOrigen; }
     public String getIdentificadorExterno() { return identificadorExterno; }
     public String getApartamentoId() { return apartamentoId; }

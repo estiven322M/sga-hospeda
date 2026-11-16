@@ -63,7 +63,11 @@ tags:
   - name: Reservas
     description: Ciclo de vida de la reserva
   - name: Canal externo
-    description: Reservas que llegan por un canal externo y fueron rechazadas por conflicto (RN-18)
+    description: Reservas que llegan por un canal externo y fueron rechazadas por conflicto (RN-18); el administrador las revisa (7.8)
+  - name: Canales de venta
+    description: Registro de los canales externos con su credencial (que se muestra una sola vez), su baja lógica y la bitácora de mensajes (7.8)
+  - name: API del canal externo
+    description: Las operaciones que el SGA expone a un canal externo (10.3.1), autenticadas con la credencial del canal en X-Canal-Credencial, sin JWT
   - name: Folios
     description: Cargos, ajustes, pagos y saldo de una reserva
   - name: Estado operativo
@@ -1233,10 +1237,18 @@ paths:
         **Roles:** ADMINISTRADOR.
 
         Constancia de las reservas que llegaron por un canal externo y se rechazaron por violar una regla, del rechazo
-        más reciente al más antiguo, de 10 en 10. Solo lectura: los rechazos los produce la creación de reservas.
+        más reciente al más antiguo, de 10 en 10. Los rechazos los produce la creación de reservas externas y no se editan; lo único que
+        se escribe después es su REVISIÓN (`PUT .../{id}/resolver`). Con `revisado=false` se ven solo los pendientes y con `true` los ya
+        revisados.
         Mapea a: `ListarRechazosReservasExternasUseCase`
       operationId: listarRechazosReservasExternas
       parameters:
+        - name: revisado
+          in: query
+          required: false
+          description: Filtro por revisión; si se omite, todos
+          schema:
+            type: boolean
         - $ref: '#/components/parameters/Pagina'
       responses:
         '200':
@@ -1251,6 +1263,53 @@ paths:
           $ref: '#/components/responses/NoAutenticado'
         '403':
           $ref: '#/components/responses/SinPermiso'
+
+  /api/reservas-externas/rechazos/{id}/resolver:
+    put:
+      tags: [Canal externo]
+      summary: Resolver un conflicto del canal externo (marcarlo como revisado)
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        El administrador marca el conflicto como revisado con una **nota** obligatoria (qué se revisó y qué se decidió); queda guardado
+        quién y cuándo. Solo escribe la revisión del rechazo: **nunca toca la reserva vigente** con la que chocó (7.8). Un conflicto se
+        revisa una sola vez (409 si ya estaba revisado). No hay DELETE.
+        Mapea a: `ResolverRechazoReservaExternaUseCase`
+      operationId: resolverRechazoReservaExterna
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador del conflicto (el `id` del listado de rechazos)
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolverRechazoRequest'
+            example:
+              nota: Se habló con la agencia; reservará otras fechas.
+      responses:
+        '200':
+          description: Conflicto marcado como revisado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RechazoReservaExternaResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
 
   /api/reservas/mias:
     get:
@@ -2442,6 +2501,349 @@ paths:
         '403':
           $ref: '#/components/responses/SinPermiso'
 
+  /api/canales:
+    post:
+      tags: [Canales de venta]
+      summary: Crear un canal de venta (la credencial se muestra una sola vez)
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Registra un canal externo con su código único (2 a 12 caracteres), su nombre y su tipo. El sistema genera la credencial (256 bits
+        aleatorios, prefijo `sgc_`) y **la devuelve en esta respuesta, la única vez que se muestra**: del canal solo se guarda su hash
+        (SHA-256). Hay que copiarla en ese momento y entregarla al canal. El código es la parte del canal en "canal + identificador externo"
+        (RN-19). Mapea a: `CrearCanalVentaUseCase`
+      operationId: crearCanalVenta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearCanalVentaRequest'
+            example:
+              codigo: AGENCIA1
+              nombre: Agencia de Viajes Café
+              tipo: AGENCIA_DE_VIAJES
+      responses:
+        '201':
+          description: Canal creado, con su credencial en claro (única vez)
+          headers:
+            Location:
+              description: URL del canal creado
+              schema:
+                type: string
+                example: http://localhost:8080/api/canales/AGENCIA1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanalVentaCreadoResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+    get:
+      tags: [Canales de venta]
+      summary: Listar los canales de venta
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        De 10 en 10 y por código. Nunca incluye la credencial ni su hash.
+        Mapea a: `ListarCanalesVentaUseCase`
+      operationId: listarCanalesVenta
+      parameters:
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página de canales
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaCanalVentaResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/canales/{codigo}/desactivar:
+    put:
+      tags: [Canales de venta]
+      summary: Desactivar un canal (baja lógica)
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        La credencial del canal deja de servir (401); el canal, su historial y sus reservas se conservan. No hay DELETE.
+        Mapea a: `CambiarActividadCanalVentaUseCase`
+      operationId: desactivarCanalVenta
+      parameters:
+        - $ref: '#/components/parameters/CodigoCanal'
+      responses:
+        '200':
+          description: Canal desactivado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanalVentaResponse'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/canales/{codigo}/activar:
+    put:
+      tags: [Canales de venta]
+      summary: Volver a activar un canal
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Su misma credencial vuelve a servir. 409 si ya estaba activo.
+        Mapea a: `CambiarActividadCanalVentaUseCase`
+      operationId: activarCanalVenta
+      parameters:
+        - $ref: '#/components/parameters/CodigoCanal'
+      responses:
+        '200':
+          description: Canal activado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanalVentaResponse'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/canales/bitacora:
+    get:
+      tags: [Canales de venta]
+      summary: Consultar la bitácora del canal externo
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Cada mensaje intercambiado con un canal: fecha, canal, operación, identificador externo (el del canal), resultado y código
+        HTTP. Del más reciente al más antiguo, de 10 en 10, con filtros opcionales por canal y por rango de fechas (inclusivo). Quedan
+        registrados los mensajes aceptados, rechazados por una regla (RN-18), repetidos (RN-19), mal armados, de reservas que no existen y
+        los de un canal desactivado (401). Una credencial desconocida no se atribuye a ningún canal: solo queda en el log del servidor.
+        Mapea a: `ListarBitacoraCanalUseCase`
+      operationId: consultarBitacoraCanal
+      parameters:
+        - name: canal
+          in: query
+          required: false
+          description: Código del canal (sin distinguir mayúsculas)
+          schema:
+            type: string
+        - name: desde
+          in: query
+          required: false
+          description: Día inicial (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: false
+          description: Día final (inclusive); no puede ser anterior a `desde` (409)
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página de eventos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaEventoCanalResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/canal/disponibilidad:
+    post:
+      tags: [API del canal externo]
+      summary: Consultar la disponibilidad de un rango de fechas para un grupo (canal externo)
+      description: |
+        **Autenticación:** credencial del canal en `X-Canal-Credencial` (sin JWT).
+
+        Operación 1 del contrato (10.3.1): apartamentos libres para un rango de fechas y una composición de grupo, con lo que costaría.
+        Reutiliza CU-02. Queda en la bitácora.
+        Mapea a: `ConsultarDisponibilidadCanalUseCase`
+      operationId: canalConsultarDisponibilidad
+      security:
+        - canalCredencial: []
+      parameters:
+        - $ref: '#/components/parameters/Pagina'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultarDisponibilidadRequest'
+            example:
+              fechaEntrada: '2027-09-06'
+              fechaSalida: '2027-09-09'
+              ocupantes:
+                - {documento: CC-9801, nombre: Paula Nieto, fechaNacimiento: '1985-04-04'}
+      responses:
+        '200':
+          description: Página de apartamentos disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaApartamentoDisponibleResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/CanalNoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/canal/reservas:
+    post:
+      tags: [API del canal externo]
+      summary: Crear una reserva externa con el identificador del canal (RN-18 y RN-19)
+      description: |
+        **Autenticación:** credencial del canal en `X-Canal-Credencial` (sin JWT).
+
+        Operación 2 del contrato (10.3.1). La reserva llega con el **identificador propio del canal**; "canal + identificador" es único
+        (RN-19): el **mismo mensaje recibido dos veces no crea dos reservas** (409, con el código de la reserva ya creada; la bitácora dice
+        REPETIDA). Si choca con una reserva vigente (RN-18) se rechaza con 409, queda como conflicto para el administrador y **nunca
+        sobrescribe** la existente. La reserva nace PENDIENTE. El identificador se guarda con el código del canal por delante, así dos
+        canales pueden usar el mismo identificador. Si se crea, se avisa al titular (a `correoTitular`, opcional) con el Notificador.
+        Mapea a: `CrearReservaExternaUseCase`
+      operationId: canalCrearReserva
+      security:
+        - canalCredencial: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearReservaExternaRequest'
+            example:
+              identificadorExterno: RES-9001
+              identificacionApartamento: APT-101
+              fechaEntrada: '2027-09-06'
+              fechaSalida: '2027-09-09'
+              correoTitular: paula@correo.com
+              titular: {documento: CC-9801, nombre: Paula Nieto, fechaNacimiento: '1985-04-04'}
+              ocupantes:
+                - {documento: CC-9801, nombre: Paula Nieto, fechaNacimiento: '1985-04-04'}
+      responses:
+        '201':
+          description: Reserva creada
+          headers:
+            Location:
+              description: URL de la reserva en la API del canal
+              schema:
+                type: string
+                example: http://localhost:8080/api/canal/reservas/RES-9001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaExternaResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/CanalNoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/canal/reservas/{identificadorExterno}:
+    get:
+      tags: [API del canal externo]
+      summary: Consultar una reserva propia por su identificador externo
+      description: |
+        **Autenticación:** credencial del canal en `X-Canal-Credencial` (sin JWT).
+
+        Un canal solo ve las reservas que él creó: la de otro canal, o una que no existe, es un 404.
+        Mapea a: `ConsultarReservaExternaUseCase`
+      operationId: canalConsultarReserva
+      security:
+        - canalCredencial: []
+      parameters:
+        - $ref: '#/components/parameters/IdentificadorExterno'
+      responses:
+        '200':
+          description: La reserva del canal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaExternaResponse'
+        '401':
+          $ref: '#/components/responses/CanalNoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /api/canal/reservas/{identificadorExterno}/cancelar:
+    put:
+      tags: [API del canal externo]
+      summary: Cancelar una reserva externa creada por el canal
+      description: |
+        **Autenticación:** credencial del canal en `X-Canal-Credencial` (sin JWT).
+
+        Operación 3 del contrato (10.3.1). Un canal solo cancela las reservas que él creó (404 si es de otro o no existe). Usa la política de
+        cancelación congelada en la reserva y libera la disponibilidad de inmediato. Es **idempotente**: repetir la cancelación de una
+        reserva ya cancelada responde 200 con el mismo resultado, sin volver a cobrar ni a avisar. Se avisa al titular de la cancelación.
+        El cuerpo es opcional.
+        Mapea a: `CancelarReservaExternaUseCase`
+      operationId: canalCancelarReserva
+      security:
+        - canalCredencial: []
+      parameters:
+        - $ref: '#/components/parameters/IdentificadorExterno'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelarReservaExternaRequest'
+            example:
+              motivo: El viajero cambió de planes
+      responses:
+        '200':
+          description: Reserva cancelada (o ya lo estaba)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaExternaResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/CanalNoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
 components:
 
   securitySchemes:
@@ -2450,6 +2852,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: 'Token obtenido en POST /api/auth/login. Se envía como Authorization: Bearer <token>'
+    canalCredencial:
+      type: apiKey
+      in: header
+      name: X-Canal-Credencial
+      description: 'Credencial de un canal externo (7.8): se muestra UNA sola vez al crear el canal (POST /api/canales) y el sistema solo guarda su hash. Solo sirve en /api/canal/**, que tiene su propia cadena de seguridad (no acepta JWT); el JWT y la credencial no son intercambiables. Una credencial ausente, desconocida o de un canal desactivado responde 401 (el mismo mensaje en los tres casos).'
 
   parameters:
     Pagina:
@@ -2507,6 +2914,22 @@ components:
       schema:
         type: string
         example: 3f2b8c1e-5d4a-4b7e-9c10-2a6d8e4f1b73
+    CodigoCanal:
+      name: codigo
+      in: path
+      required: true
+      description: Código único del canal de venta
+      schema:
+        type: string
+        example: DEMO
+    IdentificadorExterno:
+      name: identificadorExterno
+      in: path
+      required: true
+      description: El identificador propio del canal (el que envió al crear la reserva)
+      schema:
+        type: string
+        example: RES-9001
     CodigoServicio:
       name: codigo
       in: path
@@ -2543,6 +2966,18 @@ components:
             error: Unauthorized
             mensaje: 'Se requiere un token válido: inicie sesión y envíe el encabezado Authorization: Bearer <token>'
             path: /api/reservas
+    CanalNoAutenticado:
+      description: Credencial del canal ausente, desconocida o de un canal desactivado (el mismo mensaje en los tres casos, para no revelar cuál es)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-16T15:00:00Z'
+            status: 401
+            error: Unauthorized
+            mensaje: 'Credencial del canal inválida o canal desactivado: envíe una credencial vigente en el encabezado X-Canal-Credencial'
+            path: /api/canal/reservas
     SinPermiso:
       description: Autenticado, pero el rol no lo permite o no es el titular de la reserva
       content:
@@ -3167,10 +3602,18 @@ components:
           type: string
     RechazoReservaExternaResponse:
       type: object
-      description: Constancia de una reserva externa rechazada por violar una regla (RN-18)
+      description: Constancia de una reserva externa rechazada por violar una regla (RN-18), con su revisión (7.8)
       properties:
+        id:
+          type: integer
+          format: int64
+          description: Identificador del conflicto (sirve para resolverlo)
         canalOrigen:
           $ref: '#/components/schemas/CanalOrigen'
+        canal:
+          type: string
+          nullable: true
+          description: Código del canal que envió el mensaje (la parte del identificador antes de ":"); nulo en reservas sembradas
         identificadorExterno:
           type: string
         identificacionApartamento:
@@ -3187,6 +3630,19 @@ components:
         rechazadaEn:
           type: string
           format: date-time
+        revisado:
+          type: boolean
+          description: El administrador ya lo revisó
+        notaRevision:
+          type: string
+          nullable: true
+        revisadoPor:
+          type: string
+          nullable: true
+        revisadoEn:
+          type: string
+          format: date-time
+          nullable: true
     TemporadaResponse:
       type: object
       properties:
@@ -3986,3 +4442,177 @@ components:
           type: string
           format: binary
           description: Una imagen JPG, PNG o WEBP de hasta 2 MB (tamaño configurable)
+    TipoCanalVenta:
+      type: string
+      enum: [PLATAFORMA_EN_LINEA, AGENCIA_DE_VIAJES, OTRO]
+    OperacionCanal:
+      type: string
+      enum: [CONSULTAR_DISPONIBILIDAD, CREAR_RESERVA, CANCELAR_RESERVA, CONSULTAR_RESERVA]
+    ResultadoCanal:
+      type: string
+      description: ACEPTADA, RECHAZADA (una regla del negocio, p. ej. un conflicto RN-18), REPETIDA (el mismo mensaje, RN-19), INVALIDA (mal armado), NO_ENCONTRADA, NO_AUTORIZADA (canal desactivado) o ERROR
+      enum: [ACEPTADA, RECHAZADA, REPETIDA, INVALIDA, NO_ENCONTRADA, NO_AUTORIZADA, ERROR]
+    CrearCanalVentaRequest:
+      type: object
+      required: [codigo, nombre, tipo]
+      properties:
+        codigo:
+          type: string
+          pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{1,11}$'
+          description: De 2 a 12 caracteres; se guarda en mayúsculas
+        nombre:
+          type: string
+          maxLength: 80
+        tipo:
+          $ref: '#/components/schemas/TipoCanalVenta'
+    CanalVentaResponse:
+      type: object
+      required: [codigo, nombre, tipo, activo]
+      properties:
+        codigo:
+          type: string
+        nombre:
+          type: string
+        tipo:
+          $ref: '#/components/schemas/TipoCanalVenta'
+        activo:
+          type: boolean
+    CanalVentaCreadoResponse:
+      type: object
+      required: [codigo, nombre, tipo, activo, credencial]
+      properties:
+        codigo:
+          type: string
+        nombre:
+          type: string
+        tipo:
+          $ref: '#/components/schemas/TipoCanalVenta'
+        activo:
+          type: boolean
+        credencial:
+          type: string
+          description: La credencial en claro. Es la ÚNICA vez que el sistema la muestra (solo guarda su hash)
+    PaginaCanalVentaResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/CanalVentaResponse'
+    EventoCanalResponse:
+      type: object
+      required: [registradoEn, canal, operacion, resultado, codigoHttp]
+      properties:
+        registradoEn:
+          type: string
+          format: date-time
+        canal:
+          type: string
+        operacion:
+          $ref: '#/components/schemas/OperacionCanal'
+        identificadorExterno:
+          type: string
+          nullable: true
+          description: El identificador del canal (sin el código del canal por delante)
+        resultado:
+          $ref: '#/components/schemas/ResultadoCanal'
+        codigoHttp:
+          type: integer
+        detalle:
+          type: string
+          nullable: true
+    PaginaEventoCanalResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/EventoCanalResponse'
+    PaginaApartamentoDisponibleResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/ApartamentoDisponibleResponse'
+    ResolverRechazoRequest:
+      type: object
+      required: [nota]
+      properties:
+        nota:
+          type: string
+          maxLength: 500
+          description: Qué se revisó y qué se decidió
+    CrearReservaExternaRequest:
+      type: object
+      required: [identificadorExterno, identificacionApartamento, fechaEntrada, fechaSalida, titular, ocupantes]
+      properties:
+        identificadorExterno:
+          type: string
+          maxLength: 47
+          description: El identificador PROPIO del canal para esta reserva (RN-19). Se guarda con el código del canal por delante, por eso admite hasta 47 caracteres
+        identificacionApartamento:
+          type: string
+        fechaEntrada:
+          type: string
+          format: date
+        fechaSalida:
+          type: string
+          format: date
+        horaEstimadaLlegada:
+          type: string
+          format: time
+        correoTitular:
+          type: string
+          format: email
+          maxLength: 120
+          description: Opcional. A este correo se avisa al titular de la reserva registrada y de su cancelación
+        titular:
+          $ref: '#/components/schemas/OcupanteRequest'
+        ocupantes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OcupanteRequest'
+    CancelarReservaExternaRequest:
+      type: object
+      properties:
+        motivo:
+          type: string
+          maxLength: 200
+          description: Opcional; por omisión "Cancelada por el canal"
+    ReservaExternaResponse:
+      type: object
+      required: [codigoReserva, identificadorExterno, identificacionApartamento, fechaEntrada, fechaSalida, estado, valorTotal, moneda]
+      properties:
+        codigoReserva:
+          type: string
+          description: El código de la reserva en el SGA
+        identificadorExterno:
+          type: string
+          description: El identificador del canal (sin su código por delante)
+        identificacionApartamento:
+          type: string
+        fechaEntrada:
+          type: string
+          format: date
+        fechaSalida:
+          type: string
+          format: date
+        estado:
+          $ref: '#/components/schemas/EstadoReserva'
+        valorTotal:
+          type: integer
+          format: int64
+          description: Pesos COP
+        moneda:
+          type: string

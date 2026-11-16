@@ -62,7 +62,29 @@ public class SecurityConfig {
         this.manejadorErrores = manejadorErrores;
     }
 
+    /**
+     * Cadena de seguridad PROPIA del canal externo (10.3.1): solo para {@code /api/canal/**}, sin JWT ni CORS (es de servidor a
+     * servidor). La autenticación es la credencial del encabezado X-Canal-Credencial (CredencialCanalFilter); sin ella, 401. Va primero
+     * (Order 1): la cadena general, que atiende todo lo demás con JWT, va después. Un JWT no sirve aquí ni la credencial del canal sirve en
+     * el resto de la API.
+     */
     @Bean
+    @org.springframework.core.annotation.Order(1)
+    public SecurityFilterChain canalSecurityFilterChain(HttpSecurity http,
+            co.edu.uniquindio.sga.application.usecase.AutenticarCanalUseCase autenticarCanal,
+            co.edu.uniquindio.sga.application.usecase.RegistrarEventoCanalUseCase bitacoraCanal) throws Exception {
+        return http
+                .securityMatcher("/api/canal/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().hasAuthority(CredencialCanalFilter.AUTORIDAD))
+                .addFilterBefore(new CredencialCanalFilter(autenticarCanal, bitacoraCanal),
+                        org.springframework.security.web.access.intercept.AuthorizationFilter.class)
+                .build();
+    }
+
+    @Bean
+    @org.springframework.core.annotation.Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
             // Se inyecta por parámetro del método y con nombre: por constructor, Spring tomaría el bean de MVC (que no tiene
             // configuración CORS) en lugar del definido en esta misma clase, y el preflight respondería 200 sin cabeceras.

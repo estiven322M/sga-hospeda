@@ -16,15 +16,19 @@ public class RechazoReservaExternaPersistenceMapper {
     }
 
     public RechazoReservaExternaEntity aEntidad(RechazoReservaExterna rechazo) {
-        return new RechazoReservaExternaEntity(rechazo.getCanalOrigen(), rechazo.getIdentificadorExterno().valor(),
+        var revision = rechazo.getRevision();
+        return new RechazoReservaExternaEntity(rechazo.getId(), rechazo.getCanalOrigen(), rechazo.getIdentificadorExterno().valor(),
                 rechazo.getApartamento().valor(), estancias.aEmbeddable(rechazo.getEstancia()), rechazo.getMotivo(),
-                rechazo.getRechazadaEn());
+                rechazo.getRechazadaEn(), revision != null, revision == null ? null : revision.nota(),
+                revision == null ? null : revision.revisadoPor(), revision == null ? null : revision.revisadaEn());
     }
 
     public RechazoReservaExterna aDominio(RechazoReservaExternaEntity entidad) {
-        return new RechazoReservaExterna(entidad.getCanalOrigen(),
+        return RechazoReservaExterna.reconstruir(entidad.getId(), entidad.getCanalOrigen(),
                 new IdentificadorExterno(entidad.getIdentificadorExterno()),
                 new IdentificacionApartamento(entidad.getApartamentoId()),
-                estancias.aDominio(entidad.getEstancia()), entidad.getMotivo(), entidad.getRechazadaEn());
+                estancias.aDominio(entidad.getEstancia()), entidad.getMotivo(), entidad.getRechazadaEn(),
+                entidad.isRevisado() ? new co.edu.uniquindio.sga.domain.valueobject.RevisionRechazo(entidad.getNotaRevision(),
+                        entidad.getRevisadoPor(), entidad.getRevisadoEn()) : null);
     }
 }

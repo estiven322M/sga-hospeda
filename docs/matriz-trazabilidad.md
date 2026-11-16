@@ -191,6 +191,42 @@ Sigue pendiente (acotado, sin bloquear el frontend):
 
 ---
 
+## Canal externo completo (7.8, 10.3.1) y notificaciones por Brevo — J9
+
+### Reglas del canal externo
+
+| ID | Regla | Responsable | Endpoint que la expone | Pruebas (evidencia) | Prueba HTTP | Estado |
+|---|---|---|---|---|---|---|
+| C-01 | Un canal se registra con código único (2 a 12 caracteres), nombre y tipo; la baja es lógica (desactivar/activar, 409 si ya está en ese estado) | `CanalVenta`, `RegistroCanalVentaService` | `POST /api/canales`, `GET /api/canales`, `PUT /api/canales/{codigo}/desactivar` y `/activar` | `CanalVentaTest`, `RegistroCanalVentaServiceTest`, `CanalExternoUseCasesTest`, `CanalVentaYBitacoraPersistenciaTest`, `RecorridoCanalExternoCompletoIntegracionTest` | 12.1 a 12.7, 12.33, 12.34, 12.37, 12.39 | Implementada |
+| C-02 | La credencial es aleatoria (256 bits), se muestra **una sola vez** al crear el canal y solo se guarda su hash SHA-256; nunca aparece en listados, bitácora ni log | `CredencialCanal` | `POST /api/canales` (única respuesta que la trae) | `CanalExternoValoresTest`, `CanalExternoUseCasesTest.crearUnCanalDevuelveLaCredencial...`, `RecorridoCanalExternoCompletoIntegracionTest``.laCredencialSeMuestraUnaSolaVez...` | 12.1, 12.2, 12.24 | Implementada |
+| C-03 | Autenticación del canal por `X-Canal-Credencial` en su propia cadena (sin JWT); ausente, desconocida o de un canal desactivado = el mismo 401; JWT y credencial no son intercambiables | `CredencialCanalFilter`, `SecurityConfig.canalSecurityFilterChain`, `AutenticarCanalUseCase` | todo `/api/canal/**` | `CanalExternoUseCasesTest.autenticar...`, `RecorridoCanalExternoCompletoIntegracionTest` (401 sin credencial, desconocida, JWT, credencial en otra API, canal desactivado) | 12.9 a 12.12, 12.35, 12.38 | Implementada |
+| C-04 | Operación 1: el canal consulta la disponibilidad de un rango y un grupo (reutiliza CU-02) | `ConsultarDisponibilidadCanalUseCase`, `DisponibilidadApartamentoService` | `POST /api/canal/disponibilidad` | `RecorridoCanalExternoCompletoIntegracionTest``.elCanalConsultaLaDisponibilidad...` | 12.8, 12.13, 12.40 | Implementada |
+| C-05 | Operación 2: crear una reserva con el identificador del canal; la reserva nace PENDIENTE como EXTERNO y se avisa al titular **después** de confirmar la transacción | `CrearReservaExternaUseCase`, `Reserva`, `CanalVenta.identificadorPara` | `POST /api/canal/reservas` | `CanalExternoUseCasesTest`, `RecorridoCanalExternoCompletoIntegracionTest``.reservaAceptadaQuedaPendiente...` | 12.14 | Implementada |
+| C-06 | RN-19: "canal + identificador" es único; el mismo mensaje dos veces responde 409 y **no crea otra reserva**; dos canales pueden usar el mismo identificador | `RecepcionReservaExternaService`, `MensajeRepetidoException`, `CanalVenta.identificadorPara` | `POST /api/canal/reservas` | `RecepcionReservaExternaServiceTest`, `CanalExternoUseCasesTest.unMensajeRepetido...`, `RecorridoCanalExternoCompletoIntegracionTest``.elMismoMensajeDosVeces...`, `.dosCanalesPuedenUsarElMismoIdentificador...` | 12.15 | Implementada |
+| C-07 | RN-18: un conflicto con una reserva vigente se rechaza (409), **no la sobrescribe** y queda registrado como conflicto del canal | `CrearReservaUseCase` (conserva el rechazo), `RechazoReservaExterna` | `POST /api/canal/reservas`, `GET /api/reservas-externas/rechazos` | `RecepcionReservaExternaServiceTest`, `RecorridoCanalExternoCompletoIntegracionTest``.unaReservaEnConflictoSeRechaza...` | 12.16, 12.17, 12.26 | Implementada |
+| C-08 | Operación 3: el canal cancela **solo sus** reservas (404 si es de otro o no existe), con la política congelada, liberando la disponibilidad; es **idempotente** (repetir = 200 sin volver a cobrar ni avisar) | `CancelarReservaExternaUseCase`, `Reserva.cancelar` | `PUT /api/canal/reservas/{id}/cancelar`, `GET /api/canal/reservas/{id}` | `CanalExternoUseCasesTest` (cancelar, idempotente, ajena, regla violada), `RecorridoCanalExternoCompletoIntegracionTest` | 12.18, 12.21 a 12.23 | Implementada |
+| C-09 | Bitácora: cada mensaje queda con fecha, canal, operación, identificador, resultado y código HTTP (incluso el rechazado, en su propia transacción); del más reciente al más antiguo, de 10 en 10, con filtros por canal y fechas inclusivas (409 si el rango es inverso) | `RegistrarEventoCanalUseCase`, `EventoCanal`, `ListarBitacoraCanalUseCase` | `GET /api/canales/bitacora` | `CanalExternoValoresTest`, `CanalVentaYBitacoraPersistenciaTest`, `RecorridoCanalExternoCompletoIntegracionTest``.laBitacoraSePagina...` | 12.24, 12.25, 12.36 | Implementada |
+| C-10 | Conflictos: el administrador los revisa **una sola vez** con una nota obligatoria (queda quién y cuándo); resolver **nunca toca la reserva vigente**; filtro por revisado | `RechazoReservaExterna.resolver`, `RevisionRechazo`, `ResolverRechazoReservaExternaUseCase` | `PUT /api/reservas-externas/rechazos/{id}/resolver`, `GET /api/reservas-externas/rechazos?revisado=` | `CanalExternoValoresTest` (resolver y revisión), `CanalExternoUseCasesTest`, `RechazoReservaExternaControllerTest`, `RecorridoCanalExternoCompletoIntegracionTest` | 12.26 a 12.32 | Implementada |
+| C-11 | La gestión de canales, la bitácora y la resolución son solo del administrador (403 al resto, 401 sin token) | `@PreAuthorize` en `CanalVentaController` y `RechazoReservaExternaController` | `/api/canales/**`, `.../resolver` | `RecorridoCanalExternoCompletoIntegracionTest``.soloElAdministradorGestiona...` | 12.5 a 12.7, 12.28 | Implementada |
+| C-12 | Un mensaje mal armado (400) o que falla antes del caso de uso también queda en la bitácora; una credencial desconocida solo en el log | `CredencialCanalFilter`, `RegistrarEventoCanalUseCase` | `/api/canal/**` | `RecorridoCanalExternoCompletoIntegracionTest``.unaConsultaMalArmada...` | 12.13, 12.19 | Implementada |
+
+### Integración de salida de Brevo (notificaciones): requisitos I-01 a I-08 (sección 10.3.3)
+
+El mismo puerto `Notificador` de J7 gana un tercer adaptador (`brevo`), pensado para Render, donde el SMTP saliente está bloqueado. La tabla de J7 sigue valiendo para `local` y `smtp`; esto es lo que añade Brevo.
+
+| # | Requisito | Cómo se cumple | Evidencia |
+|---|---|---|---|
+| I-01 | Detrás de un puerto del dominio | Es otra implementación de `Notificador` (`domain/repository`) en `infrastructure/notificaciones/NotificadorBrevo`; el dominio no sabe que existe | `NotificadorBrevoTest` |
+| I-02 | Adaptador local sin internet ni credenciales | `local` sigue siendo el activo por defecto; `brevo` solo con `sga.notificaciones.proveedor=brevo` | `application.properties` |
+| I-03 | Tiempo de espera máximo explícito | `sga.notificaciones.tiempo-espera-ms` (5000) como tiempo de conexión y de petición del cliente HTTP del JDK | `NotificadorBrevoTest.si_brevo_tarda_mas...` (300 ms: falla rápido) |
+| I-04 | Comportamiento ante fallo definido | Un rechazo (no 2xx), un tiempo agotado o la falta de conexión dejan el aviso FALLIDA en la bandeja con la causa, se registra en el log y se lanza `NotificacionFallidaException` (capturada por quien notifica) | `NotificadorBrevoTest` (401, tiempo, puerto cerrado) |
+| I-05 | El fallo no impide reservar, registrar, cobrar ni cerrar un folio | Igual que J7: se notifica después de confirmar la transacción y se captura toda excepción | `RecorridoNotificacionFallidaIntegracionTest` (J7) |
+| I-06 | Credenciales fuera del repositorio | `sga.notificaciones.brevo.api-key` y `.remitente` en `application-secrets.properties` (ignorado; plantilla `.example`) o variables `SGA_NOTIFICACIONES_BREVO_API_KEY` / `..._REMITENTE`. La clave va solo en el encabezado `api-key`: ni en el cuerpo, ni en el log, ni en la bandeja; sin ella el arranque falla diciendo cuál falta | `.gitignore`; `NotificadorBrevoTest.sin_clave_o_sin_remitente...`, `.envia_a_la_api...` |
+| I-07 | Nivel gratuito, de prueba o local | Cuenta gratuita de Brevo (300 correos al día, sin tarjeta) | README, "Notificaciones por Brevo" |
+| I-08 | Las pruebas no invocan servicios reales | `NotificadorBrevoTest` usa un `HttpServer` de `127.0.0.1` (y el puerto 1 cerrado) | `NotificadorBrevoTest` |
+
+Verificación manual única con el proveedor real (el código de recuperación a un correo de prueba): Brevo aceptó el envío y la bandeja lo mostró `ENVIADA` con el contenido omitido.
+
 ## Imágenes de apartamentos (7.3), foto de perfil (7.2) y mapa (7.5) — J8
 
 ### Integración de salida del almacenamiento de imágenes: requisitos I-01 a I-08 (sección 10.3.3)

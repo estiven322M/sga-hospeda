@@ -1,20 +1,20 @@
-# Resultado de la corrida de `sga.http`
+| 409 | 80 || 404 | 19 || 403 | 35 || 401 | 24 || 400 | 33 || 201 | 28 || 200 | 143 |# Resultado de la corrida de `sga.http`
 
 Evidencia de la ejecución completa de la colección [`sga.http`](sga.http) contra la aplicación en marcha, con aserciones
 sobre el **cuerpo** de cada respuesta (`client.test`), no solo sobre el código HTTP.
 
 | Dato | Valor |
 |---|---|
-| Fecha | 2026-11-16 a las 04:11:38 (hora de Bogotá) |
-| Código base | `1c26293` (`main`) más los cambios del paso J8 (rama `feature/imagenes-mapa`) |
+| Fecha | 2026-11-16 (hora de Bogotá) |
+| Código base | `b13802a` (`main`) más los cambios del paso J9 (rama `feature/canal-externo-completo`) |
 | Aplicación | `./gradlew bootRun` recién arrancada, con los datos de prueba sembrados (H2 en memoria) |
 | Cliente | [`ejecutar-coleccion.js`](ejecutar-coleccion.js): ejecuta cada solicitud en orden y corre sus bloques `client.test` con la misma API del cliente HTTP de IntelliJ (`client.assert`, `client.global`, `response.body`, `response.headers.valueOf`) |
-| **Solicitudes ejecutadas** | **322** |
-| **`client.test` ejecutados** | **322** |
-| **`client.test` que pasaron** | **322** |
+| **Solicitudes ejecutadas** | **362** |
+| **`client.test` ejecutados** | **362** |
+| **`client.test` que pasaron** | **362** |
 | **`client.test` que fallaron** | **0** |
 
-Cada solicitud tiene al menos un `client.test` (322 de 322). Toda respuesta 409 verifica `status` = 409, que
+Cada solicitud tiene al menos un `client.test` (362 de 362). Toda respuesta 409 verifica `status` = 409, que
 `mensaje` incluya el texto de la regla violada, que `errores` sea nulo y que no haya trazas técnicas.
 
 ## Códigos HTTP observados
@@ -45,6 +45,7 @@ Cada solicitud tiene al menos un `client.test` (322 de 322). Toda respuesta 409 
 | 9 | Alojamiento, servicios adicionales, medios de pago y calendarios (J6) | 52 |
 | 10 | Notificaciones al titular, usuarios, perfil y recuperación de contraseña (J7) | 63 |
 | 11 | Imágenes de apartamentos y foto de perfil (J8) | 39 |
+| 12 | Canal externo completo: credencial, API del canal, cancelación, bitácora y conflictos (J9) | 40 |
 | - | Pasos cuyo título está en un comentario (se numeran por su comentario) | 3 |
 
 ## Pasos manuales y límites
@@ -64,6 +65,7 @@ Cada solicitud tiene al menos un `client.test` (322 de 322). Toda respuesta 409 
   cliente HTTP de IntelliJ; `ejecutar-coleccion.js` también las lee). La colección corre con el almacén local (el que viene activo). Los límites de tamaño (5 MB y 2 MB)
   y el 503 del almacén externo caído no se recorren aquí (no se adjuntan archivos de varios megas): los verifican `RecorridoImagenesIntegracionTest` y
   `RecorridoImagenesFalloIntegracionTest` (Cloudinary apuntando a un puerto cerrado de la misma máquina, sin servicios externos).
+- **Canal externo (PARTE 12):** el administrador crea el canal COLEC12 y la credencial que devuelve queda en la variable `credencialCanal`; las solicitudes a `/api/canal/**` la envían en `X-Canal-Credencial` (sin JWT). Las fechas son de 2029 para no chocar con los datos de prueba. Lo que no se recorre aquí (dos canales con el mismo identificador, el paginado de la bitácora y los filtros por fecha) lo verifica `RecorridoCanalExternoCompletoIntegracionTest`.
 - **La colección no es idempotente:** se ejecuta sobre una aplicación recién arrancada. En una segunda pasada sin reiniciar, el registro
   de Ana (0.6) y la reserva externa (3.26) responden 409 y los pasos que dependen de la primera pasada cambian de resultado.
 - Las aserciones de los pasos 1.x a 6.x que no son de L-06 ni de L-20 se generaron a partir de las respuestas observadas en una corrida

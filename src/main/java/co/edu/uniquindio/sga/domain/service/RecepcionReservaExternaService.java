@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import co.edu.uniquindio.sga.domain.exception.MensajeRepetidoException;
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.repository.ReservaRepository;
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
@@ -32,7 +33,7 @@ public class RecepcionReservaExternaService {
             return;
         }
         reservaRepository.buscarPorCanalEIdentificadorExterno(canal, identificador).ifPresent(existente -> {
-            throw new ReglaDominioException("El mensaje ya fue recibido: el canal " + canal + " con el identificador "
+            throw new MensajeRepetidoException("El mensaje ya fue recibido: el canal " + canal + " con el identificador "
                     + identificador.valor() + " ya creó la reserva " + existente.getCodigo().valor());
         });
     }

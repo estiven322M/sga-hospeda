@@ -109,6 +109,15 @@ El usuario sigue fuera del dominio (3.6): `UsuarioEntity` y `RolUsuario` viven e
 - **Credenciales de Cloudinary:** `sga.imagenes.cloudinary.cloud-name`, `api-key` y `api-secret` nunca se versionan (`application-secrets.properties` o variables de
   entorno) y nunca se escriben en el log; con el proveedor `cloudinary` y sin ellas la aplicación no arranca.
 
+## 3.0c Canal externo: una segunda cadena de seguridad (7.8, J9)
+
+- **Dos cadenas de filtros.** `/api/canal/**` tiene su propia cadena (`@Order(1)`, `SecurityConfig.canalSecurityFilterChain`): sin sesión, sin CSRF, **sin JWT y sin CORS** (lo llama un servidor, no un navegador) y con un solo filtro, `CredencialCanalFilter`. El resto de la API sigue en la cadena principal (`@Order(2`)). Las dos credenciales **no son intercambiables**: un JWT en `/api/canal/**` da 401 y la credencial del canal en el resto de la API también.
+- **La credencial** se envía en `X-Canal-Credencial`. Se genera con `SecureRandom` (256 bits, `sgc_` + base64url), se muestra **una sola vez** al crear el canal y solo se guarda su hash SHA-256 (`CredencialCanal`, en el dominio). El hash es determinista, lo que permite buscar al canal por él; al ser una clave aleatoria de 256 bits no necesita sal ni BCrypt (BCrypt se usa en las contraseñas, que las elige una persona). `CredencialCanal.toString()` no imprime el valor y la credencial nunca va al log, a la bitácora ni a la respuesta del listado.
+- **Mismo 401 para todo.** Credencial ausente, desconocida o de un canal desactivado responden el mismo mensaje con `ErrorResponse`, para no revelar si una credencial existió. El filtro escribe ese 401 a mano (como `ManejadorErroresSeguridad`).
+- **Autorización:** el filtro deja al canal autenticado con la autoridad `CANAL_EXTERNO` y la cadena exige esa autoridad en `/api/canal/**`. La gestión de canales (`/api/canales/**`), la bitácora y la resolución de conflictos son de **ADMINISTRADOR** con `@PreAuthorize`.
+- **Constancia:** un canal desactivado queda en la bitácora como `NO_AUTORIZADA`; una credencial desconocida solo en el log (no hay a qué canal atribuirla y persistirla permitiría llenar la base con intentos).
+- **Canal de demostración:** la credencial `DEMO` es pública a propósito (simulador y colección). Para producción se desactivan los datos de prueba o se desactiva el canal.
+
 ## 3.1 CORS (para el frontend, Guía 15 4.2)
 
 El navegador solo deja que una página servida desde otro origen (el servidor de Vite, `http://localhost:5173`) lea las respuestas de la API si la

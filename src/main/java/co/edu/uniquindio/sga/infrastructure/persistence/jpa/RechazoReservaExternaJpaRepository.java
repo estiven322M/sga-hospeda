@@ -33,8 +33,15 @@ public class RechazoReservaExternaJpaRepository implements RechazoReservaExterna
 
     @Override
     @Transactional(readOnly = true)
-    public Pagina<RechazoReservaExterna> listar(SolicitudPagina pagina) {
-        return PaginacionJpa.aDominio(datos.findAll(PaginacionJpa.solicitud(pagina, MAS_RECIENTE_PRIMERO)),
+    public java.util.Optional<RechazoReservaExterna> buscarPorId(long id) {
+        return datos.findById(id).map(mapper::aDominio);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Pagina<RechazoReservaExterna> listar(Boolean revisado, SolicitudPagina pagina) {
+        var solicitud = PaginacionJpa.solicitud(pagina, MAS_RECIENTE_PRIMERO);
+        return PaginacionJpa.aDominio(revisado == null ? datos.findAll(solicitud) : datos.findByRevisado(revisado, solicitud),
                 pagina, mapper::aDominio);
     }
 }
