@@ -79,6 +79,7 @@ El repo del profe (https://github.com/JhanCarlosMC/PR-AV-20262) es solo **guía*
 - Toda respuesta 409 cumple la aserción común: `status` 409, `mensaje` con el texto de la regla, `errores` nulo y sin trazas técnicas.
 
 ## Siguiente: Entrega 3, frontend React en la carpeta `frontend/`
+- Reglas y estructura del frontend: `frontend/CLAUDE.md`.
 - El frontend vive en `frontend/` (React + Vite, servidor en `http://localhost:5173`; la API en `http://localhost:8080`). Se sigue la ruta de las guías 14 a 21 (configuración, formularios con React Hook Form + Zod, maquetación, rutas protegidas e interceptores, listados con paginación y notificaciones, búsqueda y estado compartido).
 - Lo que el backend ya ofrece al frontend: CORS para `http://localhost:5173`, login con JWT (el token trae `sub`, `roles` y `documento`), `GET /api/reservas/mias`, filtros de reservas por nombre del titular y por salidas previstas, filtro de apartamentos por estado operativo, el catálogo `GET /api/caracteristicas` y la cabecera `Location` expuesta tras cada 201.
 - El token va en `Authorization: Bearer` (no en cookie). Un 401 lleva al login; un 403 muestra "sin permiso"; un 409 muestra el `mensaje` de la regla; un 400 trae `errores` por campo.
