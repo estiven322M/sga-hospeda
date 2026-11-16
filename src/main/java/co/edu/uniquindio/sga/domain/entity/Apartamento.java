@@ -1,43 +1,62 @@
 package co.edu.uniquindio.sga.domain.entity;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 
 /**
  * Raíz de Agregado que representa una unidad autónoma que se alquila.
- * Protege sus propias reglas de capacidad y estado físico.
+ * Protege sus propias reglas de capacidad y estado físico, y la coherencia de su descripción, dotación
+ * y características (L-06).
  */
 
 public class Apartamento {
-	
-private final IdentificacionApartamento identificacion; // Identidad única
-    
+
+    /** Longitudes máximas de la descripción y de la dotación (L-06). */
+    public static final int MAX_DESCRIPCION = 500;
+    public static final int MAX_ITEMS_DOTACION = 30;
+    public static final int MAX_LONGITUD_ITEM_DOTACION = 60;
+
+    private final IdentificacionApartamento identificacion; // Identidad única
+
     private String nombre;
+    private String descripcion;
     private int dormitorios;
     private int capacidad;
+    private List<String> dotacion;                // lista ordenada, sin repetidos
+    private Set<Caracteristica> caracteristicas;  // catálogo cerrado
     private EstadoOperativo estadoOperativo;
     private boolean activo;
 
-    public Apartamento(IdentificacionApartamento identificacion, String nombre, 
-                       int dormitorios, int capacidad) {
+    public Apartamento(IdentificacionApartamento identificacion, String nombre, String descripcion,
+                       int dormitorios, int capacidad, Collection<String> dotacion,
+                       Collection<Caracteristica> caracteristicas) {
         if (identificacion == null) {
             throw new ReglaDominioException("El apartamento debe tener una identificación");
         }
-        if (nombre == null || nombre.isBlank()) {
-            throw new ReglaDominioException("El apartamento debe tener un nombre");
-        }
-        if (dormitorios < 1) {
-            throw new ReglaDominioException("El apartamento debe tener al menos un dormitorio");
-        }
-        if (capacidad < 1) {
-            throw new ReglaDominioException("La capacidad debe ser al menos de 1 persona");
-        }
+        validarNombre(nombre);
+        String descripcionValida = validarDescripcion(descripcion);
+        validarDormitorios(dormitorios);
+        validarCapacidad(capacidad);
+        List<String> dotacionValida = validarDotacion(dotacion);
+        Set<Caracteristica> caracteristicasValidas = validarCaracteristicas(caracteristicas);
 
         this.identificacion = identificacion;
         this.nombre = nombre;
+        this.descripcion = descripcionValida;
         this.dormitorios = dormitorios;
         this.capacidad = capacidad;
+        this.dotacion = dotacionValida;
+        this.caracteristicas = caracteristicasValidas;
         this.estadoOperativo = EstadoOperativo.PREPARADO; // Estado inicial por defecto
         // 7.4: nace inactivo; solo se activa con tarifas completas (ActivacionApartamentoService)
         this.activo = false;
@@ -45,21 +64,24 @@ private final IdentificacionApartamento identificacion; // Identidad única
 
     /**
      * Edición de los datos del apartamento (7.3: cambiar la capacidad no afecta las reservas ya creadas).
-     * Aplica las mismas validaciones que la creación; si alguna falla, no se modifica nada.
+     * Es atómica: valida todos los datos antes de aplicar alguno, así que si algo falla no se modifica nada.
      */
-    public void actualizarDatos(String nuevoNombre, int nuevosDormitorios, int nuevaCapacidad) {
-        if (nuevoNombre == null || nuevoNombre.isBlank()) {
-            throw new ReglaDominioException("El apartamento debe tener un nombre");
-        }
-        if (nuevosDormitorios < 1) {
-            throw new ReglaDominioException("El apartamento debe tener al menos un dormitorio");
-        }
-        if (nuevaCapacidad < 1) {
-            throw new ReglaDominioException("La capacidad debe ser al menos de 1 persona");
-        }
+    public void actualizarDatos(String nuevoNombre, String nuevaDescripcion, int nuevosDormitorios,
+                                int nuevaCapacidad, Collection<String> nuevaDotacion,
+                                Collection<Caracteristica> nuevasCaracteristicas) {
+        validarNombre(nuevoNombre);
+        String descripcionValida = validarDescripcion(nuevaDescripcion);
+        validarDormitorios(nuevosDormitorios);
+        validarCapacidad(nuevaCapacidad);
+        List<String> dotacionValida = validarDotacion(nuevaDotacion);
+        Set<Caracteristica> caracteristicasValidas = validarCaracteristicas(nuevasCaracteristicas);
+
         this.nombre = nuevoNombre;
+        this.descripcion = descripcionValida;
         this.dormitorios = nuevosDormitorios;
         this.capacidad = nuevaCapacidad;
+        this.dotacion = dotacionValida;
+        this.caracteristicas = caracteristicasValidas;
     }
 
     /**
@@ -67,12 +89,15 @@ private final IdentificacionApartamento identificacion; // Identidad única
      * adaptador de persistencia). Aplica las mismas validaciones de datos que el constructor; no es una operación de
      * negocio, así que no revisa transiciones.
      */
-    public static Apartamento reconstruir(IdentificacionApartamento identificacion, String nombre, int dormitorios,
-                                          int capacidad, EstadoOperativo estadoOperativo, boolean activo) {
+    public static Apartamento reconstruir(IdentificacionApartamento identificacion, String nombre, String descripcion,
+                                          int dormitorios, int capacidad, Collection<String> dotacion,
+                                          Collection<Caracteristica> caracteristicas,
+                                          EstadoOperativo estadoOperativo, boolean activo) {
         if (estadoOperativo == null) {
             throw new ReglaDominioException("El apartamento debe tener un estado operativo");
         }
-        Apartamento apartamento = new Apartamento(identificacion, nombre, dormitorios, capacidad);
+        Apartamento apartamento = new Apartamento(identificacion, nombre, descripcion, dormitorios, capacidad,
+                dotacion, caracteristicas);
         apartamento.estadoOperativo = estadoOperativo;
         apartamento.activo = activo;
         return apartamento;
@@ -81,6 +106,14 @@ private final IdentificacionApartamento identificacion; // Identidad única
     /** RN-02: Verifica si el apartamento puede alojar a un grupo específico. */
     public boolean admite(int totalOcupantes) {
         return totalOcupantes > 0 && totalOcupantes <= this.capacidad;
+    }
+
+    /**
+     * L-06, filtro de búsqueda (7.5): ¿tiene el apartamento TODAS las características pedidas?
+     * Sin características pedidas no se filtra, así que cualquier apartamento cumple.
+     */
+    public boolean tieneTodas(Collection<Caracteristica> pedidas) {
+        return pedidas == null || caracteristicas.containsAll(pedidas);
     }
 
     /** Registro del grupo: PREPARADO → OCUPADO. */
@@ -151,6 +184,78 @@ private final IdentificacionApartamento identificacion; // Identidad única
         this.activo = false;
     }
 
+    private static void validarNombre(String nombre) {
+        if (nombre == null || nombre.isBlank()) {
+            throw new ReglaDominioException("El apartamento debe tener un nombre");
+        }
+    }
+
+    private static void validarDormitorios(int dormitorios) {
+        if (dormitorios < 1) {
+            throw new ReglaDominioException("El apartamento debe tener al menos un dormitorio");
+        }
+    }
+
+    private static void validarCapacidad(int capacidad) {
+        if (capacidad < 1) {
+            throw new ReglaDominioException("La capacidad debe ser al menos de 1 persona");
+        }
+    }
+
+    /** L-06 / 7.3: la descripción es obligatoria y tiene un tope de longitud. Se guarda sin espacios sobrantes. */
+    private static String validarDescripcion(String descripcion) {
+        if (descripcion == null || descripcion.isBlank()) {
+            throw new ReglaDominioException("El apartamento debe tener una descripción");
+        }
+        String limpia = descripcion.trim();
+        if (limpia.length() > MAX_DESCRIPCION) {
+            throw new ReglaDominioException("La descripción no puede superar los " + MAX_DESCRIPCION + " caracteres");
+        }
+        return limpia;
+    }
+
+    /** L-06: la dotación puede estar vacía; sus ítems no pueden estar en blanco, repetirse ni ser demasiados. */
+    private static List<String> validarDotacion(Collection<String> dotacion) {
+        if (dotacion == null) {
+            return List.of();
+        }
+        if (dotacion.size() > MAX_ITEMS_DOTACION) {
+            throw new ReglaDominioException("La dotación no puede tener más de " + MAX_ITEMS_DOTACION + " elementos");
+        }
+        List<String> limpia = new ArrayList<>();
+        Set<String> vistos = new HashSet<>();
+        for (String item : dotacion) {
+            if (item == null || item.isBlank()) {
+                throw new ReglaDominioException("Un elemento de la dotación no puede estar en blanco");
+            }
+            String normalizado = item.trim();
+            if (normalizado.length() > MAX_LONGITUD_ITEM_DOTACION) {
+                throw new ReglaDominioException("Un elemento de la dotación no puede superar los "
+                        + MAX_LONGITUD_ITEM_DOTACION + " caracteres");
+            }
+            if (!vistos.add(normalizado.toLowerCase())) {
+                throw new ReglaDominioException("La dotación no puede repetir elementos: " + normalizado);
+            }
+            limpia.add(normalizado);
+        }
+        return Collections.unmodifiableList(limpia);
+    }
+
+    /** L-06: las características pueden estar vacías; no se admite un elemento nulo. */
+    private static Set<Caracteristica> validarCaracteristicas(Collection<Caracteristica> caracteristicas) {
+        EnumSet<Caracteristica> conjunto = EnumSet.noneOf(Caracteristica.class);
+        if (caracteristicas == null) {
+            return Collections.unmodifiableSet(conjunto);
+        }
+        for (Caracteristica caracteristica : caracteristicas) {
+            if (caracteristica == null) {
+                throw new ReglaDominioException("Una característica del apartamento no puede ser nula");
+            }
+            conjunto.add(caracteristica);
+        }
+        return Collections.unmodifiableSet(conjunto);
+    }
+
     private void verificarTransicionOperativa(EstadoOperativo siguiente) {
         if (!this.estadoOperativo.puedeTransicionarA(siguiente)) {
             throw new ReglaDominioException(
@@ -161,6 +266,11 @@ private final IdentificacionApartamento identificacion; // Identidad única
     // Getters
     public IdentificacionApartamento getIdentificacion() { return identificacion; }
     public String getNombre() { return nombre; }
+    public String getDescripcion() { return descripcion; }
+    /** Copia inmutable: desde fuera no se puede alterar la dotación del agregado. */
+    public List<String> getDotacion() { return dotacion; }
+    /** Copia inmutable, ordenada según el catálogo. */
+    public Set<Caracteristica> getCaracteristicas() { return caracteristicas; }
     public int getDormitorios() { return dormitorios; }
     public int getCapacidad() { return capacidad; }
     public EstadoOperativo getEstadoOperativo() { return estadoOperativo; }

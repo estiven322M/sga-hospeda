@@ -110,8 +110,8 @@ public class CargadorDatosPrueba implements ApplicationRunner {
     /** Un apartamento nace inactivo (7.4): se crea, se le registran tarifas en todas las temporadas y se activa. */
     private void cargarApartamento(ApartamentoSemilla semilla) {
         IdentificacionApartamento identificacion = new IdentificacionApartamento(semilla.identificacion());
-        Apartamento apartamento = apartamentos.guardar(registroApartamento.crear(identificacion, semilla.nombre(),
-                semilla.dormitorios(), semilla.capacidad()));
+        Apartamento apartamento = apartamentos.guardar(registroApartamento.crear(identificacion, semilla.nombre(), semilla.descripcion(),
+                semilla.dormitorios(), semilla.capacidad(), semilla.dotacion(), semilla.caracteristicas()));
         CatalogoDatosPrueba.TEMPORADAS.forEach(temporada -> tarifario.guardarTarifa(identificacion,
                 registroTarifa.crear(temporada.nombre(), tarifaDe(semilla, temporada))));
         activacion.activar(apartamento);

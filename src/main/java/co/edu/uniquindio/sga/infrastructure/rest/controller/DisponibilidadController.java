@@ -55,6 +55,7 @@ public class DisponibilidadController {
                 request.capacidadMinima(),
                 solicitud.aDinero(request.precioMinimo()),
                 solicitud.aDinero(request.precioMaximo()),
+                request.caracteristicas(),
                 new SolicitudPagina(pagina));
         return ResponseEntity.ok(Paginas.aResponse(resultado, mapper::aDisponible));
     }

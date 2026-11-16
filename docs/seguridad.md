@@ -45,7 +45,7 @@ usuarios.
 | Endpoint | HUESPED | RECEPCIONISTA | ADMINISTRADOR | PERSONAL_SERVICIO |
 |---|:-:|:-:|:-:|:-:|
 | `POST /api/auth/login`, `POST /api/auth/registro` | público | público | público | público |
-| `GET /api/apartamentos`, `GET /api/apartamentos/{id}` | ✔ | ✔ | ✔ | ✔ |
+| `GET /api/apartamentos` (con filtro `caracteristicas`), `GET /api/apartamentos/{id}`, `GET /api/caracteristicas` | ✔ | ✔ | ✔ | ✔ |
 | `POST /api/apartamentos`, `PUT /api/apartamentos/{id}`, `PUT .../activar`, `PUT .../baja` | ✘ | ✘ | ✔ | ✘ |
 | `PUT .../estado-operativo/iniciar-preparacion`, `.../marcar-preparado` | ✘ | ✘ | ✔ | ✔ |
 | `PUT .../estado-operativo/declarar-fuera-de-servicio`, `.../reincorporar` | ✘ | ✘ | ✔ | ✘ |

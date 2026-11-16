@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -25,7 +27,7 @@ class ActivacionApartamentoServiceTest {
 
     /** Un apartamento recién creado: nace inactivo (7.4). */
     private Apartamento apartamentoDadoDeBaja() {
-        return new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        return ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
     }
 
     @Test

@@ -10,13 +10,15 @@ public class ApartamentoPersistenceMapper {
 
     public ApartamentoEntity aEntidad(Apartamento apartamento) {
         return new ApartamentoEntity(apartamento.getIdentificacion().valor(), apartamento.getNombre(),
-                apartamento.getDormitorios(), apartamento.getCapacidad(), apartamento.getEstadoOperativo(),
+                apartamento.getDescripcion(), apartamento.getDormitorios(), apartamento.getCapacidad(),
+                apartamento.getDotacion(), apartamento.getCaracteristicas(), apartamento.getEstadoOperativo(),
                 apartamento.isActivo());
     }
 
     public Apartamento aDominio(ApartamentoEntity entidad) {
         return Apartamento.reconstruir(new IdentificacionApartamento(entidad.getIdentificacion()),
-                entidad.getNombre(), entidad.getDormitorios(), entidad.getCapacidad(),
+                entidad.getNombre(), entidad.getDescripcion(), entidad.getDormitorios(), entidad.getCapacidad(),
+                entidad.getDotacion(), entidad.getCaracteristicas(),
                 entidad.getEstadoOperativo(), entidad.isActivo());
     }
 }

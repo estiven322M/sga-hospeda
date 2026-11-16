@@ -9,6 +9,10 @@ El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencia
   `RegistroApartamentoService`, `RegistroPoliticaCancelacionService`, `RegistroTarifaService`, `RegistroSalidaService`
   (el folio debe estar cerrado para registrar la salida, 7.6).
 - `Apartamento`: nace **inactivo** (7.4), con `activar`, `darDeBaja`, `actualizarDatos` y `reincorporarAlServicio`.
+- L-06 (corrección de la Entrega 2): `Apartamento` gana `descripcion`, `dotacion` (lista de textos sin repetidos) y
+  `caracteristicas` (conjunto del enum cerrado `Caracteristica`). `actualizarDatos` pasa a ser atómico sobre todos los
+  datos y se agrega `tieneTodas(Set~Caracteristica~)`, que responde al filtro de búsqueda (el apartamento debe tener todas
+  las pedidas). Nuevo objeto de valor `Caracteristica` (enum) y nuevo criterio de puerto `FiltroApartamentos`.
 - `Folio`: nueva lista de **ajustes** (movimientos con signo, RN-16), `liquidarCancelacion` y `liquidarNoShow`.
 - `RetencionCancelacionService`: además de la cancelación calcula la consecuencia del no-show con la política congelada.
 - Vencimiento automático (RN-21): `Reserva.haVencido`, `PlazoConfirmacion.limiteDeCreacion` y `Folio.liquidarVencimiento`
@@ -20,7 +24,7 @@ El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencia
   Sobrecarga que además recibe el apartamento destino (RN-14): `apartamento` deja de ser `final` y el cambio queda en el historial.
 - `TiempoPreparacion.permiteEntradaElMismoDia(salida, entrada)`: compara con la ventana salida-entrada (RN-20).
 - Puertos nuevos o ampliados en `domain/repository`: paginación (`Pagina`, `SolicitudPagina`), `FiltroReservas`,
-  `GeneradorCodigoReserva`, `TemporadaRepository`, `PoliticaCancelacionRepository`.
+  `FiltroApartamentos` (L-06), `GeneradorCodigoReserva`, `TemporadaRepository`, `PoliticaCancelacionRepository`.
 
 ## Entidades y objetos de valor
 
@@ -58,11 +62,15 @@ classDiagram
         <<raíz de agregado>>
         -IdentificacionApartamento identificacion
         -String nombre
+        -String descripcion «nuevo L-06»
         -int dormitorios
         -int capacidad
+        -List~String~ dotacion «nuevo L-06»
+        -Set~Caracteristica~ caracteristicas «nuevo L-06»
         -EstadoOperativo estadoOperativo
         -boolean activo
         +admite(int) boolean
+        +tieneTodas(Set~Caracteristica~) boolean «nuevo L-06»
         +marcarOcupado()
         +liberar()
         +iniciarPreparacion()
@@ -210,6 +218,16 @@ classDiagram
         DIRECTO
         EXTERNO
     }
+    class Caracteristica {
+        <<enum «nuevo L-06»>>
+        TERRAZA
+        BALCON
+        VISTA_AL_PARQUE
+        VISTA_PANORAMICA
+        JACUZZI
+        PARQUEADERO
+        ACCESIBLE
+    }
 
     Reserva "1" *-- "1" Estancia
     Reserva "1" *-- "1" ValorCongelado
@@ -219,6 +237,7 @@ classDiagram
     ValorCongelado "1" *-- "1..*" CargoNoche
     CargoNoche ..> Dinero
     Apartamento ..> EstadoOperativo
+    Apartamento ..> Caracteristica : 0..* «nuevo L-06»
     Folio "1" *-- "1..*" Cargo
     Folio "1" *-- "0..*" Ajuste
     Folio "1" *-- "0..*" Pago

@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -126,7 +128,7 @@ class OperacionDiariaDominioTest {
     // ---------- Estado operativo ----------
 
     private Apartamento apartamento() {
-        Apartamento apt = new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        Apartamento apt = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
         apt.activar();
         return apt;
     }

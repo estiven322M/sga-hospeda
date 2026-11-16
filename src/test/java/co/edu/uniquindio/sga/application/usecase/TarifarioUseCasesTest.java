@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -142,7 +144,7 @@ class TarifarioUseCasesTest {
 
     @Test
     void guardaLaTarifaDeUnApartamentoExistenteEnUnaTemporadaExistente() {
-        when(apartamentos.buscarPorIdentificacion(apt)).thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+        when(apartamentos.buscarPorIdentificacion(apt)).thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(temporadas.listarTodas()).thenReturn(List.of(base, alta));
         var useCase = new RegistrarTarifaUseCase(apartamentos, tarifario, new RegistroTarifaService(temporadas));
 
@@ -159,7 +161,7 @@ class TarifarioUseCasesTest {
         when(apartamentos.buscarPorIdentificacion(apt)).thenReturn(Optional.empty());
         assertThrows(ApartamentoNoEncontradoException.class, () -> useCase.ejecutar(apt, "ALTA", Dinero.de(1)));
 
-        when(apartamentos.buscarPorIdentificacion(apt)).thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+        when(apartamentos.buscarPorIdentificacion(apt)).thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(temporadas.listarTodas()).thenReturn(List.of(base));
         assertThrows(ReglaDominioException.class, () -> useCase.ejecutar(apt, "ALTA", Dinero.de(1)));
 
@@ -168,7 +170,7 @@ class TarifarioUseCasesTest {
 
     @Test
     void listaLasTarifasDeUnApartamentoYLanzaNoEncontradoSiNoExiste() {
-        when(apartamentos.buscarPorIdentificacion(apt)).thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+        when(apartamentos.buscarPorIdentificacion(apt)).thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(tarifario.listarTarifas(apt)).thenReturn(List.of(new Tarifa("BASE", Dinero.de(80_000))));
         var useCase = new ListarTarifasUseCase(apartamentos, tarifario);
 

@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,7 +47,7 @@ class EstadoOperativoControllerTest {
     }
 
     private Apartamento apartamento() {
-        Apartamento apt = new Apartamento(id, "Vista", 2, 4);
+        Apartamento apt = ApartamentoDePrueba.nuevo(id, "Vista", 2, 4);
         apt.activar();
         return apt;
     }

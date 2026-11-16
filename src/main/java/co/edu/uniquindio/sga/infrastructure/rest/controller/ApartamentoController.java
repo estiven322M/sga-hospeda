@@ -1,6 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import java.net.URI;
+import java.util.List;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ import co.edu.uniquindio.sga.application.usecase.DarDeBajaApartamentoUseCase;
 import co.edu.uniquindio.sga.application.usecase.ListarApartamentosUseCase;
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.ApartamentoMapper;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.Paginas;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.SolicitudMapper;
@@ -75,7 +77,8 @@ public class ApartamentoController {
     @Operation(summary = "Crear un apartamento")
     public ResponseEntity<ApartamentoResponse> crear(@Valid @RequestBody CrearApartamentoRequest request) {
         Apartamento apartamento = crearApartamento.ejecutar(solicitud.aApartamento(request.identificacion()),
-                request.nombre(), request.dormitorios(), request.capacidad());
+                request.nombre(), request.descripcion(), request.dormitorios(), request.capacidad(),
+                request.dotacion(), request.caracteristicas());
         URI ubicacion = ServletUriComponentsBuilder.fromCurrentRequest().path("/{identificacion}")
                 .buildAndExpand(apartamento.getIdentificacion().valor()).toUri();
         return ResponseEntity.created(ubicacion).body(mapper.aResponse(apartamento));
@@ -83,11 +86,13 @@ public class ApartamentoController {
 
     @GetMapping
     @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR', 'PERSONAL_SERVICIO')")
-    @Operation(summary = "Listar apartamentos (activos o no), de 10 en 10")
+    @Operation(summary = "Listar apartamentos (activos o no), de 10 en 10, con filtro opcional por características (deben tenerlas todas)")
     public ResponseEntity<PaginaResponse<ApartamentoResponse>> listar(
+            @RequestParam(required = false) List<Caracteristica> caracteristicas,
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "La página no puede ser negativa") int pagina) {
         return ResponseEntity.ok(Paginas.aResponse(
-                listarApartamentos.ejecutar(new SolicitudPagina(pagina)), mapper::aResponse));
+                listarApartamentos.ejecutar(solicitud.aFiltroApartamentos(caracteristicas), new SolicitudPagina(pagina)),
+                mapper::aResponse));
     }
 
     @GetMapping("/{identificacion}")
@@ -104,8 +109,8 @@ public class ApartamentoController {
     public ResponseEntity<ApartamentoResponse> actualizar(@PathVariable String identificacion,
                                                          @Valid @RequestBody ActualizarApartamentoRequest request) {
         return ResponseEntity.ok(mapper.aResponse(actualizarApartamento.ejecutar(
-                solicitud.aApartamento(identificacion), request.nombre(), request.dormitorios(),
-                request.capacidad())));
+                solicitud.aApartamento(identificacion), request.nombre(), request.descripcion(),
+                request.dormitorios(), request.capacidad(), request.dotacion(), request.caracteristicas())));
     }
 
     /** Operación de negocio: exige tarifa en todas las temporadas (7.4). */

@@ -21,6 +21,12 @@
 #     DIRECTO, cobra, confirma y opera; el administrador gestiona inventario, tarifas, políticas, bloqueos,
 #     canal externo y autoriza cierres con saldo; el personal de servicio prepara los apartamentos.
 #   - Los tokens duran 30 minutos: si vencen, vuelva a ejecutar la PARTE 0.
+#
+# Pruebas del cuerpo (client.test): un código HTTP correcto no basta, así que los escenarios nuevos (L-06: 1.2,
+# 1.7 a 1.15 y 3.15a a 3.16f) comprueban el CUERPO de la respuesta: qué apartamentos devuelve cada filtro, el
+# total cotizado, el mensaje de la regla violada y los campos de "errores". El resultado de cada aserción aparece
+# en la pestaña de pruebas del cliente HTTP. Los escenarios 1.8 a 1.11 dependen de que el apartamento de demostración
+# (DEMO-SIN-TARIFAS, que se edita en 3.16e) no tenga TERRAZA, PARQUEADERO, BALCON ni ACCESIBLE: no se le asignan.
 #   - La PARTE 6 demuestra los casos 3 a 14 de la sección 9 de la Guía 12 (401 frente a 403 y propietario).
 # Códigos: 400 forma · 401 sin token o token inválido · 403 rol o propietario · 404 no existe · 409 negocio.
 # Cada escenario "409" indica la regla de negocio que viola.
@@ -102,9 +108,20 @@ Content-Type: application/json
 GET {{host}}/api/apartamentos?pagina=0
 Authorization: Bearer {{tokenRecepcion}}
 
-### 1.2 Consultar un apartamento
+### 1.2 Consultar un apartamento (L-06: trae descripción, dotación y características) -> 200
 GET {{host}}/api/apartamentos/{{apt}}
 Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.2 el apartamento trae sus datos descriptivos", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.identificacion === "APT-101", "identificación: " + response.body.identificacion);
+        client.assert(response.body.descripcion && response.body.descripcion.length > 0, "falta la descripción");
+        client.assert(response.body.dotacion.length > 0, "falta la dotación");
+        client.assert(response.body.caracteristicas.indexOf("VISTA_AL_PARQUE") >= 0, "falta VISTA_AL_PARQUE");
+        client.assert(response.body.caracteristicas.indexOf("BALCON") >= 0, "falta BALCON");
+    });
+%}
 
 ### 1.3 Listar temporadas
 GET {{host}}/api/temporadas
@@ -121,6 +138,159 @@ Authorization: Bearer {{tokenRecepcion}}
 ### 1.6 Bloqueos del apartamento
 GET {{host}}/api/apartamentos/{{aptBloqueo}}/bloqueos
 Authorization: Bearer {{tokenRecepcion}}
+
+# ---------- L-06 · Características de los apartamentos y su filtro ----------
+# Datos sembrados: TERRAZA = APT-102 y APT-301 · BALCON = APT-101, APT-201 y APT-302 · ACCESIBLE = APT-202 y APT-203
+# PARQUEADERO = APT-102 y APT-202 · JACUZZI = APT-301 · VISTA_AL_PARQUE = APT-101 · VISTA_PANORAMICA = APT-301.
+# Cada escenario verifica el CUERPO (qué apartamentos devuelve), no solo el código.
+
+### 1.7 [L-06] Catálogo cerrado de características -> 200 con los 7 valores
+GET {{host}}/api/caracteristicas
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("1.7 el catálogo trae las 7 características", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const esperadas = ["ACCESIBLE", "BALCON", "JACUZZI", "PARQUEADERO", "TERRAZA", "VISTA_AL_PARQUE", "VISTA_PANORAMICA"];
+        client.assert(JSON.stringify(response.body.slice().sort()) === JSON.stringify(esperadas),
+            "catálogo: " + response.body);
+    });
+%}
+
+### 1.8 [L-06] Listar filtrando por TERRAZA -> 200: exactamente APT-102 y APT-301
+GET {{host}}/api/apartamentos?caracteristicas=TERRAZA
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.8 TERRAZA devuelve solo APT-102 y APT-301", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion).sort();
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102", "APT-301"]), "ids devueltos: " + ids);
+        client.assert(response.body.totalElementos === 2, "totalElementos: " + response.body.totalElementos);
+        client.assert(response.body.contenido.every(a => a.caracteristicas.indexOf("TERRAZA") >= 0),
+            "todos deben tener TERRAZA");
+    });
+%}
+
+### 1.9 [L-06] Varias características exigen TODAS (TERRAZA y PARQUEADERO) -> 200: solo APT-102
+GET {{host}}/api/apartamentos?caracteristicas=TERRAZA&caracteristicas=PARQUEADERO
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.9 TERRAZA + PARQUEADERO devuelve solo APT-102", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion);
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102"]), "ids devueltos: " + ids);
+    });
+%}
+
+### 1.10 [L-06] Combinación que ningún apartamento cumple (BALCON y ACCESIBLE) -> 200 con la página vacía
+GET {{host}}/api/apartamentos?caracteristicas=BALCON&caracteristicas=ACCESIBLE
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.10 sin coincidencias: contenido vacío", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length === 0, "contenido: " + response.body.contenido.length);
+        client.assert(response.body.totalElementos === 0, "totalElementos: " + response.body.totalElementos);
+    });
+%}
+
+### 1.11 [400 · L-06] Una característica fuera del catálogo -> 400 con ErrorResponse
+GET {{host}}/api/apartamentos?caracteristicas=PISCINA
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.11 PISCINA no está en el catálogo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.length > 0, "falta el mensaje");
+        client.assert(response.body.trace === undefined, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 1.12 [L-06] Disponibilidad filtrando por JACUZZI (3 noches de agosto de 2028, 1 adulto) -> 200: solo APT-301, 420.000
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["JACUZZI"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.12 JACUZZI devuelve solo APT-301 con su cotización", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion);
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-301"]), "ids devueltos: " + ids);
+        const tarjeta = response.body.contenido[0];
+        client.assert(tarjeta.total === 420000, "total: " + tarjeta.total);
+        client.assert(tarjeta.desglose.length === 3, "noches del desglose: " + tarjeta.desglose.length);
+        client.assert(tarjeta.caracteristicas.indexOf("JACUZZI") >= 0, "la tarjeta debe traer sus características");
+        client.assert(tarjeta.descripcion.length > 0, "la tarjeta debe traer la descripción");
+    });
+%}
+
+### 1.13 [L-06] Disponibilidad filtrando por TERRAZA -> 200: APT-102 y APT-301
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["TERRAZA"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.13 TERRAZA devuelve APT-102 y APT-301", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion).sort();
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102", "APT-301"]), "ids devueltos: " + ids);
+    });
+%}
+
+### 1.14 [L-06] Disponibilidad con varias características: TERRAZA y PARQUEADERO -> 200: solo APT-102
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["TERRAZA", "PARQUEADERO"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.14 TERRAZA + PARQUEADERO devuelve solo APT-102", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion);
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102"]), "ids devueltos: " + ids);
+    });
+%}
+
+### 1.15 [400 · L-06] Disponibilidad con una característica fuera del catálogo -> 400
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["PISCINA"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.15 PISCINA se rechaza por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+    });
+%}
 
 # =====================================================================================================
 # PARTE 2 · FLUJO COMPLETO DE UNA RESERVA (todos deben dar 2xx salvo los marcados 409)
@@ -470,7 +640,29 @@ POST {{host}}/api/apartamentos
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
-{"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Apartamento de prueba", "dormitorios": 1, "capacidad": 2}
+{
+  "identificacion": "DEMO-SIN-TARIFAS",
+  "nombre": "Apartamento de prueba",
+  "descripcion": "Apartamento de demostración, sin tarifas todavía",
+  "dormitorios": 1,
+  "capacidad": 2,
+  "dotacion": ["Nevera", "Wi-Fi"],
+  "caracteristicas": ["VISTA_PANORAMICA"]
+}
+
+> {%
+    client.test("3.15a nace inactivo y devuelve lo que se guardó (o 409 si ya existía de una corrida anterior)", function () {
+        client.assert(response.status === 201 || response.status === 409, "código " + response.status);
+        if (response.status === 201) {
+            client.assert(response.body.activo === false, "debe nacer inactivo");
+            client.assert(response.body.descripcion === "Apartamento de demostración, sin tarifas todavía", "descripción");
+            client.assert(JSON.stringify(response.body.dotacion) === JSON.stringify(["Nevera", "Wi-Fi"]), "dotación en su orden");
+            client.assert(JSON.stringify(response.body.caracteristicas) === JSON.stringify(["VISTA_PANORAMICA"]), "características");
+        } else {
+            client.assert(response.body.mensaje.indexOf("Ya existe un apartamento") === 0, "mensaje: " + response.body.mensaje);
+        }
+    });
+%}
 
 ###
 # 3.15b [409 · 7.4] Activarlo sin tarifas completas -> 409
@@ -482,7 +674,103 @@ POST {{host}}/api/apartamentos
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
-{"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Otro nombre", "dormitorios": 1, "capacidad": 2}
+{"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Otro nombre", "descripcion": "Otra descripción", "dormitorios": 1, "capacidad": 2}
+
+> {%
+    client.test("3.16 la identificación repetida se rechaza por la regla L-04", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "Ya existe un apartamento con la identificación DEMO-SIN-TARIFAS",
+            "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 3.16b [409 · L-06] Dotación con un elemento repetido (sin importar mayúsculas) -> 409 y no se crea
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "identificacion": "DEMO-DOTACION-REPETIDA",
+  "nombre": "Dotación repetida",
+  "descripcion": "No debería crearse",
+  "dormitorios": 1,
+  "capacidad": 2,
+  "dotacion": ["Nevera", "nevera"]
+}
+
+> {%
+    client.test("3.16b la dotación repetida viola la regla del dominio", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "La dotación no puede repetir elementos: nevera", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 3.16c [400 · L-06] Crear un apartamento sin descripción -> 400 con el campo en "errores"
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"identificacion": "DEMO-SIN-DESCRIPCION", "nombre": "Sin descripción", "dormitorios": 1, "capacidad": 2}
+
+> {%
+    client.test("3.16c falta la descripción: error de forma por campo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.errores.descripcion === "La descripción del apartamento es obligatoria",
+            "errores: " + JSON.stringify(response.body.errores));
+    });
+%}
+
+### 3.16d [400 · L-06] Una característica fuera del catálogo al crear -> 400
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"identificacion": "DEMO-PISCINA", "nombre": "Con piscina", "descripcion": "D", "dormitorios": 1, "capacidad": 2, "caracteristicas": ["PISCINA"]}
+
+> {%
+    client.test("3.16d PISCINA no está en el catálogo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+    });
+%}
+
+### 3.16e [L-06] Editar el apartamento de demostración: la dotación y las características se reemplazan -> 200
+PUT {{host}}/api/apartamentos/DEMO-SIN-TARIFAS
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Apartamento de prueba editado",
+  "descripcion": "Descripción editada",
+  "dormitorios": 2,
+  "capacidad": 3,
+  "dotacion": ["Lavadora"],
+  "caracteristicas": ["VISTA_PANORAMICA", "JACUZZI"]
+}
+
+> {%
+    client.test("3.16e la edición reemplaza descripción, dotación y características", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.descripcion === "Descripción editada", "descripción");
+        client.assert(JSON.stringify(response.body.dotacion) === JSON.stringify(["Lavadora"]), "dotación: " + response.body.dotacion);
+        client.assert(response.body.caracteristicas.length === 2
+            && response.body.caracteristicas.indexOf("JACUZZI") >= 0
+            && response.body.caracteristicas.indexOf("VISTA_PANORAMICA") >= 0, "características: " + response.body.caracteristicas);
+        client.assert(response.body.activo === false, "sigue inactivo: la edición no lo activa");
+    });
+%}
+
+### 3.16f [403 · L-06] Un huésped intenta crear un apartamento -> 403
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{"identificacion": "DEMO-403", "nombre": "No debería crearse", "descripcion": "D", "dormitorios": 1, "capacidad": 2}
+
+> {%
+    client.test("3.16f el rol HUESPED no crea apartamentos", function () {
+        client.assert(response.status === 403, "código " + response.status);
+    });
+%}
 
 ### 3.17 [409 · 7.4] Tarifa para una temporada que no existe -> 409
 PUT {{host}}/api/apartamentos/{{apt}}/tarifas/TEMPORADA-INEXISTENTE

@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,7 +58,7 @@ class CrearReservaUseCaseTest {
             LocalDate.of(1990, 1, 1), LocalDate.of(2026, 11, 2));
     private final List<Ocupante> ocupantes = List.of(titular);
     private final CodigoReserva codigo = new CodigoReserva("RES-2026-00001");
-    private final Apartamento apartamento = new Apartamento(apt, "Vista", 2, 4);
+    private final Apartamento apartamento = ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4);
     private final ValorCongelado valor = new ValorCongelado(List.of(
             new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
             new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1)));

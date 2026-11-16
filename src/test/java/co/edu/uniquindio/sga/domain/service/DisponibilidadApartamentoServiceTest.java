@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.entity.Bloqueo;
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
@@ -32,14 +34,14 @@ public class DisponibilidadApartamentoServiceTest {
 
     // -- Métodos auxiliares --
     private Apartamento apartamentoBase() {
-        Apartamento apt = new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        Apartamento apt = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
         apt.activar(); // los apartamentos nuevos nacen inactivos (7.4)
         return apt;
     }
 
     @Test
     void noDebeVenderUnApartamentoInactivo() {
-        Apartamento inactivo = new Apartamento(new IdentificacionApartamento("APT-102"), "Patio", 1, 2);
+        Apartamento inactivo = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-102"), "Patio", 1, 2);
         Estancia estancia = new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12));
 
         ReglaDominioException ex = assertThrows(ReglaDominioException.class, () ->

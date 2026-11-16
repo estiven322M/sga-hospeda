@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -53,7 +55,7 @@ class BloqueoYConsultasUseCaseTest {
     void registraElBloqueoCreadoPorElDominio() {
         Bloqueo bloqueo = new Bloqueo(apt, rango, "Mantenimiento");
         when(apartamentoRepository.buscarPorIdentificacion(apt))
-                .thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+                .thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(registroBloqueoService.crear(apt, rango, "Mantenimiento")).thenReturn(bloqueo);
         when(bloqueoRepository.guardar(bloqueo)).thenReturn(bloqueo);
 
@@ -77,7 +79,7 @@ class BloqueoYConsultasUseCaseTest {
     @Test
     void noGuardaElBloqueoSiElDominioLoRechaza() {
         when(apartamentoRepository.buscarPorIdentificacion(apt))
-                .thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+                .thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(registroBloqueoService.crear(apt, rango, "x"))
                 .thenThrow(new ReglaDominioException("No se puede bloquear: reserva activa"));
 
@@ -93,7 +95,7 @@ class BloqueoYConsultasUseCaseTest {
     void listaLosBloqueosPaginadosDeUnApartamentoExistente() {
         Pagina<Bloqueo> pagina = new Pagina<>(List.of(new Bloqueo(apt, rango, "Pintura")), 0, 1);
         when(apartamentoRepository.buscarPorIdentificacion(apt))
-                .thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+                .thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(bloqueoRepository.listarPorApartamento(apt, SolicitudPagina.primera())).thenReturn(pagina);
 
         assertSame(pagina, new ListarBloqueosUseCase(apartamentoRepository, bloqueoRepository)

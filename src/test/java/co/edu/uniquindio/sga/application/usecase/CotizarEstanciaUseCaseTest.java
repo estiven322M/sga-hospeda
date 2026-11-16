@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -39,7 +41,7 @@ class CotizarEstanciaUseCaseTest {
                 new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                 new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1)));
         when(apartamentoRepository.buscarPorIdentificacion(apt))
-                .thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+                .thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(cotizador.cotizar(apt, estancia, ocupantes)).thenReturn(esperado);
 
         ValorCongelado resultado = useCase.ejecutar(apt, estancia, ocupantes);
@@ -62,7 +64,7 @@ class CotizarEstanciaUseCaseTest {
     @Test
     void dejaPasarLaReglaDeDominioQueRechazaLaCotizacion() {
         when(apartamentoRepository.buscarPorIdentificacion(apt))
-                .thenReturn(Optional.of(new Apartamento(apt, "Vista", 2, 4)));
+                .thenReturn(Optional.of(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4)));
         when(cotizador.cotizar(apt, estancia, ocupantes))
                 .thenThrow(new ReglaDominioException("La reserva debe tener al menos un ocupante facturable"));
 

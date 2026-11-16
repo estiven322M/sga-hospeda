@@ -1,6 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.rest.mapper;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 import org.mapstruct.Mapper;
@@ -16,7 +17,9 @@ import co.edu.uniquindio.sga.domain.valueobject.TramoRetencion;
 import co.edu.uniquindio.sga.domain.valueobject.VersionPolitica;
 import co.edu.uniquindio.sga.domain.valueobject.Pago;
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
+import co.edu.uniquindio.sga.domain.repository.FiltroApartamentos;
 import co.edu.uniquindio.sga.domain.repository.FiltroReservas;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
@@ -95,6 +98,11 @@ public interface SolicitudMapper {
     /** Pesos COP enteros; null significa "sin filtro". */
     default Dinero aDinero(Long pesos) {
         return pesos == null ? null : Dinero.de(pesos);
+    }
+
+    /** Sin características (null o vacío) significa "sin filtro"; con varias, el apartamento debe tener todas (L-06). */
+    default FiltroApartamentos aFiltroApartamentos(Collection<Caracteristica> caracteristicas) {
+        return FiltroApartamentos.de(caracteristicas);
     }
 
     /** Texto vacío o ausente significa "sin filtro" en cada criterio. */

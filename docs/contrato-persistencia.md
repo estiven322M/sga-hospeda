@@ -17,6 +17,7 @@ Optional<Apartamento> buscarPorIdentificacion(IdentificacionApartamento identifi
 List<Apartamento> listarActivos();                                  // todos los activos, sin paginar (CU-02)
 Pagina<Apartamento> listarActivos(SolicitudPagina pagina);
 Pagina<Apartamento> listarTodos(SolicitudPagina pagina);            // activos o no, ordenados por identificación
+Pagina<Apartamento> listarTodos(FiltroApartamentos filtro, SolicitudPagina pagina); // L-06: solo los que tienen TODAS las características del filtro
 
 // ReservaRepository
 List<Reserva> buscarActivasPorApartamento(IdentificacionApartamento apartamento); // PENDIENTE, CONFIRMADA y EN_CURSO
@@ -80,7 +81,7 @@ El dominio no tiene setters ni constructor vacío. Para restaurar entidades:
 | Entidad | Cómo reconstruirla |
 |---|---|
 | `Reserva` | `Reserva.reconstruir(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, valor, politica, creadaEn, estado, horaEstimadaLlegada, historial, identificadorExterno)`. El identificador es obligatorio si el canal es EXTERNO y debe ser nulo en los demás (RN-19). Restaura el **estado, la fecha de creación y el historial** tal como se guardaron. No valida RN-04 (no exige fecha futura). Una reserva en CONFIRMADA, EN_CURSO, FINALIZADA o NO_SHOW **debe** traer `horaEstimadaLlegada` (RN-09). |
-| `Apartamento` | `Apartamento.reconstruir(identificacion, nombre, dormitorios, capacidad, estadoOperativo, activo)`. **No uses `new Apartamento(...)` para restaurar**: ese constructor deja el apartamento *inactivo* (7.4). |
+| `Apartamento` | `Apartamento.reconstruir(identificacion, nombre, descripcion, dormitorios, capacidad, dotacion, caracteristicas, estadoOperativo, activo)` (L-06). **No uses `new Apartamento(...)` para restaurar**: ese constructor deja el apartamento *inactivo* (7.4). La dotación se restaura **en el mismo orden** en que se guardó y las características como conjunto. |
 | `Folio` | Reproduce sus movimientos: `new Folio(reserva, cargoAlojamiento)` (el primer cargo), luego `registrarCargo`, `registrarAjuste` y `registrarPago` en el orden guardado y, si estaba cerrado, `cerrar(autorizacion)`. |
 | `Ocupante` | `new Ocupante(documento, nombre, fechaNacimiento, fechaActual)`; para restaurar pasa la fecha de hoy (`LocalDate.now(...)`) como `fechaActual`. |
 | `Bloqueo`, `Temporada`, `PoliticaCancelacion` | Sus constructores públicos. |
@@ -96,6 +97,8 @@ Para que la colección `docs/http/sga.http` funcione de punta a punta, los datos
 - La **temporada base** y al menos otras dos (sin solapes entre sí), registradas **antes** de las tarifas.
 - **Todos los apartamentos** con tarifa en **todas** las temporadas, y **activos**. Incluidos `APT-101` y `APT-102`
   (con capacidad entre 2 y 10 personas), o ajustar las variables `@apt` y `@aptBloqueo` al inicio de `sga.http`.
+- Cada apartamento con **descripción, dotación y al menos una característica diferenciadora** (L-06), de modo que los
+  filtros por característica de `sga.http` (1.8 a 1.14) devuelvan conjuntos distintos y verificables.
 - Una **política de cancelación** (mínimo dos tramos, uno de antelación 0) con `vigenteDesde` anterior a hoy.
 - **Reservas en todos los estados** (PENDIENTE, CONFIRMADA, EN_CURSO, FINALIZADA, CANCELADA, NO_SHOW) y **una por cada canal**
   (PORTAL, DIRECTO, EXTERNO). Cada reserva con su **folio**; las CANCELADA y NO_SHOW con el reverso aplicado

@@ -29,4 +29,7 @@ public interface ApartamentoRepository {
      */
     Pagina<Apartamento> listarTodos(SolicitudPagina pagina);
 
+    /** Igual que {@link #listarTodos(SolicitudPagina)} pero solo con los apartamentos que cumplen el filtro (L-06). */
+    Pagina<Apartamento> listarTodos(FiltroApartamentos filtro, SolicitudPagina pagina);
+
 }

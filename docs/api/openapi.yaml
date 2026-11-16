@@ -164,7 +164,9 @@ paths:
         **Roles:** ADMINISTRADOR.
 
         Crea el apartamento **inactivo**: solo se puede activar cuando tenga tarifa en todas las temporadas (7.4).
-        La identificación debe ser única y estable (L-04).
+        La identificación debe ser única y estable (L-04). La descripción es obligatoria; la dotación (lista de textos
+        sin repetidos) y las características (catálogo cerrado, ver `GET /api/caracteristicas`) son opcionales (L-06).
+        Una dotación con elementos repetidos responde 409: es una regla del dominio, no de forma.
         Mapea a: `CrearApartamentoUseCase`
       operationId: crearApartamento
       requestBody:
@@ -176,8 +178,11 @@ paths:
             example:
               identificacion: APT-101
               nombre: Vista al Valle
+              descripcion: Apartamento luminoso con vista al valle y balcón.
               dormitorios: 2
               capacidad: 4
+              dotacion: [Cocina equipada, Nevera, Smart TV, Wi-Fi]
+              caracteristicas: [VISTA_AL_PARQUE, BALCON]
       responses:
         '201':
           description: Apartamento creado (inactivo)
@@ -205,9 +210,12 @@ paths:
       description: |
         **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO.
 
+        Filtro opcional `caracteristicas` (repetible): el apartamento debe tener **todas** las pedidas (L-06, 7.5).
+        Un valor fuera del catálogo responde 400.
         Mapea a: `ListarApartamentosUseCase`
       operationId: listarApartamentos
       parameters:
+        - $ref: '#/components/parameters/Caracteristicas'
         - $ref: '#/components/parameters/Pagina'
       responses:
         '200':
@@ -218,6 +226,32 @@ paths:
                 $ref: '#/components/schemas/PaginaApartamentoResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/caracteristicas:
+    get:
+      tags: [Apartamentos]
+      summary: Listar el catálogo de características de apartamento
+      description: |
+        **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO.
+
+        Devuelve el catálogo cerrado de características (L-06) que se pueden asignar a un apartamento o usar como
+        filtro. Es un vocabulario fijo de pocos valores, por eso devuelve la lista completa sin paginar.
+        Mapea a: `ListarCaracteristicasUseCase`
+      operationId: listarCaracteristicas
+      responses:
+        '200':
+          description: Catálogo de características
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Caracteristica'
+              example: [TERRAZA, BALCON, VISTA_AL_PARQUE, VISTA_PANORAMICA, JACUZZI, PARQUEADERO, ACCESIBLE]
         '401':
           $ref: '#/components/responses/NoAutenticado'
         '403':
@@ -849,7 +883,8 @@ paths:
         **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR.
 
         Devuelve los apartamentos que pueden alojar al grupo en la estancia (RN-01, RN-02, RN-07, RN-20), con su
-        cotización, ordenados por precio. Filtros opcionales: capacidad mínima y rango de precio del total.
+        cotización, ordenados por precio. Filtros opcionales: capacidad mínima, rango de precio del total y
+        características (L-06: el apartamento debe tener **todas** las pedidas).
         Es una consulta, por eso responde 200. Se usa POST porque la composición del grupo viaja en el cuerpo.
         Mapea a: `ConsultarDisponibilidadUseCase`
       operationId: consultarDisponibilidad
@@ -866,6 +901,7 @@ paths:
               fechaSalida: '2026-12-12'
               capacidadMinima: 2
               precioMaximo: 500000
+              caracteristicas: [TERRAZA]
               ocupantes:
                 - documento: CC-100
                   nombre: Juan Pérez
@@ -1445,6 +1481,19 @@ components:
         type: integer
         minimum: 0
         default: 0
+    Caracteristicas:
+      name: caracteristicas
+      in: query
+      required: false
+      description: |
+        Filtro por características (L-06). Se repite el parámetro para pedir varias
+        (`?caracteristicas=TERRAZA&caracteristicas=JACUZZI`); el apartamento debe tenerlas todas.
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          $ref: '#/components/schemas/Caracteristica'
     CodigoReserva:
       name: codigo
       in: path
@@ -1552,6 +1601,10 @@ components:
     EstadoOperativo:
       type: string
       enum: [PREPARADO, OCUPADO, PENDIENTE_PREPARACION, EN_PREPARACION, FUERA_DE_SERVICIO]
+    Caracteristica:
+      type: string
+      description: Característica diferenciadora de un apartamento (L-06). Catálogo cerrado.
+      enum: [TERRAZA, BALCON, VISTA_AL_PARQUE, VISTA_PANORAMICA, JACUZZI, PARQUEADERO, ACCESIBLE]
 
     # ---------- Error ----------
     # ---------- Autenticación (Guía 12) ----------
@@ -1754,31 +1807,68 @@ components:
           description: No puede ser futura
     CrearApartamentoRequest:
       type: object
-      required: [identificacion, nombre, dormitorios, capacidad]
+      required: [identificacion, nombre, descripcion, dormitorios, capacidad]
       properties:
         identificacion:
           type: string
           example: APT-101
         nombre:
           type: string
+        descripcion:
+          type: string
+          maxLength: 500
+          description: Obligatoria (7.3).
         dormitorios:
           type: integer
           minimum: 1
         capacidad:
           type: integer
           minimum: 1
+        dotacion:
+          type: array
+          maxItems: 30
+          description: Elementos de la dotación, en el orden dado. Sin repetidos (409 si se repite uno). Opcional.
+          items:
+            type: string
+            maxLength: 60
+          example: [Cocina equipada, Nevera, Smart TV]
+        caracteristicas:
+          type: array
+          uniqueItems: true
+          description: Características del catálogo cerrado. Opcional.
+          items:
+            $ref: '#/components/schemas/Caracteristica'
     ActualizarApartamentoRequest:
       type: object
-      required: [nombre, dormitorios, capacidad]
+      description: Reemplaza todos los datos editables del apartamento; la dotación y las características se sustituyen completas.
+      required: [nombre, descripcion, dormitorios, capacidad]
       properties:
         nombre:
           type: string
+        descripcion:
+          type: string
+          maxLength: 500
+          description: Obligatoria (7.3).
         dormitorios:
           type: integer
           minimum: 1
         capacidad:
           type: integer
           minimum: 1
+        dotacion:
+          type: array
+          maxItems: 30
+          description: Elementos de la dotación, en el orden dado. Sin repetidos (409 si se repite uno). Opcional.
+          items:
+            type: string
+            maxLength: 60
+          example: [Cocina equipada, Nevera, Smart TV]
+        caracteristicas:
+          type: array
+          uniqueItems: true
+          description: Características del catálogo cerrado. Opcional.
+          items:
+            $ref: '#/components/schemas/Caracteristica'
     RegistrarBloqueoRequest:
       type: object
       required: [fechaInicio, fechaFin, motivo]
@@ -1895,6 +1985,12 @@ components:
           format: int64
           minimum: 0
           description: Pesos COP; filtra por el total de la estancia
+        caracteristicas:
+          type: array
+          uniqueItems: true
+          description: Opcional (L-06). El apartamento debe tener todas las indicadas.
+          items:
+            $ref: '#/components/schemas/Caracteristica'
     CrearReservaRequest:
       type: object
       required: [identificacionApartamento, fechaEntrada, fechaSalida, canalOrigen, titular, ocupantes]
@@ -1998,16 +2094,26 @@ components:
     # ---------- Response ----------
     ApartamentoResponse:
       type: object
-      required: [identificacion, nombre, dormitorios, capacidad, estadoOperativo, activo]
+      required: [identificacion, nombre, descripcion, dormitorios, capacidad, dotacion, caracteristicas, estadoOperativo, activo]
       properties:
         identificacion:
           type: string
         nombre:
           type: string
+        descripcion:
+          type: string
         dormitorios:
           type: integer
         capacidad:
           type: integer
+        dotacion:
+          type: array
+          items:
+            type: string
+        caracteristicas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Caracteristica'
         estadoOperativo:
           $ref: '#/components/schemas/EstadoOperativo'
         activo:
@@ -2156,10 +2262,16 @@ components:
           type: string
         nombre:
           type: string
+        descripcion:
+          type: string
         dormitorios:
           type: integer
         capacidad:
           type: integer
+        caracteristicas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Caracteristica'
         total:
           type: integer
           format: int64

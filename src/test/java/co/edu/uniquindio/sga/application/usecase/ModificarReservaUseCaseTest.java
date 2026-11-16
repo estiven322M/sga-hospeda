@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,7 +48,7 @@ class ModificarReservaUseCaseTest {
     private final LocalDateTime ahora = LocalDateTime.of(2026, 11, 2, 10, 0);
     private final CodigoReserva codigo = new CodigoReserva("RES-2026-00001");
     private final IdentificacionApartamento apt = new IdentificacionApartamento("APT-101");
-    private final Apartamento apartamento = new Apartamento(apt, "Vista", 2, 4);
+    private final Apartamento apartamento = ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4);
     private final Ocupante titular = new Ocupante(new DocumentoIdentidad("CC-100"), "Juan",
             LocalDate.of(1990, 1, 1), LocalDate.of(2026, 1, 1));
     private final Estancia tresNoches = new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 13));
@@ -171,7 +173,7 @@ class ModificarReservaUseCaseTest {
     // --- RN-14: cambio de apartamento ---
 
     private final IdentificacionApartamento aptNuevo = new IdentificacionApartamento("APT-202");
-    private final Apartamento destino = new Apartamento(aptNuevo, "Terraza", 2, 4);
+    private final Apartamento destino = ApartamentoDePrueba.nuevo(aptNuevo, "Terraza", 2, 4);
 
     @Test
     void alCambiarDeApartamentoRevalidaYCotizaContraElNuevoYGuardaLaReserva() {

@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
@@ -12,6 +14,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,7 +33,7 @@ class ApartamentoJpaRepositoryTest {
     }
 
     private static Apartamento activo(String identificacion) {
-        Apartamento apartamento = new Apartamento(id(identificacion), "Apartamento " + identificacion, 2, 4);
+        Apartamento apartamento = ApartamentoDePrueba.nuevo(id(identificacion), "Apartamento " + identificacion, 2, 4);
         apartamento.activar();
         return apartamento;
     }
@@ -53,7 +56,7 @@ class ApartamentoJpaRepositoryTest {
     @Test
     void guardar_un_apartamento_existente_lo_actualiza_sin_duplicarlo() {
         Apartamento apartamento = repositorio.guardar(activo("APT-101"));
-        apartamento.actualizarDatos("Renombrado", 3, 8);
+        apartamento.actualizarDatos("Renombrado", "Descripción renovada", 3, 8, List.of(), Set.of());
         apartamento.declararFueraDeServicio();
 
         Apartamento guardado = repositorio.guardar(apartamento);
@@ -78,7 +81,7 @@ class ApartamentoJpaRepositoryTest {
     void listar_activos_excluye_los_inactivos_y_ordena_por_identificacion() {
         repositorio.guardar(activo("APT-300"));
         repositorio.guardar(activo("APT-100"));
-        repositorio.guardar(new Apartamento(id("APT-200"), "Inactivo", 1, 2));
+        repositorio.guardar(ApartamentoDePrueba.nuevo(id("APT-200"), "Inactivo", 1, 2));
 
         List<String> identificaciones = repositorio.listarActivos().stream()
                 .map(a -> a.getIdentificacion().valor()).toList();
@@ -89,7 +92,7 @@ class ApartamentoJpaRepositoryTest {
     @Test
     void listar_todos_incluye_inactivos_y_pagina_de_diez_con_total_sin_paginar() {
         IntStream.rangeClosed(1, 12).forEach(i -> repositorio.guardar(
-                new Apartamento(id(String.format("APT-%03d", i)), "Apartamento " + i, 1, 2)));
+                ApartamentoDePrueba.nuevo(id(String.format("APT-%03d", i)), "Apartamento " + i, 1, 2)));
 
         Pagina<Apartamento> primera = repositorio.listarTodos(new SolicitudPagina(0));
         Pagina<Apartamento> segunda = repositorio.listarTodos(new SolicitudPagina(1));
@@ -105,7 +108,7 @@ class ApartamentoJpaRepositoryTest {
     @Test
     void listar_activos_paginado_solo_cuenta_los_activos() {
         repositorio.guardar(activo("APT-101"));
-        repositorio.guardar(new Apartamento(id("APT-102"), "Inactivo", 1, 2));
+        repositorio.guardar(ApartamentoDePrueba.nuevo(id("APT-102"), "Inactivo", 1, 2));
 
         Pagina<Apartamento> pagina = repositorio.listarActivos(SolicitudPagina.primera());
 
