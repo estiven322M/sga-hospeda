@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -262,5 +263,23 @@ class ApartamentoControllerTest {
     @Test
     void noExisteEliminacionFisica() throws Exception {
         mvc.perform(delete("/api/apartamentos/APT-101")).andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void listarConEstadoOperativoLoPasaAlFiltro() throws Exception {
+        FiltroApartamentos esperado = FiltroApartamentos.de(Set.of(Caracteristica.BALCON), EstadoOperativo.PREPARADO);
+        when(listar.ejecutar(esperado, new SolicitudPagina(0)))
+                .thenReturn(new Pagina<>(List.of(apartamentoConEquipamiento()), 0, 1));
+
+        mvc.perform(get("/api/apartamentos?caracteristicas=BALCON&estadoOperativo=PREPARADO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[0].estadoOperativo").value("PREPARADO"));
+        verify(listar).ejecutar(esperado, new SolicitudPagina(0));
+    }
+
+    @Test
+    void listarConUnEstadoOperativoFueraDelCatalogoResponde400SinConsultar() throws Exception {
+        mvc.perform(get("/api/apartamentos?estadoOperativo=DESCOMPUESTO")).andExpect(status().isBadRequest());
+        verify(listar, never()).ejecutar(any(), any());
     }
 }

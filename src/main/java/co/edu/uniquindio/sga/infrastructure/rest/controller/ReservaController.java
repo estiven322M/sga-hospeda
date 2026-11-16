@@ -5,7 +5,9 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +33,7 @@ import co.edu.uniquindio.sga.application.usecase.ConfirmarReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.ConsultarReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.CrearReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.DeclararNoShowUseCase;
+import co.edu.uniquindio.sga.application.usecase.ListarMisReservasUseCase;
 import co.edu.uniquindio.sga.application.usecase.ListarReservasUseCase;
 import co.edu.uniquindio.sga.application.usecase.RegistrarLlegadaUseCase;
 import co.edu.uniquindio.sga.application.usecase.RegistrarSalidaUseCase;
@@ -40,6 +43,7 @@ import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoReserva;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.Paginas;
+import co.edu.uniquindio.sga.infrastructure.security.PropietarioReservaVerificador;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.ReservaMapper;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.SolicitudMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -64,6 +68,7 @@ public class ReservaController {
     private final CrearReservaUseCase crearReserva;
     private final ConsultarReservaUseCase consultarReserva;
     private final ListarReservasUseCase listarReservas;
+    private final ListarMisReservasUseCase listarMisReservas;
     private final ModificarReservaUseCase modificarReserva;
     private final CancelarReservaUseCase cancelarReserva;
     private final ConfirmarReservaUseCase confirmarReserva;
@@ -75,7 +80,8 @@ public class ReservaController {
     private final Clock reloj;
 
     public ReservaController(CrearReservaUseCase crearReserva, ConsultarReservaUseCase consultarReserva,
-                             ListarReservasUseCase listarReservas, ModificarReservaUseCase modificarReserva,
+                             ListarReservasUseCase listarReservas, ListarMisReservasUseCase listarMisReservas,
+                             ModificarReservaUseCase modificarReserva,
                              CancelarReservaUseCase cancelarReserva, ConfirmarReservaUseCase confirmarReserva,
                              RegistrarLlegadaUseCase registrarLlegada, RegistrarSalidaUseCase registrarSalida,
                              DeclararNoShowUseCase declararNoShow,
@@ -83,6 +89,7 @@ public class ReservaController {
         this.crearReserva = crearReserva;
         this.consultarReserva = consultarReserva;
         this.listarReservas = listarReservas;
+        this.listarMisReservas = listarMisReservas;
         this.modificarReserva = modificarReserva;
         this.cancelarReserva = cancelarReserva;
         this.confirmarReserva = confirmarReserva;
@@ -116,21 +123,48 @@ public class ReservaController {
         return ResponseEntity.created(ubicacion).body(mapper.aDetalle(reserva));
     }
 
-    /** Listado filtrable de 10 en 10, de la reserva más reciente a la más antigua. */
+    /**
+     * Listado filtrable de 10 en 10, de la reserva más reciente a la más antigua. Las llegadas previstas de un día se
+     * piden con entradaDesde = entradaHasta y las salidas previstas con salidaDesde = salidaHasta (7.6).
+     * {@code titular} es el documento exacto; {@code nombreTitular}, un texto que el nombre del titular contiene.
+     */
     @GetMapping
     @PreAuthorize("hasAnyAuthority('RECEPCIONISTA', 'ADMINISTRADOR')")
     @Operation(summary = "Listar reservas con filtros")
     public ResponseEntity<PaginaResponse<ReservaResumenResponse>> listar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate entradaDesde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate entradaHasta,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate salidaDesde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate salidaHasta,
             @RequestParam(required = false) EstadoReserva estado,
             @RequestParam(required = false) String apartamento,
             @RequestParam(required = false) CanalOrigen canal,
             @RequestParam(required = false) String titular,
+            @RequestParam(required = false) String nombreTitular,
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "La página no puede ser negativa") int pagina) {
         var resultado = listarReservas.ejecutar(
-                solicitud.aFiltro(entradaDesde, entradaHasta, estado, apartamento, canal, titular),
+                solicitud.aFiltro(entradaDesde, entradaHasta, salidaDesde, salidaHasta, estado, apartamento, canal,
+                        titular, nombreTitular),
                 new SolicitudPagina(pagina));
+        return ResponseEntity.ok(Paginas.aResponse(resultado, mapper::aResumen));
+    }
+
+    /**
+     * "Mis reservas" del huésped: las reservas cuyo titular es el documento del token. El documento NO es un parámetro:
+     * sale del claim del JWT, así que un huésped no puede pedir las de otro. Debe declararse antes que /{codigo}.
+     */
+    @GetMapping("/mias")
+    @PreAuthorize("hasAuthority('HUESPED')")
+    @Operation(summary = "Listar mis reservas (huésped)")
+    public ResponseEntity<PaginaResponse<ReservaResumenResponse>> listarMias(
+            @RequestParam(required = false) EstadoReserva estado,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "La página no puede ser negativa") int pagina,
+            Authentication authentication) {
+        String documento = PropietarioReservaVerificador.DocumentoAutenticado.de(authentication);
+        if (documento == null) {
+            throw new AccessDeniedException("El token no identifica al titular de las reservas");
+        }
+        var resultado = listarMisReservas.ejecutar(solicitud.aDocumento(documento), estado, new SolicitudPagina(pagina));
         return ResponseEntity.ok(Paginas.aResponse(resultado, mapper::aResumen));
     }
 

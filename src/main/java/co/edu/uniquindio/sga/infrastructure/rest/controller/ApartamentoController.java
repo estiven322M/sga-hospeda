@@ -28,6 +28,7 @@ import co.edu.uniquindio.sga.application.usecase.ListarApartamentosUseCase;
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
+import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.ApartamentoMapper;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.Paginas;
 import co.edu.uniquindio.sga.infrastructure.rest.mapper.SolicitudMapper;
@@ -86,12 +87,13 @@ public class ApartamentoController {
 
     @GetMapping
     @PreAuthorize("hasAnyAuthority('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR', 'PERSONAL_SERVICIO')")
-    @Operation(summary = "Listar apartamentos (activos o no), de 10 en 10, con filtro opcional por características (deben tenerlas todas)")
+    @Operation(summary = "Listar apartamentos (activos o no), de 10 en 10, con filtros opcionales por características (deben tenerlas todas) y por estado operativo")
     public ResponseEntity<PaginaResponse<ApartamentoResponse>> listar(
             @RequestParam(required = false) List<Caracteristica> caracteristicas,
+            @RequestParam(required = false) EstadoOperativo estadoOperativo,
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "La página no puede ser negativa") int pagina) {
         return ResponseEntity.ok(Paginas.aResponse(
-                listarApartamentos.ejecutar(solicitud.aFiltroApartamentos(caracteristicas), new SolicitudPagina(pagina)),
+                listarApartamentos.ejecutar(solicitud.aFiltroApartamentos(caracteristicas, estadoOperativo), new SolicitudPagina(pagina)),
                 mapper::aResponse));
     }
 

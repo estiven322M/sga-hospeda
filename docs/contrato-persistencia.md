@@ -17,7 +17,7 @@ Optional<Apartamento> buscarPorIdentificacion(IdentificacionApartamento identifi
 List<Apartamento> listarActivos();                                  // todos los activos, sin paginar (CU-02)
 Pagina<Apartamento> listarActivos(SolicitudPagina pagina);
 Pagina<Apartamento> listarTodos(SolicitudPagina pagina);            // activos o no, ordenados por identificación
-Pagina<Apartamento> listarTodos(FiltroApartamentos filtro, SolicitudPagina pagina); // L-06: solo los que tienen TODAS las características del filtro
+Pagina<Apartamento> listarTodos(FiltroApartamentos filtro, SolicitudPagina pagina); // solo los que tienen TODAS las características del filtro (L-06) y, si se pide, el estadoOperativo
 
 // ReservaRepository
 List<Reserva> buscarActivasPorApartamento(IdentificacionApartamento apartamento); // PENDIENTE, CONFIRMADA y EN_CURSO
@@ -61,7 +61,7 @@ CodigoReserva generar(LocalDate fecha);                             // formato R
 
 | Puerto / método | Lo que debe cumplir |
 |---|---|
-| `ReservaRepository.buscar` | Filtros **opcionales** (campo nulo = no filtrar): `entradaDesde`/`entradaHasta` sobre la **fecha de entrada** (ambos extremos inclusive), `estado`, `apartamento`, `canal` y `titular` (documento). Orden **de la reserva más reciente a la más antigua** (`creadaEn` descendente). `Pagina.numero` parte de 0; el tamaño es `SolicitudPagina.TAMANIO` (10); `totalElementos` es el total sin paginar. |
+| `ReservaRepository.buscar` | Filtros **opcionales** (campo nulo = no filtrar): `entradaDesde`/`entradaHasta` sobre la **fecha de entrada** y `salidaDesde`/`salidaHasta` sobre la **fecha de salida** (ambos extremos inclusive; con desde = hasta, las llegadas o salidas previstas de un día, 7.6), `estado`, `apartamento`, `canal`, `titular` (documento EXACTO) y `nombreTitular` (texto que el nombre del titular CONTIENE, sin distinguir mayúsculas; los `%` y `_` del texto se toman literalmente; une con el ocupante cuyo documento es el del titular, sin duplicar filas). Orden **de la reserva más reciente a la más antigua** (`creadaEn` descendente). `Pagina.numero` parte de 0; el tamaño es `SolicitudPagina.TAMANIO` (10); `totalElementos` es el total sin paginar. |
 | `ReservaRepository.buscarPorCanalEIdentificadorExterno` | Devuelve la reserva ya creada para ese canal e identificador (RN-19). La base de datos lo respalda con una restricción única `(canal_origen, identificador_externo)`; los NULL de los canales sin identificador no chocan. |
 | `RechazoReservaExternaRepository` | Solo **inserta** y **lista** (10 por página, del más reciente al más antiguo): el rechazo (RN-18) es una constancia inmutable. Debe guardarse **aunque la petición termine en 409**: el caso de uso no revierte la transacción por `ReglaDominioException`. |
 | `ReservaRepository.buscarPendientesCreadasAntesDe` | Solo estado **PENDIENTE** y `creadaEn` **estrictamente anterior** al límite (una creada justo en el límite no entra). Lo consulta el proceso programado del vencimiento automático (RN-21) cada 5 minutos. No necesita orden ni paginación. |

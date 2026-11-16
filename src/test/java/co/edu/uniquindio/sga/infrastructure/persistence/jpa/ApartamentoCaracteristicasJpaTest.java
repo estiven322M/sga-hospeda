@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
+import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.repository.FiltroApartamentos;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
@@ -161,5 +162,51 @@ class ApartamentoCaracteristicasJpaTest {
         assertEquals(10, primera.contenido().size());
         assertEquals(2, segunda.contenido().size());
         assertEquals(12, primera.totalElementos());
+    }
+
+    // ---------- estado operativo (preparación del personal de servicio) ----------
+
+    @Test
+    void el_filtro_por_estado_operativo_devuelve_solo_los_apartamentos_en_esa_condicion() {
+        Apartamento ocupado = con("APT-101", Caracteristica.TERRAZA);
+        ocupado.marcarOcupado();
+        Apartamento fuera = con("APT-102", Caracteristica.TERRAZA);
+        fuera.declararFueraDeServicio();
+        repositorio.guardar(ocupado);
+        repositorio.guardar(fuera);
+        repositorio.guardar(con("APT-103", Caracteristica.BALCON));
+        vaciarSesion();
+
+        assertEquals(List.of("APT-101"), ids(repositorio.listarTodos(
+                FiltroApartamentos.de(Set.of(), EstadoOperativo.OCUPADO), SolicitudPagina.primera())));
+        assertEquals(List.of("APT-102"), ids(repositorio.listarTodos(
+                FiltroApartamentos.de(Set.of(), EstadoOperativo.FUERA_DE_SERVICIO), SolicitudPagina.primera())));
+        assertEquals(List.of("APT-103"), ids(repositorio.listarTodos(
+                FiltroApartamentos.de(Set.of(), EstadoOperativo.PREPARADO), SolicitudPagina.primera())));
+        assertTrue(ids(repositorio.listarTodos(
+                FiltroApartamentos.de(Set.of(), EstadoOperativo.EN_PREPARACION), SolicitudPagina.primera())).isEmpty());
+    }
+
+    @Test
+    void el_estado_operativo_se_combina_con_las_caracteristicas() {
+        Apartamento fuera = con("APT-102", Caracteristica.TERRAZA);
+        fuera.declararFueraDeServicio();
+        repositorio.guardar(con("APT-101", Caracteristica.TERRAZA));
+        repositorio.guardar(fuera);
+        vaciarSesion();
+
+        assertEquals(List.of("APT-101"), ids(repositorio.listarTodos(
+                FiltroApartamentos.de(Set.of(Caracteristica.TERRAZA), EstadoOperativo.PREPARADO),
+                SolicitudPagina.primera())));
+        assertEquals(2, repositorio.listarTodos(FiltroApartamentos.de(Set.of(Caracteristica.TERRAZA)),
+                SolicitudPagina.primera()).totalElementos());
+    }
+
+    @Test
+    void un_filtro_sin_estado_es_igual_al_filtro_anterior_solo_por_caracteristicas() {
+        org.junit.jupiter.api.Assertions.assertEquals(FiltroApartamentos.SIN_FILTRO,
+                FiltroApartamentos.de(Set.of(), null));
+        org.junit.jupiter.api.Assertions.assertEquals(new FiltroApartamentos(Set.of(Caracteristica.BALCON)),
+                FiltroApartamentos.de(Set.of(Caracteristica.BALCON)));
     }
 }

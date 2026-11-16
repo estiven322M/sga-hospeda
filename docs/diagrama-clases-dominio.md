@@ -33,8 +33,8 @@ El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencia
     `Reserva.crear` y `Reserva.modificarEstancia`, que ahora reciben la edad como parámetro (como ya reciben `ahora`).
   - `ConfiguracionAlojamiento` gana `estanciaMinimaPorTemporada()`, `nochesDescuentoEstanciaLarga()`,
     `porcentajeDescuentoEstanciaLarga()` y `edadAdultoResponsableAnios()`.
-- Puertos nuevos o ampliados en `domain/repository`: paginación (`Pagina`, `SolicitudPagina`), `FiltroReservas`,
-  `FiltroApartamentos` (L-06), `GeneradorCodigoReserva`, `TemporadaRepository`, `PoliticaCancelacionRepository`.
+- Puertos nuevos o ampliados en `domain/repository`: paginación (`Pagina`, `SolicitudPagina`), `FiltroReservas` (con salidas previstas y nombre del titular),
+  `FiltroApartamentos` (L-06, y estado operativo), `GeneradorCodigoReserva`, `TemporadaRepository`, `PoliticaCancelacionRepository`.
 
 ## Entidades y objetos de valor
 

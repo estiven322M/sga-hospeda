@@ -24,6 +24,7 @@ import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
+import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
@@ -82,6 +83,10 @@ public interface SolicitudMapper {
         return new Pago(request.medio(), request.fecha(), Dinero.de(request.valor()));
     }
 
+    default DocumentoIdentidad aDocumento(String documento) {
+        return new DocumentoIdentidad(documento);
+    }
+
     default IdentificacionApartamento aApartamento(String identificacion) {
         return new IdentificacionApartamento(identificacion);
     }
@@ -105,12 +110,29 @@ public interface SolicitudMapper {
         return FiltroApartamentos.de(caracteristicas);
     }
 
+    /** Características (todas deben cumplirse) y estado operativo opcional del apartamento (L-06, 7.5). */
+    default FiltroApartamentos aFiltroApartamentos(Collection<Caracteristica> caracteristicas,
+                                                   EstadoOperativo estadoOperativo) {
+        return FiltroApartamentos.de(caracteristicas, estadoOperativo);
+    }
+
     /** Texto vacío o ausente significa "sin filtro" en cada criterio. */
     default FiltroReservas aFiltro(LocalDate entradaDesde, LocalDate entradaHasta, EstadoReserva estado,
                                    String apartamento, CanalOrigen canal, String titular) {
-        return new FiltroReservas(entradaDesde, entradaHasta, estado,
+        return aFiltro(entradaDesde, entradaHasta, null, null, estado, apartamento, canal, titular, null);
+    }
+
+    /**
+     * Filtro completo de reservas (7.5, 7.6). {@code titular} sigue siendo el documento exacto; {@code nombreTitular} es
+     * un texto que el nombre del titular contiene. Texto vacío o ausente significa "sin filtro".
+     */
+    default FiltroReservas aFiltro(LocalDate entradaDesde, LocalDate entradaHasta, LocalDate salidaDesde,
+                                   LocalDate salidaHasta, EstadoReserva estado, String apartamento, CanalOrigen canal,
+                                   String titular, String nombreTitular) {
+        return new FiltroReservas(entradaDesde, entradaHasta, salidaDesde, salidaHasta, estado,
                 apartamento == null || apartamento.isBlank() ? null : new IdentificacionApartamento(apartamento),
                 canal,
-                titular == null || titular.isBlank() ? null : new DocumentoIdentidad(titular));
+                titular == null || titular.isBlank() ? null : new DocumentoIdentidad(titular),
+                nombreTitular);
     }
 }

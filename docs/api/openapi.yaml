@@ -28,6 +28,12 @@ info:
     - Roles: `HUESPED`, `RECEPCIONISTA`, `ADMINISTRADOR` y `PERSONAL_SERVICIO`. Cada operación indica los suyos.
     - Un huésped solo accede a las reservas y folios de los que es titular: se compara el `documento` del token
       con el del titular de la reserva.
+
+    **CORS (frontend)**
+    - La API acepta peticiones del navegador desde los orígenes de la propiedad `sga.cors.origenes-permitidos`
+      (por defecto `http://localhost:5173`, el servidor de Vite). Métodos GET, POST, PUT y OPTIONS (el preflight), encabezados
+      `Authorization` y `Content-Type`; la cabecera `Location` queda expuesta para que el cliente la lea tras un 201.
+      Un origen no autorizado recibe 403 en el preflight. No hay DELETE: la eliminación es lógica.
   version: 1.1.0
 
 servers:
@@ -211,11 +217,18 @@ paths:
         **Roles:** HUESPED, RECEPCIONISTA, ADMINISTRADOR, PERSONAL_SERVICIO.
 
         Filtro opcional `caracteristicas` (repetible): el apartamento debe tener **todas** las pedidas (L-06, 7.5).
-        Un valor fuera del catálogo responde 400.
+        Un valor fuera del catálogo responde 400. Filtro opcional `estadoOperativo`: solo los apartamentos en esa condición
+        física (el personal de servicio lo usa para ver qué preparar). Se combina con las características.
         Mapea a: `ListarApartamentosUseCase`
       operationId: listarApartamentos
       parameters:
         - $ref: '#/components/parameters/Caracteristicas'
+        - name: estadoOperativo
+          in: query
+          required: false
+          description: Solo los apartamentos en este estado operativo
+          schema:
+            $ref: '#/components/schemas/EstadoOperativo'
         - $ref: '#/components/parameters/Pagina'
       responses:
         '200':
@@ -1028,7 +1041,21 @@ paths:
         - name: entradaHasta
           in: query
           required: false
-          description: Fecha de entrada máxima (inclusive)
+          description: Fecha de entrada máxima (inclusive). Con `entradaDesde` igual, las llegadas previstas de un día (7.6)
+          schema:
+            type: string
+            format: date
+        - name: salidaDesde
+          in: query
+          required: false
+          description: Fecha de salida mínima (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: salidaHasta
+          in: query
+          required: false
+          description: Fecha de salida máxima (inclusive). Con `salidaDesde` igual, las salidas previstas de un día (7.6)
           schema:
             type: string
             format: date
@@ -1052,10 +1079,17 @@ paths:
         - name: titular
           in: query
           required: false
-          description: Documento de identidad del titular
+          description: Documento de identidad EXACTO del titular
           schema:
             type: string
             example: CC-100
+        - name: nombreTitular
+          in: query
+          required: false
+          description: Texto que el nombre del titular CONTIENE, sin distinguir mayúsculas (búsqueda del frontend). No cambia el significado de `titular`
+          schema:
+            type: string
+            example: maría
         - $ref: '#/components/parameters/Pagina'
       responses:
         '200':
@@ -1091,6 +1125,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginaRechazoReservaExternaResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/reservas/mias:
+    get:
+      tags: [Reservas]
+      summary: Listar mis reservas (huésped)
+      description: |
+        **Roles:** HUESPED.
+
+        Las reservas cuyo titular es el huésped autenticado, de 10 en 10 y de la más reciente a la más antigua. El titular
+        NO es un parámetro: sale del claim `documento` del token, así que un huésped no puede pedir las reservas de otro.
+        Filtro opcional por `estado`. Un huésped sin reservas recibe una página vacía (200).
+        Mapea a: `ListarMisReservasUseCase`
+      operationId: listarMisReservas
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/EstadoReserva'
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página de reservas del huésped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaReservaResumenResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
         '401':
