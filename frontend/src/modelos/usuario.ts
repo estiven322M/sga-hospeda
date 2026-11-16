@@ -11,6 +11,8 @@ export interface UsuarioResponse {
   fechaNacimiento: FechaISO;
   rol: RolUsuario;
   activo: boolean;
+  /** URL de la foto de perfil (7.2); nula si no ha subido una: la pantalla muestra sus iniciales. */
+  fotoUrl: string | null;
 }
 
 /** Roles de un usuario INTERNO: los únicos que un administrador asigna al crear (los huéspedes se registran solos). */

@@ -18,7 +18,10 @@ import co.edu.uniquindio.sga.application.exception.UsuarioYaRegistradoException;
 import co.edu.uniquindio.sga.application.security.GestionUsuariosService;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
+import co.edu.uniquindio.sga.domain.repository.AlmacenImagenes;
 import co.edu.uniquindio.sga.domain.service.BajaUsuarioService;
+import co.edu.uniquindio.sga.domain.service.ValidadorImagenes;
+import co.edu.uniquindio.sga.domain.valueobject.ContenidoImagen;
 import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
 import co.edu.uniquindio.sga.infrastructure.persistence.jpa.PaginacionJpa;
 import co.edu.uniquindio.sga.infrastructure.persistence.jpa.UsuarioJpaDataRepository;
@@ -38,12 +41,17 @@ public class GestionUsuariosServiceImpl implements GestionUsuariosService {
     private final UsuarioJpaDataRepository usuarios;
     private final PasswordEncoder encoder;
     private final BajaUsuarioService bajaUsuario;
+    private final ValidadorImagenes validadorImagenes;
+    private final AlmacenImagenes almacen;
 
     public GestionUsuariosServiceImpl(UsuarioJpaDataRepository usuarios, PasswordEncoder encoder,
-                                      BajaUsuarioService bajaUsuario) {
+                                      BajaUsuarioService bajaUsuario, ValidadorImagenes validadorImagenes,
+                                      AlmacenImagenes almacen) {
         this.usuarios = usuarios;
         this.encoder = encoder;
         this.bajaUsuario = bajaUsuario;
+        this.validadorImagenes = validadorImagenes;
+        this.almacen = almacen;
     }
 
     @Override
@@ -101,6 +109,25 @@ public class GestionUsuariosServiceImpl implements GestionUsuariosService {
         return aRespuesta(buscarPorCorreo(correo));
     }
 
+    /**
+     * No es transaccional a propósito: guardar la foto es una llamada externa que puede tardar y no debe retener la conexión de la
+     * base de datos. Primero se valida (2 MB, JPG/PNG/WEBP), luego se guarda en el almacén y solo entonces se registra la URL.
+     */
+    @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NEVER)
+    public UsuarioResponse actualizarFoto(String correo, ContenidoImagen foto) {
+        String correoNormalizado = correo.trim().toLowerCase(Locale.ROOT);
+        if (!usuarios.existsByCorreo(correoNormalizado)) {
+            throw new UsuarioNoEncontradoException("con el correo " + correo);
+        }
+        validadorImagenes.validarParaPerfil(foto);
+        String url = almacen.guardar(foto, "perfiles").url();
+        UsuarioEntity usuario = usuarios.findByCorreo(correoNormalizado)
+                .orElseThrow(() -> new UsuarioNoEncontradoException("con el correo " + correo));
+        usuario.cambiarFoto(url);
+        return aRespuesta(usuarios.save(usuario));
+    }
+
     @Override
     public UsuarioResponse actualizarPerfil(String correo, ActualizarPerfilRequest solicitud) {
         UsuarioEntity usuario = buscarPorCorreo(correo);
@@ -135,6 +162,6 @@ public class GestionUsuariosServiceImpl implements GestionUsuariosService {
 
     private static UsuarioResponse aRespuesta(UsuarioEntity u) {
         return new UsuarioResponse(u.getId(), u.getNombre(), u.getCorreo(), u.getTelefono(), u.getDocumento(),
-                u.getFechaNacimiento(), u.getRol().name(), u.isActivo());
+                u.getFechaNacimiento(), u.getRol().name(), u.isActivo(), u.getFotoUrl());
     }
 }

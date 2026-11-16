@@ -5,6 +5,8 @@ import { Cargando } from '../../componentes/Cargando';
 import { DesgloseCotizacion } from '../../componentes/DesgloseCotizacion';
 import { EtiquetasCaracteristicas } from '../../componentes/EtiquetasCaracteristicas';
 import { EstadoOperativoBadge } from '../../componentes/EstadoOperativoBadge';
+import { GaleriaApartamento } from '../../componentes/GaleriaApartamento';
+import { MapaDelAlojamiento } from '../../componentes/MapaDelAlojamiento';
 import { InformacionAlojamiento } from '../../componentes/InformacionAlojamiento';
 import { esquemaCotizacion } from '../../esquemas/estancia';
 import { useAuth } from '../../hooks/useAuth';
@@ -106,6 +108,7 @@ export default function DetalleApartamento() {
       <h1 className="h3">Detalle del apartamento</h1>
       <div className="card mb-4">
         <div className="card-body">
+          <GaleriaApartamento imagenes={apartamento.imagenes} nombre={apartamento.nombre} />
           <div className="d-flex flex-wrap justify-content-between align-items-start gap-2">
             <h2 className="h4 card-title mb-0">{apartamento.nombre}</h2>
             <EstadoOperativoBadge estado={apartamento.estadoOperativo} />
@@ -138,6 +141,10 @@ export default function DetalleApartamento() {
       <h2 className="h5">Disponibilidad</h2>
       <div className="mb-4">
         <CalendarioDisponibilidad identificacion={identificacion} />
+      </div>
+
+      <div className="mb-4">
+        <MapaDelAlojamiento />
       </div>
 
       <div className="mb-4">

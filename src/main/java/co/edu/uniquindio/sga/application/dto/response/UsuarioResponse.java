@@ -11,5 +11,7 @@ public record UsuarioResponse(
         String documento,
         LocalDate fechaNacimiento,
         String rol,
-        boolean activo) {
+        boolean activo,
+        /** URL de la foto de perfil; nula si no ha subido una (la pantalla muestra sus iniciales). */
+        String fotoUrl) {
 }

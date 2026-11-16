@@ -65,12 +65,19 @@ public class ApartamentoEntity {
     @BatchSize(size = 50)
     private Set<Caracteristica> caracteristicas = new LinkedHashSet<>();
 
+    /** 7.3: las imágenes, en el orden en que se agregaron (la posición se guarda). Las retiradas se conservan: el retiro es lógico. */
+    @ElementCollection
+    @CollectionTable(name = "apartamento_imagen", joinColumns = @JoinColumn(name = "apartamento_id"))
+    @OrderColumn(name = "orden")
+    @BatchSize(size = 50)
+    private List<ImagenApartamentoEmbeddable> imagenes = new ArrayList<>();
+
     protected ApartamentoEntity() {
     }
 
     public ApartamentoEntity(String identificacion, String nombre, String descripcion, int dormitorios, int capacidad,
                              List<String> dotacion, Collection<Caracteristica> caracteristicas,
-                             EstadoOperativo estadoOperativo, boolean activo) {
+                             EstadoOperativo estadoOperativo, boolean activo, List<ImagenApartamentoEmbeddable> imagenes) {
         this.identificacion = identificacion;
         this.nombre = nombre;
         this.descripcion = descripcion;
@@ -80,6 +87,7 @@ public class ApartamentoEntity {
         this.caracteristicas = new LinkedHashSet<>(caracteristicas);
         this.estadoOperativo = estadoOperativo;
         this.activo = activo;
+        this.imagenes = new ArrayList<>(imagenes);
     }
 
     public String getIdentificacion() { return identificacion; }
@@ -91,6 +99,7 @@ public class ApartamentoEntity {
     public Set<Caracteristica> getCaracteristicas() { return Set.copyOf(caracteristicas); }
     public EstadoOperativo getEstadoOperativo() { return estadoOperativo; }
     public boolean isActivo() { return activo; }
+    public List<ImagenApartamentoEmbeddable> getImagenes() { return List.copyOf(imagenes); }
 
     @Override
     public boolean equals(Object o) {

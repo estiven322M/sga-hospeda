@@ -46,6 +46,7 @@ const Preparacion = lazy(() => import('./paginas/servicio/Preparacion'));
 const Alojamiento = lazy(() => import('./paginas/administracion/Alojamiento'));
 const Apartamentos = lazy(() => import('./paginas/administracion/Apartamentos'));
 const ApartamentoFormulario = lazy(() => import('./paginas/administracion/ApartamentoFormulario'));
+const ImagenesApartamento = lazy(() => import('./paginas/administracion/ImagenesApartamento'));
 const Bloqueos = lazy(() => import('./paginas/administracion/Bloqueos'));
 const TemporadasTarifas = lazy(() => import('./paginas/administracion/TemporadasTarifas'));
 const PoliticaCancelacion = lazy(() => import('./paginas/administracion/PoliticaCancelacion'));
@@ -116,6 +117,7 @@ export default function App() {
           <Route path={PATRONES.apartamentos} element={<Apartamentos />} />
           <Route path={PATRONES.apartamentoNuevo} element={<ApartamentoFormulario />} />
           <Route path={PATRONES.apartamentoEditar} element={<ApartamentoFormulario />} />
+          <Route path={PATRONES.imagenesApartamento} element={<ImagenesApartamento />} />
           <Route path={PATRONES.bloqueos} element={<Bloqueos />} />
           <Route path={PATRONES.temporadasTarifas} element={<TemporadasTarifas />} />
           <Route path={PATRONES.politicaCancelacion} element={<PoliticaCancelacion />} />

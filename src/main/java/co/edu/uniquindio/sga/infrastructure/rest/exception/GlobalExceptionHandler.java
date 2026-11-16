@@ -110,6 +110,25 @@ public class GlobalExceptionHandler {
     }
 
     /** Registro público (Guía 12): el correo o el documento ya pertenecen a otro usuario. */
+    /**
+     * El almacén externo de imágenes no pudo guardar una (7.3, I-04): 503 con un mensaje claro para el administrador. No es un error
+     * del cliente ni una regla del negocio, y no afecta a nada más (I-05). Nunca lleva la causa técnica.
+     */
+    @ExceptionHandler(co.edu.uniquindio.sga.domain.exception.AlmacenamientoImagenesException.class)
+    public ResponseEntity<ErrorResponse> handleAlmacenamientoImagenes(
+            co.edu.uniquindio.sga.domain.exception.AlmacenamientoImagenesException ex, HttpServletRequest request) {
+        log.warn("El almacén de imágenes no pudo guardar la imagen: {}", ex.getMessage());
+        return construir(HttpStatus.SERVICE_UNAVAILABLE, "El servicio de imágenes no está disponible en este momento; "
+                + "intente de nuevo más tarde. El resto del sistema sigue funcionando", request, null);
+    }
+
+    /** Un archivo más grande que el techo de Spring (spring.servlet.multipart.max-file-size): 400 con un mensaje claro. */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleArchivoDemasiadoGrande(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return construir(HttpStatus.BAD_REQUEST, "El archivo es demasiado grande", request, null);
+    }
+
     /** Operación de usuarios no permitida (contraseña actual incorrecta, desactivarse a sí mismo...): 409. */
     @ExceptionHandler(co.edu.uniquindio.sga.application.exception.OperacionUsuarioNoPermitidaException.class)
     public ResponseEntity<ErrorResponse> handleOperacionUsuarioNoPermitida(

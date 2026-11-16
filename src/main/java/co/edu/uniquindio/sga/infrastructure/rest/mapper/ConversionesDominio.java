@@ -31,6 +31,19 @@ public interface ConversionesDominio {
         return documento == null ? null : documento.numero();
     }
 
+    /** URL de la imagen principal de un apartamento, o nulo si aún no tiene imágenes (7.3). */
+    default String urlImagenPrincipal(co.edu.uniquindio.sga.domain.entity.Apartamento apartamento) {
+        return apartamento.getImagenPrincipal().map(co.edu.uniquindio.sga.domain.valueobject.ImagenApartamento::url).orElse(null);
+    }
+
+    /** La galería de un apartamento (sin las retiradas), en el orden en que se agregaron. */
+    default java.util.List<co.edu.uniquindio.sga.application.dto.response.ImagenResponse> imagenesDe(
+            co.edu.uniquindio.sga.domain.entity.Apartamento apartamento) {
+        return apartamento.getImagenes().stream()
+                .map(imagen -> new co.edu.uniquindio.sga.application.dto.response.ImagenResponse(imagen.id(), imagen.url(), imagen.principal()))
+                .toList();
+    }
+
     default long aPesos(Dinero dinero) {
         return dinero.valor().longValueExact();
     }

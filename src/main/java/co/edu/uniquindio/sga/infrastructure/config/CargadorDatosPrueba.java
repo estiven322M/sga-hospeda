@@ -60,6 +60,7 @@ public class CargadorDatosPrueba implements ApplicationRunner {
     private final SembradorReservasPrueba sembradorReservas;
     private final ServicioAdicionalRepository servicios;
     private final RegistroServicioAdicionalService registroServicio;
+    private final SembradorImagenesPrueba sembradorImagenes;
 
     CargadorDatosPrueba(Clock reloj, TemporadaRepository temporadas, ApartamentoRepository apartamentos,
                         TarifarioRepository tarifario, PoliticaCancelacionRepository politicas,
@@ -67,7 +68,8 @@ public class CargadorDatosPrueba implements ApplicationRunner {
                         RegistroTarifaService registroTarifa, ActivacionApartamentoService activacion,
                         RegistroPoliticaCancelacionService registroPolitica, RegistroBloqueoService registroBloqueo,
                         SembradorReservasPrueba sembradorReservas, ServicioAdicionalRepository servicios,
-                        RegistroServicioAdicionalService registroServicio) {
+                        RegistroServicioAdicionalService registroServicio, SembradorImagenesPrueba sembradorImagenes) {
+        this.sembradorImagenes = sembradorImagenes;
         this.servicios = servicios;
         this.registroServicio = registroServicio;
         this.hoy = LocalDate.now(reloj);
@@ -93,7 +95,9 @@ public class CargadorDatosPrueba implements ApplicationRunner {
             return;
         }
         cargarTemporadas();
-        CatalogoDatosPrueba.APARTAMENTOS.forEach(this::cargarApartamento);
+        for (int i = 0; i < CatalogoDatosPrueba.APARTAMENTOS.size(); i++) {
+            cargarApartamento(CatalogoDatosPrueba.APARTAMENTOS.get(i), i);
+        }
         cargarPoliticaDeCancelacion();
         cargarBloqueo();
         sembradorReservas.sembrar();
@@ -126,10 +130,12 @@ public class CargadorDatosPrueba implements ApplicationRunner {
     }
 
     /** Un apartamento nace inactivo (7.4): se crea, se le registran tarifas en todas las temporadas y se activa. */
-    private void cargarApartamento(ApartamentoSemilla semilla) {
+    private void cargarApartamento(ApartamentoSemilla semilla, int indice) {
         IdentificacionApartamento identificacion = new IdentificacionApartamento(semilla.identificacion());
         Apartamento apartamento = apartamentos.guardar(registroApartamento.crear(identificacion, semilla.nombre(), semilla.descripcion(),
                 semilla.dormitorios(), semilla.capacidad(), semilla.dotacion(), semilla.caracteristicas()));
+        // 7.3: un apartamento activo tiene al menos una imagen; las de ejemplo se guardan en el almacén local
+        apartamento.agregarImagenes(sembradorImagenes.paraApartamento(semilla.identificacion(), indice));
         CatalogoDatosPrueba.TEMPORADAS.forEach(temporada -> tarifario.guardarTarifa(identificacion,
                 registroTarifa.crear(temporada.nombre(), tarifaDe(semilla, temporada))));
         activacion.activar(apartamento);

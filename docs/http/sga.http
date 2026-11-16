@@ -5244,3 +5244,689 @@ Content-Type: application/json
         client.assert(response.body.mensaje === "Si el correo está registrado, enviamos un código de recuperación que vence en 15 minutos", "respuesta genérica: " + response.body.mensaje);
     });
 %}
+
+# =====================================================================================================
+# PARTE 11 · IMÁGENES DE APARTAMENTOS Y FOTO DE PERFIL (J8: 7.3, 7.2, 7.5, I-01 a I-08)
+#   Las imágenes se suben con multipart/form-data (parte "imagenes"; hasta 10 por apartamento, JPG, PNG o WEBP de hasta 5 MB) y la
+#   foto de perfil con la parte "foto" (hasta 2 MB). Los archivos de ejemplo están en docs/http/imagenes/ (las líneas "< ./imagenes/x"
+#   son la sintaxis del cliente HTTP de IntelliJ y las lee también ejecutar-coleccion.js). El formato se reconoce por el CONTENIDO:
+#   un texto renombrado a .jpg se rechaza. El proveedor de almacenamiento es el local (el que viene activo): las imágenes se
+#   sirven en /imagenes/** sin token. Los límites de tamaño (5 MB y 2 MB) y el 503 del almacén externo caído se verifican en
+#   RecorridoImagenesIntegracionTest y RecorridoImagenesFalloIntegracionTest (la colección no adjunta archivos de varios megas).
+# =====================================================================================================
+
+### 11.1 [7.3] Todo apartamento ACTIVO tiene imágenes y exactamente una principal (listado) -> 200
+GET {{host}}/api/apartamentos
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("11.1 [7.3] Todo apartamento ACTIVO tiene imágenes y exactamente una principal (listado)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length >= 7, "apartamentos: " + response.body.contenido.length);
+        client.assert(response.body.contenido.every(ap => ap.imagenes.length === 0 ? !ap.activo : ap.imagenes.filter(i => i.principal).length === 1), "los activos tienen imágenes y cada galería, una sola principal");
+        client.assert(response.body.contenido.every(ap => ap.imagenes.length === 0 ? ap.imagenPrincipal === null : ap.imagenPrincipal === ap.imagenes.filter(i => i.principal)[0].url), "imagenPrincipal es la URL de la principal (nula sin imágenes)");
+    });
+%}
+
+### 11.2 [7.3] El detalle trae la galería y la URL de la principal -> 200
+GET {{host}}/api/apartamentos/{{apt}}
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("11.2 [7.3] El detalle trae la galería y la URL de la principal", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.imagenPrincipal.indexOf("/imagenes/apartamentos/APT-101/") > 0, "imagenPrincipal: " + response.body.imagenPrincipal);
+        client.assert(response.body.imagenes.length === 2, "las dos imágenes de ejemplo sembradas: " + response.body.imagenes.length);
+        client.assert(response.body.imagenes.filter(i => i.principal).length === 1, "exactamente una principal: " + JSON.stringify(response.body.imagenes));
+        client.global.set("imagenPrincipalApt", response.body.imagenPrincipal);
+        client.global.set("idImagenOriginal", response.body.imagenes[0].id);
+    });
+%}
+
+### 11.3 [7.3] La imagen se sirve SIN token en /imagenes/** (el navegador la pide con <img>) -> 200
+GET {{imagenPrincipalApt}}
+
+> {%
+    client.test("11.3 [7.3] La imagen se sirve SIN token en /imagenes/** (el navegador la pide con <img>)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.headers.valueOf("Content-Type") === "image/png", "tipo: " + response.headers.valueOf("Content-Type"));
+    });
+%}
+
+### 11.4 [7.5] La disponibilidad trae la imagen principal en cada tarjeta -> 200
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-12-20",
+  "fechaSalida": "2028-12-23",
+  "ocupantes": [
+    {
+      "documento": "CC-9001",
+      "nombre": "Ana Ramírez",
+      "fechaNacimiento": "1990-05-12"
+    }
+  ]
+}
+
+> {%
+    client.test("11.4 [7.5] La disponibilidad trae la imagen principal en cada tarjeta", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length >= 1, "debe haber apartamentos disponibles");
+        client.assert(response.body.contenido.every(ap => typeof ap.imagenPrincipal === "string" && ap.imagenPrincipal.indexOf("/imagenes/apartamentos/") > 0 && ap.imagenes.length >= 1), "cada tarjeta trae su imagen: " + JSON.stringify(response.body.contenido.map(ap => ap.imagenPrincipal)));
+    });
+%}
+
+### 11.5 [401 · imágenes] Subir imágenes sin token -> 401
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.5 [401 · imágenes] Subir imágenes sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.6 [403 · imágenes] Recepción intenta subir imágenes (es del administrador) -> 403
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.6 [403 · imágenes] Recepción intenta subir imágenes (es del administrador)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.7 [403 · imágenes] Un huésped intenta subir imágenes -> 403
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.7 [403 · imágenes] Un huésped intenta subir imágenes", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.8 [403 · imágenes] El personal de servicio intenta elegir la principal -> 403
+PUT {{host}}/api/apartamentos/{{apt}}/imagenes/{{idImagenOriginal}}/principal
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("11.8 [403 · imágenes] El personal de servicio intenta elegir la principal", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.9 [403 · imágenes] Recepción intenta retirar una imagen -> 403
+PUT {{host}}/api/apartamentos/{{apt}}/imagenes/{{idImagenOriginal}}/retirar
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("11.9 [403 · imágenes] Recepción intenta retirar una imagen", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.10 [7.3] El administrador sube dos imágenes (PNG y JPG): 201 con Location y la galería -> 201
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="sala.jpg"
+Content-Type: image/jpeg
+
+< ./imagenes/sala.jpg
+--SgaFrontera--
+
+> {%
+    client.test("11.10 [7.3] El administrador sube dos imágenes (PNG y JPG): 201 con Location y la galería", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.headers.valueOf("Location").endsWith("/api/apartamentos/APT-101"), "Location: " + response.headers.valueOf("Location"));
+        client.assert(response.body.imagenes.length === 4, "2 sembradas + 2 nuevas: " + response.body.imagenes.length);
+        client.assert(response.body.imagenPrincipal === client.global.get("imagenPrincipalApt"), "subir no cambia la principal");
+        client.assert(response.body.imagenes.filter(i => i.principal).length === 1, "exactamente una principal: " + JSON.stringify(response.body.imagenes));
+        client.assert(response.body.imagenes[2].url.endsWith(".png") && response.body.imagenes[3].url.endsWith(".jpg"), "extensión según el contenido: " + response.body.imagenes[2].url);
+        client.global.set("idImagenNueva", response.body.imagenes[2].id);
+    });
+%}
+
+### 11.11 [7.3] Se admite también WEBP -> 201
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="cocina.webp"
+Content-Type: image/webp
+
+< ./imagenes/cocina.webp
+--SgaFrontera--
+
+> {%
+    client.test("11.11 [7.3] Se admite también WEBP", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.imagenes.length === 5 && response.body.imagenes[4].url.endsWith(".webp"), "imágenes: " + response.body.imagenes.length);
+    });
+%}
+
+### 11.12 [409 · 7.3 formato] Un texto que se hace pasar por .jpg se rechaza por su contenido -> 409
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="falsa.jpg"
+Content-Type: image/jpeg
+
+< ./imagenes/falsa.jpg
+--SgaFrontera--
+
+> {%
+    client.test("11.12 [409 · 7.3 formato] Un texto que se hace pasar por .jpg se rechaza por su contenido", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Solo se admiten imágenes JPG, PNG o WEBP: falsa.jpg no lo es"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.13 [409 · 7.3 formato] Un GIF no es un formato admitido -> 409
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="animada.gif"
+Content-Type: image/gif
+
+< ./imagenes/animada.gif
+--SgaFrontera--
+
+> {%
+    client.test("11.13 [409 · 7.3 formato] Un GIF no es un formato admitido", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Solo se admiten imágenes JPG, PNG o WEBP: animada.gif no lo es"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.14 [409 · 7.3 lote] Un lote con una imagen mala se rechaza COMPLETO (la buena tampoco se sube) -> 409
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="mala.jpg"
+Content-Type: image/jpeg
+
+< ./imagenes/falsa.jpg
+--SgaFrontera--
+
+> {%
+    client.test("11.14 [409 · 7.3 lote] Un lote con una imagen mala se rechaza COMPLETO (la buena tampoco se sube)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("mala.jpg no lo es"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.15 [7.3] Ningún rechazo dejó imágenes a medias: la galería sigue con 5 -> 200
+GET {{host}}/api/apartamentos/{{apt}}
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.15 [7.3] Ningún rechazo dejó imágenes a medias: la galería sigue con 5", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.imagenes.length === 5, "imágenes: " + response.body.imagenes.length);
+    });
+%}
+
+### 11.16 [7.3] Elegir otra imagen como principal: la anterior deja de serlo -> 200
+PUT {{host}}/api/apartamentos/{{apt}}/imagenes/{{idImagenNueva}}/principal
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.16 [7.3] Elegir otra imagen como principal: la anterior deja de serlo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.imagenes.filter(i => i.principal)[0].id === client.global.get("idImagenNueva"), "la nueva es la principal");
+        client.assert(response.body.imagenes.filter(i => i.principal).length === 1, "exactamente una principal: " + JSON.stringify(response.body.imagenes));
+        client.assert(response.body.imagenPrincipal.indexOf("/imagenes/apartamentos/APT-101/") > 0 && response.body.imagenPrincipal !== client.global.get("imagenPrincipalApt"), "imagenPrincipal cambió: " + response.body.imagenPrincipal);
+    });
+%}
+
+### 11.17 [7.3] Retirar la principal es LÓGICO: sale de la galería y la primera que queda pasa a serlo -> 200
+PUT {{host}}/api/apartamentos/{{apt}}/imagenes/{{idImagenNueva}}/retirar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.17 [7.3] Retirar la principal es LÓGICO: sale de la galería y la primera que queda pasa a serlo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.imagenes.length === 4 && response.body.imagenes.every(i => i.id !== client.global.get("idImagenNueva")), "la retirada ya no está en la galería");
+        client.assert(response.body.imagenes.filter(i => i.principal).length === 1, "exactamente una principal: " + JSON.stringify(response.body.imagenes));
+        client.assert(response.body.imagenes.filter(i => i.principal)[0].id === client.global.get("idImagenOriginal"), "la primera pasó a ser la principal");
+    });
+%}
+
+### 11.18 [404 · imágenes] Una imagen ya retirada no se puede elegir como principal -> 404
+PUT {{host}}/api/apartamentos/{{apt}}/imagenes/{{idImagenNueva}}/principal
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.18 [404 · imágenes] Una imagen ya retirada no se puede elegir como principal", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.19 [404 · imágenes] Retirar una imagen que no existe -> 404
+PUT {{host}}/api/apartamentos/{{apt}}/imagenes/no-existe/retirar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.19 [404 · imágenes] Retirar una imagen que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.20 [404 · imágenes] Subir imágenes a un apartamento que no existe -> 404
+POST {{host}}/api/apartamentos/APT-999/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.20 [404 · imágenes] Subir imágenes a un apartamento que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.21 [409 · 7.3 máximo 10] Un lote que supera las 10 imágenes se rechaza completo -> 409
+POST {{host}}/api/apartamentos/{{apt}}/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.21 [409 · 7.3 máximo 10] Un lote que supera las 10 imágenes se rechaza completo", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Un apartamento admite como máximo 10 imágenes: ya tiene 4 y se intentan agregar 7"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.22 [7.3] Un apartamento nuevo nace inactivo y sin imágenes -> 201
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "identificacion": "APT-IMG",
+  "nombre": "Apartamento con imágenes",
+  "descripcion": "Demuestra que activar exige una imagen",
+  "dormitorios": 1,
+  "capacidad": 2,
+  "dotacion": [],
+  "caracteristicas": []
+}
+
+> {%
+    client.test("11.22 [7.3] Un apartamento nuevo nace inactivo y sin imágenes", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.activo === false && response.body.imagenes.length === 0 && response.body.imagenPrincipal === null, "sin imágenes: " + JSON.stringify(response.body));
+    });
+%}
+
+### 11.23 [7.4] Tarifa BASE de APT-IMG -> 200
+PUT {{host}}/api/apartamentos/APT-IMG/tarifas/BASE
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"valorPorOcupanteNoche": 90000}
+
+> {%
+    client.test("11.23 [7.4] Tarifa BASE de APT-IMG", function () {
+        client.assert(response.status === 200, "código " + response.status);
+    });
+%}
+
+### 11.24 [7.4] Tarifa MEDIA de APT-IMG -> 200
+PUT {{host}}/api/apartamentos/APT-IMG/tarifas/MEDIA
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"valorPorOcupanteNoche": 90000}
+
+> {%
+    client.test("11.24 [7.4] Tarifa MEDIA de APT-IMG", function () {
+        client.assert(response.status === 200, "código " + response.status);
+    });
+%}
+
+### 11.25 [7.4] Tarifa ALTA de APT-IMG -> 200
+PUT {{host}}/api/apartamentos/APT-IMG/tarifas/ALTA
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"valorPorOcupanteNoche": 90000}
+
+> {%
+    client.test("11.25 [7.4] Tarifa ALTA de APT-IMG", function () {
+        client.assert(response.status === 200, "código " + response.status);
+    });
+%}
+
+### 11.26 [409 · 7.3 activar exige una imagen] Con tarifas completas pero SIN imágenes no se activa -> 409
+PUT {{host}}/api/apartamentos/APT-IMG/activar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.26 [409 · 7.3 activar exige una imagen] Con tarifas completas pero SIN imágenes no se activa", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede activar el apartamento: debe tener al menos una imagen"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.27 [7.3] La primera imagen de un apartamento queda como principal -> 201
+POST {{host}}/api/apartamentos/APT-IMG/imagenes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="imagenes"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.27 [7.3] La primera imagen de un apartamento queda como principal", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.imagenes.length === 1 && response.body.imagenes[0].principal === true, "la única es la principal");
+        client.assert(response.body.imagenPrincipal === response.body.imagenes[0].url, "imagenPrincipal: " + response.body.imagenPrincipal);
+        client.global.set("idUnica", response.body.imagenes[0].id);
+    });
+%}
+
+### 11.28 [7.3] Con una imagen y las tarifas completas ya se activa -> 200
+PUT {{host}}/api/apartamentos/APT-IMG/activar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.28 [7.3] Con una imagen y las tarifas completas ya se activa", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.activo === true, "activo: " + response.body.activo);
+    });
+%}
+
+### 11.29 [409 · 7.3 mínimo 1] Un apartamento ACTIVO conserva al menos una imagen: no se retira la última -> 409
+PUT {{host}}/api/apartamentos/APT-IMG/imagenes/{{idUnica}}/retirar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.29 [409 · 7.3 mínimo 1] Un apartamento ACTIVO conserva al menos una imagen: no se retira la última", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Un apartamento activo debe conservar al menos una imagen"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.30 [7.2] El huésped cambia su foto de perfil (multipart, parte "foto") -> 200
+PUT {{host}}/api/usuarios/yo/foto
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="foto"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.30 [7.2] El huésped cambia su foto de perfil (multipart, parte \"foto\")", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.fotoUrl.indexOf("/imagenes/perfiles/") > 0 && response.body.fotoUrl.endsWith(".png"), "fotoUrl: " + response.body.fotoUrl);
+        client.assert(response.body.correo === "huesped1@sga.local" && JSON.stringify(response.body).toLowerCase().indexOf("contrasena") < 0, "es la foto del dueño del token y no trae secretos");
+        client.global.set("fotoHuesped", response.body.fotoUrl);
+    });
+%}
+
+### 11.31 [7.2] La foto se sirve sin token -> 200
+GET {{fotoHuesped}}
+
+> {%
+    client.test("11.31 [7.2] La foto se sirve sin token", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.headers.valueOf("Content-Type") === "image/png", "tipo: " + response.headers.valueOf("Content-Type"));
+    });
+%}
+
+### 11.32 [7.2] El perfil trae la URL de la foto -> 200
+GET {{host}}/api/usuarios/yo
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("11.32 [7.2] El perfil trae la URL de la foto", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.fotoUrl === client.global.get("fotoHuesped"), "fotoUrl: " + response.body.fotoUrl);
+    });
+%}
+
+### 11.33 [7.2] Un usuario sin foto la tiene nula (la pantalla muestra sus iniciales) -> 200
+GET {{host}}/api/usuarios/yo
+Authorization: Bearer {{tokenHuesped2}}
+
+> {%
+    client.test("11.33 [7.2] Un usuario sin foto la tiene nula (la pantalla muestra sus iniciales)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.fotoUrl === null, "fotoUrl: " + response.body.fotoUrl);
+    });
+%}
+
+### 11.34 [409 · 7.2 formato] La foto debe ser JPG, PNG o WEBP: un texto renombrado se rechaza -> 409
+PUT {{host}}/api/usuarios/yo/foto
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="foto"; filename="falsa.jpg"
+Content-Type: image/jpeg
+
+< ./imagenes/falsa.jpg
+--SgaFrontera--
+
+> {%
+    client.test("11.34 [409 · 7.2 formato] La foto debe ser JPG, PNG o WEBP: un texto renombrado se rechaza", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Solo se admiten imágenes JPG, PNG o WEBP: falsa.jpg no lo es"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.35 [409 · 7.2 formato] Un GIF tampoco -> 409
+PUT {{host}}/api/usuarios/yo/foto
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="foto"; filename="animada.gif"
+Content-Type: image/gif
+
+< ./imagenes/animada.gif
+--SgaFrontera--
+
+> {%
+    client.test("11.35 [409 · 7.2 formato] Un GIF tampoco", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Solo se admiten imágenes JPG, PNG o WEBP: animada.gif no lo es"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.36 [7.2] El rechazo no tocó la foto anterior -> 200
+GET {{host}}/api/usuarios/yo
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("11.36 [7.2] El rechazo no tocó la foto anterior", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.fotoUrl === client.global.get("fotoHuesped"), "la foto sigue siendo la anterior");
+    });
+%}
+
+### 11.37 [7.2] Cualquier rol puede tener foto: recepción -> 200
+PUT {{host}}/api/usuarios/yo/foto
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="foto"; filename="sala.jpg"
+Content-Type: image/jpeg
+
+< ./imagenes/sala.jpg
+--SgaFrontera--
+
+> {%
+    client.test("11.37 [7.2] Cualquier rol puede tener foto: recepción", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.fotoUrl.endsWith(".jpg") && response.body.correo === "recepcion@sga.local", "fotoUrl: " + response.body.fotoUrl);
+    });
+%}
+
+### 11.38 [401 · foto] Cambiar la foto sin token -> 401
+PUT {{host}}/api/usuarios/yo/foto
+Content-Type: multipart/form-data; boundary=SgaFrontera
+
+--SgaFrontera
+Content-Disposition: form-data; name="foto"; filename="fachada.png"
+Content-Type: image/png
+
+< ./imagenes/fachada.png
+--SgaFrontera--
+
+> {%
+    client.test("11.38 [401 · foto] Cambiar la foto sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 11.39 [7.2] El administrador ve la foto en el listado de usuarios -> 200
+GET {{host}}/api/usuarios?rol=HUESPED
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("11.39 [7.2] El administrador ve la foto en el listado de usuarios", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.some(u => u.correo === "huesped1@sga.local" && u.fotoUrl === client.global.get("fotoHuesped")), "huesped1 con su foto");
+    });
+%}

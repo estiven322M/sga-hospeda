@@ -65,6 +65,8 @@ public interface ReservaMapper extends ConversionesDominio {
     @Mapping(target = "dormitorios", source = "apartamento.dormitorios")
     @Mapping(target = "capacidad", source = "apartamento.capacidad")
     @Mapping(target = "caracteristicas", source = "apartamento.caracteristicas")
+    @Mapping(target = "imagenPrincipal", expression = "java(urlImagenPrincipal(disponible.apartamento()))")
+    @Mapping(target = "imagenes", expression = "java(imagenesDe(disponible.apartamento()))")
     @Mapping(target = "subtotalBruto", expression = "java(aPesos(disponible.cotizacion().bruto()))")
     @Mapping(target = "porcentajeDescuento", expression = "java(disponible.cotizacion().porcentajeDescuento())")
     @Mapping(target = "descuento", expression = "java(aPesos(disponible.cotizacion().descuento()))")

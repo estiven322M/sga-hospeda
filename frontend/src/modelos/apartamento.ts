@@ -1,4 +1,5 @@
 import type { FechaISO } from './comun';
+import type { ImagenResponse } from './imagen';
 import type { ReservaResumenResponse } from './reserva';
 
 /** Condición física del apartamento (3.3). */
@@ -46,6 +47,10 @@ export interface ApartamentoResponse {
   caracteristicas: Caracteristica[];
   estadoOperativo: EstadoOperativo;
   activo: boolean;
+  /** URL de la imagen principal (7.3); nula si el apartamento aún no tiene imágenes. */
+  imagenPrincipal: string | null;
+  /** La galería: las imágenes sin retirar, en el orden en que se agregaron. */
+  imagenes: ImagenResponse[];
 }
 
 /**

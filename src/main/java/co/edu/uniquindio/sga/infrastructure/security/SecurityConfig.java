@@ -77,6 +77,8 @@ public class SecurityConfig {
                         .requestMatchers(RUTAS_PUBLICAS).permitAll()
                         // Los datos del alojamiento son públicos (Inicio, detalle y mapa); editarlos exige ADMINISTRADOR
                         .requestMatchers(HttpMethod.GET, "/api/alojamiento").permitAll()
+                        // Las imágenes del almacén local (7.3) las pide el navegador con <img>, que no envía el token
+                        .requestMatchers(HttpMethod.GET, "/imagenes/**").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(errores -> errores

@@ -64,6 +64,7 @@ export function AccionesApartamento({ apartamento, alTerminar }: AccionesApartam
       )}
       <div className="d-flex flex-wrap gap-2">
         <Link to={RUTAS.apartamentoEditar(identificacion)} className="btn btn-sm btn-outline-primary">Editar</Link>
+        <Link to={RUTAS.imagenesApartamento(identificacion)} className="btn btn-sm btn-outline-secondary">Imágenes</Link>
         {!activo && (
           <button type="button" className="btn btn-sm btn-success" onClick={() => void ejecutar(() => activarApartamento(identificacion), 'Apartamento activado')} disabled={ocupado}>
             Activar

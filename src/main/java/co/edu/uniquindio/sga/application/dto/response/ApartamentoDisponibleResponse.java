@@ -16,6 +16,10 @@ public record ApartamentoDisponibleResponse(
         int dormitorios,
         int capacidad,
         Set<Caracteristica> caracteristicas,
+        /** URL de la imagen principal (7.3); nula si el apartamento aún no tiene imágenes. */
+        String imagenPrincipal,
+        /** La galería: las imágenes sin retirar, en el orden en que se agregaron. */
+        List<ImagenResponse> imagenes,
         long subtotalBruto,
         int porcentajeDescuento,
         long descuento,

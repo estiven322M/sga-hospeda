@@ -56,6 +56,9 @@ class ApartamentoControllerTest {
     @Mock private ActivarApartamentoUseCase activar;
     @Mock private DarDeBajaApartamentoUseCase darDeBaja;
     @Mock private co.edu.uniquindio.sga.application.usecase.ConsultarCalendarioUseCase calendario;
+    @Mock private AgregarImagenesApartamentoUseCase agregarImagenes;
+    @Mock private EstablecerImagenPrincipalUseCase establecerPrincipal;
+    @Mock private RetirarImagenApartamentoUseCase retirarImagen;
     private MockMvc mvc;
 
     private final IdentificacionApartamento id = new IdentificacionApartamento("APT-101");
@@ -67,7 +70,8 @@ class ApartamentoControllerTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.standaloneSetup(new ApartamentoController(crear, consultar, listar, actualizar,
-                        activar, darDeBaja, calendario, new ApartamentoMapperImpl(),
+                        activar, darDeBaja, calendario, agregarImagenes, establecerPrincipal, retirarImagen,
+                        new co.edu.uniquindio.sga.infrastructure.rest.mapper.ImagenSubidaMapper(), new ApartamentoMapperImpl(),
                         new co.edu.uniquindio.sga.infrastructure.rest.mapper.ReservaMapperImpl(),
                         new co.edu.uniquindio.sga.infrastructure.rest.mapper.CalendarioMapper(), new SolicitudMapperImpl()))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();

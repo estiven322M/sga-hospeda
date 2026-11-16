@@ -3,6 +3,7 @@ import type { ApartamentoDisponibleResponse } from '../modelos/cotizacion';
 import { RUTAS } from '../rutas/rutas';
 import { formatearPesos } from '../utilidades/formato';
 import { EtiquetasCaracteristicas } from './EtiquetasCaracteristicas';
+import { Imagen } from './Imagen';
 
 /**
  * Un apartamento disponible y lo que costaría la estancia buscada. Solo muestra lo que el backend calculó: el total,
@@ -14,7 +15,13 @@ export function TarjetaApartamento({ apartamento }: { apartamento: ApartamentoDi
   return (
     <article className="card mb-3">
       <div className="card-body d-flex flex-column flex-md-row justify-content-between gap-3">
-        <div>
+        {/* 7.5: la tarjeta muestra la imagen principal; si no hay o no carga, un marcador del mismo tamaño */}
+        <Imagen
+          src={apartamento.imagenPrincipal}
+          alt={`Imagen principal de ${apartamento.nombre}`}
+          className="rounded object-fit-cover flex-shrink-0"
+        />
+        <div className="flex-grow-1">
           <h2 className="h5 card-title mb-1">{apartamento.nombre}</h2>
           <p className="text-body-secondary small mb-2">
             Capacidad: {apartamento.capacidad} personas · {apartamento.dormitorios}{' '}

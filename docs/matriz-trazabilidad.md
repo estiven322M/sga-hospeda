@@ -191,6 +191,39 @@ Sigue pendiente (acotado, sin bloquear el frontend):
 
 ---
 
+## Imágenes de apartamentos (7.3), foto de perfil (7.2) y mapa (7.5) — J8
+
+### Integración de salida del almacenamiento de imágenes: requisitos I-01 a I-08 (sección 10.3.3)
+
+| # | Requisito | Cómo se cumple | Evidencia |
+|---|---|---|---|
+| I-01 | Detrás de un puerto del dominio | `AlmacenImagenes` en `domain/repository`; el dominio solo conoce `ContenidoImagen`, `ReferenciaImagen` y `AlmacenamientoImagenesException`. Los adaptadores viven en `infrastructure/imagenes` | `AlmacenesDeImagenesTest` |
+| I-02 | Alternativa local sin internet ni credenciales | `AlmacenImagenesLocal` (carpeta del disco servida en `/imagenes/**`) es el **activo por defecto** (`sga.imagenes.proveedor=local`); también guarda las imágenes de ejemplo de los datos de prueba aunque el proveedor sea otro | `RecorridoImagenesIntegracionTest`, HTTP 11.1 a 11.39 |
+| I-03 | Tiempo de espera máximo explícito | `sga.imagenes.tiempo-espera-ms=10000` se aplica a la conexión y a la petición de `AlmacenImagenesCloudinary` | `AlmacenesDeImagenesTest.siElServicioTardaMasQueElTiempoDeEsperaFallaRapidoSinColgarse` |
+| I-04 | Comportamiento ante fallo definido | El administrador recibe un **503** con un mensaje claro y sin detalles técnicos; se registra en el log; no se guarda ninguna imagen del lote y la foto anterior se conserva | `RecorridoImagenesFalloIntegracionTest`, `ApartamentoImagenesControllerTest` |
+| I-05 | El fallo no impide reservar, registrar, cobrar ni cerrar un folio | Reservar, cobrar y confirmar no usan el almacén; las imágenes ya guardadas se siguen mostrando (y en el frontend una imagen que no carga se reemplaza por un marcador, sin romper la página) | `RecorridoImagenesFalloIntegracionTest.conElAlmacenCaido...` |
+| I-06 | Credenciales fuera del repositorio | `sga.imagenes.cloudinary.cloud-name`, `api-key` y `api-secret` en `application-secrets.properties` (ignorado; plantilla `.example`) o variables de entorno; con `cloudinary` y sin ellas la aplicación no arranca y dice cuáles faltan | `AlmacenesDeImagenesTest.cloudinarySinCredenciales...`, `.gitignore` |
+| I-07 | Nivel gratuito, de prueba o local | Local por defecto; real con el plan gratuito de Cloudinary (sin tarjeta) | README, sección "Imágenes" |
+| I-08 | Las pruebas no invocan servicios reales | El adaptador de Cloudinary habla con un servidor simulado en `127.0.0.1` (la URL de la API es configurable); la prueba de fallo apunta a un puerto cerrado de la misma máquina | `AlmacenesDeImagenesTest`, `RecorridoImagenesFalloIntegracionTest` |
+
+### Reglas de las imágenes
+
+| ID | Regla | Responsable | Endpoint que la expone | Pruebas (evidencia) | Prueba HTTP | Estado |
+|---|---|---|---|---|---|---|
+| IM-01 | Un apartamento tiene a lo sumo **10 imágenes** (las retiradas no cuentan); un lote que no cabe se rechaza completo | `Apartamento.verificarCupoImagenes` / `agregarImagenes` | `POST /api/apartamentos/{id}/imagenes` | `ApartamentoImagenesTest` (la 11.ª, lote que no cabe, retirar libera cupo), `RecorridoImagenesIntegracionTest.elMaximoEsDiezImagenes...` | 11.21 | Implementada |
+| IM-02 | **Exactamente una principal** cuando hay al menos una: la primera lo es; elegir otra deja una sola; retirar la principal reasigna | `Apartamento.agregarImagenes`, `establecerImagenPrincipal`, `retirarImagen`; `reconstruir` valida la coherencia | `PUT .../imagenes/{id}/principal` | `ApartamentoImagenesTest`, `ApartamentoImagenesPersistenciaTest`, `RecorridoImagenesIntegracionTest.siempreHayExactamenteUnaPrincipal...` | 11.1, 11.2, 11.10, 11.16, 11.17, 11.27 | Implementada |
+| IM-03 | **Activar un apartamento exige al menos 1 imagen** (después de las tarifas completas, 7.4) | `ActivacionApartamentoService` | `PUT /api/apartamentos/{id}/activar` | `ActivacionApartamentoServiceTest` (2 pruebas nuevas), `RecorridoImagenesIntegracionTest.activarUnApartamentoExigeAlMenosUnaImagen` | 11.26 a 11.28 | Implementada |
+| IM-04 | Un apartamento **activo** conserva al menos una imagen: no se retira la última | `Apartamento.retirarImagen` | `PUT .../imagenes/{id}/retirar` | `ApartamentoImagenesTest`, `ImagenesApartamentoUseCasesTest`, `RecorridoImagenesIntegracionTest` | 11.29 | Implementada |
+| IM-05 | El retiro es **lógico** (no hay DELETE): la imagen sale de la galería, el registro y el archivo se conservan | `ImagenApartamento.retirada`, tabla `apartamento_imagen` | `PUT .../imagenes/{id}/retirar` | `ApartamentoImagenesPersistenciaTest`, `RecorridoImagenesIntegracionTest` | 11.17, 11.18 | Implementada |
+| IM-06 | Solo **JPG, PNG o WEBP**, reconocidos por el **contenido** (no por la extensión ni por el tipo declarado) | `TipoImagen.detectar`, `ContenidoImagen.de` | `POST .../imagenes`, `PUT /api/usuarios/yo/foto` | `ContenidoImagenTest` (7), `ApartamentoImagenesControllerTest`, `RecorridoImagenesIntegracionTest.soloSeAdmiten...` | 11.12 a 11.14, 11.34, 11.35 | Implementada |
+| IM-07 | Tamaño máximo **5 MB** por imagen de apartamento y **2 MB** la foto de perfil: parámetros de `application.properties` (`sga.imagenes.tamano-maximo-mb`, `tamano-maximo-perfil-mb`) | `ValidadorImagenes` (servicio de dominio como `@Bean`) | ambos endpoints | `ContenidoImagenTest` (exactamente 5 MB sí, 5 MB + 1 byte no; 2 MB), `RecorridoImagenesIntegracionTest` | (los archivos de varios megas se verifican en Java) | Implementada |
+| IM-08 | El dominio decide **antes de subir**: cupo y tamaño se revisan antes de tocar el almacén (sin archivos huérfanos); si el almacén falla no se registra ninguna imagen del lote | `AgregarImagenesApartamentoUseCase` | `POST .../imagenes` | `ImagenesApartamentoUseCasesTest` (orden de lo orquestado), `RecorridoImagenesFalloIntegracionTest` | 11.14, 11.15 | Implementada |
+| IM-09 | **Foto de perfil** (7.2): una imagen, hasta 2 MB, con el mismo puerto; sin foto se ven las iniciales; la foto anterior se conserva si algo falla | `GestionUsuariosServiceImpl.actualizarFoto`, `UsuarioEntity.fotoUrl` | `PUT /api/usuarios/yo/foto`, `GET /api/usuarios/yo` | `RecorridoImagenesIntegracionTest` (5 pruebas de foto), `RecorridoImagenesFalloIntegracionTest` | 11.30 a 11.39 | Implementada |
+| IM-10 | Solo el **administrador** sube, elige la principal y retira; la foto de perfil es de cualquier rol y siempre la del dueño del token; `/imagenes/**` es público (lo pide `<img>`, que no envía el token) | `@PreAuthorize`, `SecurityConfig` | los 4 endpoints | `RecorridoImagenesIntegracionTest.soloElAdministradorGestionaLasImagenes`, `cambiarLaFotoExigeSesion...` | 11.5 a 11.9, 11.38 | Implementada |
+| IM-11 | Las respuestas del apartamento y de la disponibilidad traen **`imagenPrincipal` y `imagenes`** (7.5: resultados en tarjetas con imagen principal) | `ApartamentoMapper`, `ReservaMapper.aDisponible` | `GET /api/apartamentos`, `GET /api/apartamentos/{id}`, `POST /api/disponibilidad` | `RecorridoImagenesIntegracionTest.elDetalleLaDisponibilidad...`, `ApartamentoImagenesControllerTest` | 11.1 a 11.4 | Implementada |
+| IM-12 | Datos de prueba: **cada apartamento sembrado tiene imágenes de ejemplo** (2, la primera principal), guardadas siempre en el almacén local y sin duplicarse al reiniciar | `SembradorImagenesPrueba`, `CargadorDatosPrueba` | `GET /api/apartamentos` | `RecorridoImagenesIntegracionTest.todoApartamentoSembrado...`, `AlmacenesDeImagenesTest.unNombreFijoNoSeVuelveAEscribir...` | 11.1 | Implementada |
+| MP-01 | Mapa del alojamiento con Leaflet y OpenStreetMap (sin cuenta ni clave) en Buscar y en el detalle; sin mapa se ve la dirección con las coordenadas y un enlace | `MapaAlojamiento` (frontend), `GET /api/alojamiento` (latitud y longitud, L-02) | `GET /api/alojamiento` | verificación de pantalla (ver la guía de revisión del paso) | — | Implementada |
+
 ## Notificaciones al titular (10.3.2-A), usuarios y recuperación (7.2) — J7
 
 ### Integración de salida: requisitos I-01 a I-08 (sección 10.3.3)

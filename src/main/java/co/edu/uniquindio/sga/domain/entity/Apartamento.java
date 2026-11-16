@@ -6,12 +6,16 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.ImagenApartamento;
+import co.edu.uniquindio.sga.domain.valueobject.ReferenciaImagen;
 
 /**
  * Raíz de Agregado que representa una unidad autónoma que se alquila.
@@ -25,6 +29,8 @@ public class Apartamento {
     public static final int MAX_DESCRIPCION = 500;
     public static final int MAX_ITEMS_DOTACION = 30;
     public static final int MAX_LONGITUD_ITEM_DOTACION = 60;
+    /** 7.3: un apartamento tiene entre 1 y 10 imágenes (las retiradas no cuentan). */
+    public static final int MAX_IMAGENES = 10;
 
     private final IdentificacionApartamento identificacion; // Identidad única
 
@@ -36,6 +42,8 @@ public class Apartamento {
     private Set<Caracteristica> caracteristicas;  // catálogo cerrado
     private EstadoOperativo estadoOperativo;
     private boolean activo;
+    /** 7.3: todas las imágenes, en el orden en que se agregaron, incluidas las retiradas (el retiro es lógico). */
+    private List<ImagenApartamento> imagenes = new ArrayList<>();
 
     public Apartamento(IdentificacionApartamento identificacion, String nombre, String descripcion,
                        int dormitorios, int capacidad, Collection<String> dotacion,
@@ -101,6 +109,109 @@ public class Apartamento {
         apartamento.estadoOperativo = estadoOperativo;
         apartamento.activo = activo;
         return apartamento;
+    }
+
+    /**
+     * Igual que {@link #reconstruir(IdentificacionApartamento, String, String, int, int, Collection, Collection, EstadoOperativo,
+     * boolean)} pero con las imágenes guardadas. Verifica que sean coherentes: a lo sumo {@value #MAX_IMAGENES} sin retirar y,
+     * si hay alguna, exactamente una principal (7.3).
+     */
+    public static Apartamento reconstruir(IdentificacionApartamento identificacion, String nombre, String descripcion,
+                                          int dormitorios, int capacidad, Collection<String> dotacion,
+                                          Collection<Caracteristica> caracteristicas,
+                                          EstadoOperativo estadoOperativo, boolean activo,
+                                          Collection<ImagenApartamento> imagenes) {
+        Apartamento apartamento = reconstruir(identificacion, nombre, descripcion, dormitorios, capacidad, dotacion,
+                caracteristicas, estadoOperativo, activo);
+        List<ImagenApartamento> restauradas = imagenes == null ? List.of() : List.copyOf(imagenes);
+        validarCoherenciaDeImagenes(restauradas);
+        apartamento.imagenes = new ArrayList<>(restauradas);
+        return apartamento;
+    }
+
+    // ---------- Imágenes (7.3) ----------
+
+    /** Cuántas imágenes tiene en la galería (las retiradas no cuentan). */
+    public int cantidadImagenes() {
+        return (int) imagenes.stream().filter(imagen -> !imagen.retirada()).count();
+    }
+
+    /**
+     * 7.3: máximo {@value #MAX_IMAGENES} imágenes. Se revisa ANTES de subir nada al almacén externo, para no dejar archivos
+     * huérfanos cuando el lote no cabe.
+     */
+    public void verificarCupoImagenes(int nuevas) {
+        if (nuevas < 1) {
+            throw new ReglaDominioException("Debe enviar al menos una imagen");
+        }
+        int actuales = cantidadImagenes();
+        if (actuales + nuevas > MAX_IMAGENES) {
+            throw new ReglaDominioException("Un apartamento admite como máximo " + MAX_IMAGENES + " imágenes: ya tiene "
+                    + actuales + " y se intentan agregar " + nuevas);
+        }
+    }
+
+    /**
+     * Agrega imágenes ya guardadas en el almacén. Si el apartamento no tenía ninguna, la primera queda como principal (7.3:
+     * exactamente una principal cuando hay al menos una). Devuelve las imágenes agregadas.
+     */
+    public List<ImagenApartamento> agregarImagenes(List<ReferenciaImagen> guardadas) {
+        verificarCupoImagenes(guardadas == null ? 0 : guardadas.size());
+        boolean sinPrincipal = cantidadImagenes() == 0;
+        List<ImagenApartamento> agregadas = new ArrayList<>();
+        for (ReferenciaImagen guardada : guardadas) {
+            ImagenApartamento nueva = new ImagenApartamento(UUID.randomUUID().toString(), guardada.url(),
+                    guardada.referencia(), sinPrincipal && agregadas.isEmpty(), false);
+            agregadas.add(nueva);
+            imagenes.add(nueva);
+        }
+        return List.copyOf(agregadas);
+    }
+
+    /** La imagen con ese identificador, si está en la galería (no retirada). */
+    public Optional<ImagenApartamento> buscarImagen(String id) {
+        return imagenes.stream().filter(imagen -> !imagen.retirada() && imagen.id().equals(id)).findFirst();
+    }
+
+    /** Cambia cuál es la principal: la anterior deja de serlo, así que siempre hay exactamente una. */
+    public void establecerImagenPrincipal(String id) {
+        ImagenApartamento elegida = buscarImagen(id).orElseThrow(() ->
+                new ReglaDominioException("El apartamento no tiene una imagen con el identificador " + id));
+        imagenes.replaceAll(imagen -> imagen.retirada() ? imagen
+                : imagen.id().equals(elegida.id()) ? imagen.comoPrincipal() : imagen.sinSerPrincipal());
+    }
+
+    /**
+     * Retiro LÓGICO de una imagen: sale de la galería pero el registro se conserva. Si era la principal, la primera de las que
+     * quedan pasa a serlo. Un apartamento ACTIVO debe conservar al menos una imagen (7.3), así que no se le retira la última.
+     */
+    public void retirarImagen(String id) {
+        ImagenApartamento retirada = buscarImagen(id).orElseThrow(() ->
+                new ReglaDominioException("El apartamento no tiene una imagen con el identificador " + id));
+        if (activo && cantidadImagenes() == 1) {
+            throw new ReglaDominioException("Un apartamento activo debe conservar al menos una imagen: "
+                    + "agregue otra antes de retirar la última, o dé de baja el apartamento");
+        }
+        imagenes.replaceAll(imagen -> imagen.id().equals(retirada.id()) ? imagen.retirar() : imagen);
+        boolean sinPrincipal = imagenes.stream().noneMatch(imagen -> !imagen.retirada() && imagen.principal());
+        if (sinPrincipal) {
+            imagenes.stream().filter(imagen -> !imagen.retirada()).findFirst()
+                    .ifPresent(primera -> imagenes.replaceAll(imagen -> imagen.id().equals(primera.id()) ? imagen.comoPrincipal() : imagen));
+        }
+    }
+
+    private static void validarCoherenciaDeImagenes(List<ImagenApartamento> imagenes) {
+        List<ImagenApartamento> activas = imagenes.stream().filter(imagen -> !imagen.retirada()).toList();
+        if (activas.size() > MAX_IMAGENES) {
+            throw new ReglaDominioException("Un apartamento admite como máximo " + MAX_IMAGENES + " imágenes");
+        }
+        long principales = activas.stream().filter(ImagenApartamento::principal).count();
+        if (!activas.isEmpty() && principales != 1) {
+            throw new ReglaDominioException("Un apartamento con imágenes debe tener exactamente una principal");
+        }
+        if (imagenes.stream().map(ImagenApartamento::id).distinct().count() != imagenes.size()) {
+            throw new ReglaDominioException("Las imágenes de un apartamento no pueden repetir su identificador");
+        }
     }
 
     /** RN-02: Verifica si el apartamento puede alojar a un grupo específico. */
@@ -271,6 +382,12 @@ public class Apartamento {
     public List<String> getDotacion() { return dotacion; }
     /** Copia inmutable, ordenada según el catálogo. */
     public Set<Caracteristica> getCaracteristicas() { return caracteristicas; }
+    /** Las imágenes de la galería (sin las retiradas), en el orden en que se agregaron. Copia inmutable. */
+    public List<ImagenApartamento> getImagenes() { return imagenes.stream().filter(imagen -> !imagen.retirada()).toList(); }
+    /** Todas las imágenes, también las retiradas (para persistir el registro completo). */
+    public List<ImagenApartamento> getTodasLasImagenes() { return List.copyOf(imagenes); }
+    /** La imagen principal, si el apartamento tiene alguna. */
+    public Optional<ImagenApartamento> getImagenPrincipal() { return imagenes.stream().filter(imagen -> !imagen.retirada() && imagen.principal()).findFirst(); }
     public int getDormitorios() { return dormitorios; }
     public int getCapacidad() { return capacidad; }
     public EstadoOperativo getEstadoOperativo() { return estadoOperativo; }

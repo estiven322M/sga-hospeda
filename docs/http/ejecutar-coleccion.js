@@ -3,6 +3,7 @@
 // Uso:  node docs/http/ejecutar-coleccion.js docs/http/sga.http http://localhost:8080 [--dump volcado.json]
 // Debe ejecutarse sobre la aplicación recién arrancada (la colección no es idempotente). Ver docs/http/resultado-corrida.md.
 const fs = require("fs");
+const path = require("path");
 const [, , archivo, host] = process.argv;
 const texto = fs.readFileSync(archivo, "utf8").replace(/\r\n/g, "\n");
 
@@ -50,7 +51,18 @@ function sustituir(s) {
     const idxScript = resto.indexOf("> {%");
     const cuerpoCrudo = (idxScript >= 0 ? resto.slice(0, idxScript) : resto).split("\n").filter(x => !x.startsWith("#")).join("\n").trim();
     const script = idxScript >= 0 ? resto.slice(idxScript).match(/>\s*\{%([\s\S]*?)%\}/)?.[1] : null;
-    const cuerpo = cuerpoCrudo ? sustituir(cuerpoCrudo) : undefined;
+    let cuerpo = cuerpoCrudo ? sustituir(cuerpoCrudo) : undefined;
+    // multipart/form-data (subida de imágenes): una línea "< ruta" se reemplaza por los bytes del archivo, relativo a este .http,
+    // y las líneas se unen con CRLF como exige el formato. Es la misma sintaxis del cliente HTTP de IntelliJ.
+    if (cuerpo && /multipart\/form-data/i.test(headers["Content-Type"] || "")) {
+      const partes = [];
+      for (const linea of cuerpo.split("\n")) {
+        const referencia = linea.match(/^<\s+(\S+)\s*$/);
+        partes.push(referencia ? fs.readFileSync(path.resolve(path.dirname(archivo), referencia[1])) : Buffer.from(linea, "utf8"));
+        partes.push(Buffer.from("\r\n"));
+      }
+      cuerpo = Buffer.concat(partes);
+    }
 
     solicitudes++;
     let res, texto;
