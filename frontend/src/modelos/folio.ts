@@ -30,7 +30,7 @@ export interface FolioResponse {
   saldo: Pesos;
   moneda: string;
   cerrado: boolean;
-  /** Quién autorizó y por qué se cerró con saldo (CU-11). El yaml no lo marca nullable: el backend lo envía null si no hubo autorización. */
+  /** Quién autorizó y por qué se cerró con saldo (CU-11). null si no hubo autorización. */
   autorizacionCierre: string | null;
 }
 

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Link, NavLink } from 'react-router';
+import { Link, NavLink, useNavigate } from 'react-router';
+import { useAuth } from '../hooks/useAuth';
+import type { RolUsuario } from '../modelos/auth';
 import { RUTAS } from '../rutas/rutas';
 import { MenuDesplegable } from './MenuDesplegable';
 
@@ -20,17 +22,32 @@ const OPCIONES_ADMINISTRACION = [
   { etiqueta: 'Rechazos externos', ruta: RUTAS.rechazosExternos },
 ] as const;
 
+const ETIQUETA_ROL: Record<RolUsuario, string> = {
+  HUESPED: 'Huésped',
+  RECEPCIONISTA: 'Recepción',
+  ADMINISTRADOR: 'Administrador',
+  PERSONAL_SERVICIO: 'Servicio',
+};
+
 function claseEnlace({ isActive }: { isActive: boolean }) {
   return `nav-link ${isActive ? 'active fw-semibold' : ''}`;
 }
 
 /**
- * Barra de navegación responsiva de Bootstrap con la identidad de Hospeda (marca verde y casa).
- * Por ahora muestra TODAS las secciones: cuando exista la sesión (paso J2) cada opción aparecerá solo para el
- * rol que puede usarla.
+ * Barra de navegación responsiva de Bootstrap con la identidad de Hospeda. Cada opción aparece solo para el rol que
+ * puede usarla (las mismas reglas de rutas/acceso.ts); sin sesión solo se ve el inicio y los botones de ingreso.
+ * Ocultar una opción no protege nada: la seguridad real es del backend.
  */
 export function Encabezado({ nombreAlojamiento }: EncabezadoProps) {
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const navigate = useNavigate();
+  const { sesion, tieneRol, cerrarSesion } = useAuth();
+
+  function salir() {
+    cerrarSesion();
+    setMenuAbierto(false);
+    navigate(RUTAS.login);
+  }
 
   return (
     <header>
@@ -61,23 +78,45 @@ export function Encabezado({ nombreAlojamiento }: EncabezadoProps) {
               <li className="nav-item">
                 <NavLink to={RUTAS.inicio} end className={claseEnlace}>Inicio</NavLink>
               </li>
-              <li className="nav-item">
-                <NavLink to={RUTAS.buscar} className={claseEnlace}>Buscar</NavLink>
-              </li>
-              <li className="nav-item">
-                <NavLink to={RUTAS.misReservas} className={claseEnlace}>Mis reservas</NavLink>
-              </li>
-              <MenuDesplegable titulo="Recepción" opciones={OPCIONES_RECEPCION} />
-              <li className="nav-item">
-                <NavLink to={RUTAS.preparacion} className={claseEnlace}>Preparación</NavLink>
-              </li>
-              <MenuDesplegable titulo="Administración" opciones={OPCIONES_ADMINISTRACION} />
+              {tieneRol('HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR') && (
+                <li className="nav-item">
+                  <NavLink to={RUTAS.buscar} className={claseEnlace}>Buscar</NavLink>
+                </li>
+              )}
+              {tieneRol('HUESPED') && (
+                <li className="nav-item">
+                  <NavLink to={RUTAS.misReservas} className={claseEnlace}>Mis reservas</NavLink>
+                </li>
+              )}
+              {tieneRol('RECEPCIONISTA', 'ADMINISTRADOR') && (
+                <MenuDesplegable titulo="Recepción" opciones={OPCIONES_RECEPCION} />
+              )}
+              {tieneRol('PERSONAL_SERVICIO', 'ADMINISTRADOR') && (
+                <li className="nav-item">
+                  <NavLink to={RUTAS.preparacion} className={claseEnlace}>Preparación</NavLink>
+                </li>
+              )}
+              {tieneRol('ADMINISTRADOR') && <MenuDesplegable titulo="Administración" opciones={OPCIONES_ADMINISTRACION} />}
             </ul>
 
-            <div className="d-flex gap-2" onClick={() => setMenuAbierto(false)}>
-              <Link to={RUTAS.login} className="btn btn-primary btn-sm">Ingresar</Link>
-              <Link to={RUTAS.registro} className="btn btn-outline-secondary btn-sm">Registrarse</Link>
-            </div>
+            {sesion ? (
+              <div className="d-flex align-items-center gap-2">
+                <span className="navbar-text small">
+                  {sesion.correo}{' '}
+                  {sesion.roles.map((rol) => (
+                    <span key={rol} className="badge text-bg-light border">{ETIQUETA_ROL[rol]}</span>
+                  ))}
+                </span>
+                <button type="button" className="btn btn-outline-danger btn-sm" onClick={salir}>
+                  Cerrar sesión
+                </button>
+              </div>
+            ) : (
+              <div className="d-flex gap-2" onClick={() => setMenuAbierto(false)}>
+                <Link to={RUTAS.login} className="btn btn-primary btn-sm">Ingresar</Link>
+                <Link to={RUTAS.registro} className="btn btn-outline-secondary btn-sm">Registrarse</Link>
+              </div>
+            )}
           </div>
         </div>
       </nav>

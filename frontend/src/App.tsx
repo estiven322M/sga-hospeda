@@ -2,6 +2,15 @@ import { lazy } from 'react';
 import { Route, Routes } from 'react-router';
 import { Layout } from './componentes/Layout';
 import Inicio from './paginas/Inicio';
+import {
+  ROLES_ADMINISTRACION,
+  ROLES_BUSQUEDA,
+  ROLES_HUESPED,
+  ROLES_RECEPCION,
+  ROLES_SERVICIO,
+} from './rutas/acceso';
+import { RutaProtegida } from './rutas/RutaProtegida';
+import { RutaPublica } from './rutas/RutaPublica';
 import { PATRONES } from './rutas/rutas';
 
 // Carga diferida: el código de cada página se descarga la primera vez que se visita.
@@ -35,9 +44,10 @@ const PoliticaCancelacion = lazy(() => import('./paginas/administracion/Politica
 const RechazosExternos = lazy(() => import('./paginas/administracion/RechazosExternos'));
 
 /**
- * Todas las rutas de la aplicación. Están declaradas desde el paso J1 para que nadie tenga que editar este
- * archivo después: cada paso solo llena el contenido de sus páginas. Los patrones salen de rutas/rutas.ts.
- * La protección por rol (RutaProtegida) se agrega en el paso J2 envolviendo estos mismos grupos.
+ * Todas las rutas de la aplicación, declaradas desde el paso J1 para que nadie tenga que editar este archivo:
+ * cada paso solo llena el contenido de sus páginas. Los patrones salen de rutas/rutas.ts y los roles de
+ * rutas/acceso.ts (la matriz de docs/seguridad.md). Cada grupo de <RutaProtegida> exige haber ingresado y, si se
+ * indican roles, tener alguno de ellos; si no, lleva al login o a /no-autorizado.
  */
 export default function App() {
   return (
@@ -45,33 +55,49 @@ export default function App() {
       <Route element={<Layout />}>
         {/* Inicio se carga de inmediato: es la primera página que ve casi todo el mundo */}
         <Route index element={<Inicio />} />
-        <Route path="login" element={<Login />} />
-        <Route path="registro" element={<Registro />} />
         <Route path="no-autorizado" element={<NoAutorizado />} />
 
-        {/* Huésped */}
-        <Route path={PATRONES.buscar} element={<Buscar />} />
-        <Route path={PATRONES.detalleApartamento} element={<DetalleApartamento />} />
-        <Route path={PATRONES.nuevaReservaHuesped} element={<NuevaReservaHuesped />} />
-        <Route path={PATRONES.misReservas} element={<MisReservas />} />
-        <Route path={PATRONES.detalleReserva} element={<DetalleReserva />} />
+        {/* Solo sin sesión: con sesión llevan a la página inicial del rol */}
+        <Route element={<RutaPublica />}>
+          <Route path="login" element={<Login />} />
+          <Route path="registro" element={<Registro />} />
+        </Route>
+
+        {/* Buscar y cotizar: huésped, recepción y administración */}
+        <Route element={<RutaProtegida roles={ROLES_BUSQUEDA} />}>
+          <Route path={PATRONES.buscar} element={<Buscar />} />
+          <Route path={PATRONES.detalleApartamento} element={<DetalleApartamento />} />
+        </Route>
+
+        {/* Huésped: reservar a su nombre y sus propias reservas */}
+        <Route element={<RutaProtegida roles={ROLES_HUESPED} />}>
+          <Route path={PATRONES.nuevaReservaHuesped} element={<NuevaReservaHuesped />} />
+          <Route path={PATRONES.misReservas} element={<MisReservas />} />
+          <Route path={PATRONES.detalleReserva} element={<DetalleReserva />} />
+        </Route>
 
         {/* Recepción */}
-        <Route path={PATRONES.reservas} element={<Reservas />} />
-        <Route path={PATRONES.nuevaReservaRecepcion} element={<NuevaReservaRecepcion />} />
-        <Route path={PATRONES.gestionReserva} element={<GestionReserva />} />
+        <Route element={<RutaProtegida roles={ROLES_RECEPCION} />}>
+          <Route path={PATRONES.reservas} element={<Reservas />} />
+          <Route path={PATRONES.nuevaReservaRecepcion} element={<NuevaReservaRecepcion />} />
+          <Route path={PATRONES.gestionReserva} element={<GestionReserva />} />
+        </Route>
 
         {/* Personal de servicio */}
-        <Route path={PATRONES.preparacion} element={<Preparacion />} />
+        <Route element={<RutaProtegida roles={ROLES_SERVICIO} />}>
+          <Route path={PATRONES.preparacion} element={<Preparacion />} />
+        </Route>
 
         {/* Administración */}
-        <Route path={PATRONES.apartamentos} element={<Apartamentos />} />
-        <Route path={PATRONES.apartamentoNuevo} element={<ApartamentoFormulario />} />
-        <Route path={PATRONES.apartamentoEditar} element={<ApartamentoFormulario />} />
-        <Route path={PATRONES.bloqueos} element={<Bloqueos />} />
-        <Route path={PATRONES.temporadasTarifas} element={<TemporadasTarifas />} />
-        <Route path={PATRONES.politicaCancelacion} element={<PoliticaCancelacion />} />
-        <Route path={PATRONES.rechazosExternos} element={<RechazosExternos />} />
+        <Route element={<RutaProtegida roles={ROLES_ADMINISTRACION} />}>
+          <Route path={PATRONES.apartamentos} element={<Apartamentos />} />
+          <Route path={PATRONES.apartamentoNuevo} element={<ApartamentoFormulario />} />
+          <Route path={PATRONES.apartamentoEditar} element={<ApartamentoFormulario />} />
+          <Route path={PATRONES.bloqueos} element={<Bloqueos />} />
+          <Route path={PATRONES.temporadasTarifas} element={<TemporadasTarifas />} />
+          <Route path={PATRONES.politicaCancelacion} element={<PoliticaCancelacion />} />
+          <Route path={PATRONES.rechazosExternos} element={<RechazosExternos />} />
+        </Route>
 
         <Route path="*" element={<NoEncontrada />} />
       </Route>

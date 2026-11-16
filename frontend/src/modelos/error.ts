@@ -15,6 +15,6 @@ export interface ErrorResponse {
   /** Mensaje con significado de negocio, en español. */
   mensaje: string;
   path: string;
-  /** Solo en un 400 de validación (campo → mensaje). El backend lo envía null en los demás casos. */
+  /** Solo en un 400 de validación (campo → mensaje); null en los demás errores. */
   errores?: Record<string, string> | null;
 }

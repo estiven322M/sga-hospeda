@@ -34,7 +34,7 @@ export interface EventoReservaResponse {
   /** Por ejemplo CREACION, CONFIRMACION, MODIFICACION, CANCELACION, REGISTRO, SALIDA, NO_SHOW, VENCIMIENTO. */
   accion: string;
   autor: string;
-  /** El backend lo envía null en el primer evento (la creación). */
+  /** null en el primer evento: la creación de la reserva. */
   estadoAnterior: EstadoReserva | null;
   estadoNuevo: EstadoReserva;
   observacion: string;
@@ -55,7 +55,7 @@ export interface ReservaDetalleResponse {
   fechaEntrada: FechaISO;
   fechaSalida: FechaISO;
   noches: number;
-  /** El yaml no la marca nullable, pero el backend la envía null mientras no se haya informado (es obligatoria para confirmar, RN-09). */
+  /** null mientras no se haya informado; es obligatoria para confirmar (RN-09). */
   horaEstimadaLlegada: HoraISO | null;
   titular: OcupanteResponse;
   ocupantes: OcupanteResponse[];
