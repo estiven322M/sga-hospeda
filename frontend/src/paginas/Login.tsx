@@ -65,7 +65,10 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="mt-3 text-center">
+        <p className="mt-3 mb-1 text-center">
+          <Link to={RUTAS.recuperarContrasena}>¿Olvidó su contraseña?</Link>
+        </p>
+        <p className="text-center">
           ¿Aún no tiene cuenta? <Link to={RUTAS.registro}>Regístrese</Link>
         </p>
       </div>

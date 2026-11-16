@@ -22,7 +22,11 @@ const OPCIONES_ADMINISTRACION = [
   { etiqueta: 'Temporadas y tarifas', ruta: RUTAS.temporadasTarifas },
   { etiqueta: 'Política de cancelación', ruta: RUTAS.politicaCancelacion },
   { etiqueta: 'Rechazos externos', ruta: RUTAS.rechazosExternos },
+  { etiqueta: 'Usuarios', ruta: RUTAS.usuarios },
+  { etiqueta: 'Notificaciones', ruta: RUTAS.notificaciones },
 ] as const;
+
+const OPCIONES_USUARIO = [{ etiqueta: 'Mi perfil', ruta: RUTAS.perfil }] as const;
 
 const ETIQUETA_ROL: Record<RolUsuario, string> = {
   HUESPED: 'Huésped',
@@ -103,8 +107,11 @@ export function Encabezado({ nombreAlojamiento }: EncabezadoProps) {
 
             {sesion ? (
               <div className="d-flex align-items-center gap-2">
+                {/* El menú del usuario: su perfil y el cambio de contraseña */}
+                <ul className="navbar-nav" onClick={() => setMenuAbierto(false)}>
+                  <MenuDesplegable titulo={sesion.nombre ?? sesion.correo ?? 'Mi cuenta'} opciones={OPCIONES_USUARIO} alineadoALaDerecha />
+                </ul>
                 <span className="navbar-text small">
-                  {sesion.nombre ?? sesion.correo}{' '}
                   {sesion.roles.map((rol) => (
                     <span key={rol} className="badge text-bg-light border">{ETIQUETA_ROL[rol]}</span>
                   ))}

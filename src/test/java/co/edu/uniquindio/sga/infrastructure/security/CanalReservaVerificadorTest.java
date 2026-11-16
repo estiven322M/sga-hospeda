@@ -31,7 +31,7 @@ class CanalReservaVerificadorTest {
     private static CrearReservaRequest reserva(CanalOrigen canal, String documentoTitular) {
         OcupanteRequest titular = new OcupanteRequest(documentoTitular, "Laura Gomez", LocalDate.of(1995, 1, 30));
         return new CrearReservaRequest("APT-101", LocalDate.of(2028, 3, 10), LocalDate.of(2028, 3, 12), canal,
-                canal == CanalOrigen.EXTERNO ? "EXT-1" : null, null, titular, List.of(titular));
+                canal == CanalOrigen.EXTERNO ? "EXT-1" : null, null, null, titular, List.of(titular));
     }
 
     @Test

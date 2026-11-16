@@ -72,6 +72,22 @@ public class UsuarioEntity {
         this.activo = false;
     }
 
+    /** 7.2: el perfil solo cambia nombre y teléfono; el correo y el documento no se editan. */
+    public void actualizarPerfil(String nombre, String telefono) {
+        this.nombre = nombre;
+        this.telefono = telefono;
+    }
+
+    /** Recibe la contraseña ya cifrada por el PasswordEncoder. */
+    public void cambiarContrasena(String contrasenaCifrada) {
+        this.contrasena = contrasenaCifrada;
+    }
+
+    /** 7.2: solo un administrador cambia el rol. */
+    public void cambiarRol(RolUsuario nuevoRol) {
+        this.rol = nuevoRol;
+    }
+
     public Long getId() { return id; }
     public String getNombre() { return nombre; }
     public String getCorreo() { return correo; }

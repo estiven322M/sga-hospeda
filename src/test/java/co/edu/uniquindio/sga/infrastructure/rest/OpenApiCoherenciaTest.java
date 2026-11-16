@@ -89,9 +89,10 @@ class OpenApiCoherenciaTest {
     @Test
     @SuppressWarnings("unchecked")
     void todoEndpointProtegidoDocumentaLas401YLas403() throws IOException {
-        // login, registro y la CONSULTA del alojamiento son públicos (security: []); todos los demás exigen token.
+        // login, registro, la recuperación de contraseña y la CONSULTA del alojamiento son públicos (security: []); todos los demás exigen token.
         // Se identifican por método y ruta: PUT /api/alojamiento sí es protegido y debe documentar 401 y 403.
-        Set<String> publicos = Set.of("POST /api/auth/login", "POST /api/auth/registro", "GET /api/alojamiento");
+        Set<String> publicos = Set.of("POST /api/auth/login", "POST /api/auth/registro", "GET /api/alojamiento",
+                "POST /api/auth/recuperacion/solicitar", "POST /api/auth/recuperacion/confirmar");
         Set<String> incompletos = new TreeSet<>();
         paths().forEach((ruta, definicion) -> ((Map<String, Object>) definicion).forEach((metodo, operacion) -> {
             if (!METODOS_HTTP.contains(metodo) || publicos.contains(metodo.toUpperCase() + " " + ruta)) {

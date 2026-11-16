@@ -7,6 +7,8 @@ export const RUTAS = {
   login: '/login',
   registro: '/registro',
   noAutorizado: '/no-autorizado',
+  recuperarContrasena: '/recuperar-contrasena',
+  perfil: '/perfil',
 
   // Huésped
   buscar: '/buscar',
@@ -33,10 +35,15 @@ export const RUTAS = {
   temporadasTarifas: '/administracion/temporadas-tarifas',
   politicaCancelacion: '/administracion/politica-cancelacion',
   rechazosExternos: '/administracion/rechazos-externos',
+  usuarios: '/administracion/usuarios',
+  notificaciones: '/administracion/notificaciones',
 } as const;
 
 /** Patrones de ruta para <Route path=...>, relativos a la raíz (sin "/" inicial). Los parámetros llevan ":". */
 export const PATRONES = {
+  recuperarContrasena: 'recuperar-contrasena',
+  perfil: 'perfil',
+
   buscar: 'buscar',
   detalleApartamento: 'apartamentos/:identificacion',
   nuevaReservaHuesped: 'reservar/:identificacion',
@@ -58,4 +65,6 @@ export const PATRONES = {
   temporadasTarifas: 'administracion/temporadas-tarifas',
   politicaCancelacion: 'administracion/politica-cancelacion',
   rechazosExternos: 'administracion/rechazos-externos',
+  usuarios: 'administracion/usuarios',
+  notificaciones: 'administracion/notificaciones',
 } as const;

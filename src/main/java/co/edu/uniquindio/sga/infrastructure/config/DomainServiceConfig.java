@@ -23,7 +23,10 @@ import co.edu.uniquindio.sga.domain.repository.PoliticaCancelacionRepository;
 import co.edu.uniquindio.sga.domain.repository.ReservaRepository;
 import co.edu.uniquindio.sga.domain.repository.TarifarioRepository;
 import co.edu.uniquindio.sga.domain.repository.TemporadaRepository;
+import co.edu.uniquindio.sga.domain.entity.Alojamiento;
 import co.edu.uniquindio.sga.domain.service.ActivacionApartamentoService;
+import co.edu.uniquindio.sga.domain.service.BajaUsuarioService;
+import co.edu.uniquindio.sga.domain.service.RedactorNotificaciones;
 import co.edu.uniquindio.sga.domain.service.CalendarioOcupacionService;
 import co.edu.uniquindio.sga.domain.service.CargoServicioAdicionalService;
 import co.edu.uniquindio.sga.domain.service.ConfirmacionReservaService;
@@ -197,6 +200,16 @@ public class DomainServiceConfig {
     @Bean
     public RetencionCancelacionService retencionCancelacionService(ConfiguracionAlojamiento configuracion) {
         return new RetencionCancelacionService(configuracion);
+    }
+
+    @Bean
+    public BajaUsuarioService bajaUsuarioService(ReservaRepository reservaRepository) {
+        return new BajaUsuarioService(reservaRepository);
+    }
+
+    @Bean
+    public RedactorNotificaciones redactorNotificaciones(AlojamientoRepository alojamientoRepository) {
+        return new RedactorNotificaciones(() -> alojamientoRepository.obtener().map(Alojamiento::getNombre).orElse("Hospeda"));
     }
 
     @Bean

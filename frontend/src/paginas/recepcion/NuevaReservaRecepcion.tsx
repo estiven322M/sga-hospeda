@@ -16,7 +16,7 @@ import { erroresDeCampo, mensajeDeError } from '../../utilidades/errores';
 import { hoyISO } from '../../utilidades/fechas';
 import { notificarExito } from '../../utilidades/notificaciones';
 
-const CAMPOS_DEL_FORMULARIO = ['identificacionApartamento', 'fechaEntrada', 'fechaSalida', 'horaEstimadaLlegada'] as const;
+const CAMPOS_DEL_FORMULARIO = ['identificacionApartamento', 'fechaEntrada', 'fechaSalida', 'horaEstimadaLlegada', 'correoTitular'] as const;
 
 /**
  * Reserva de recepción por el canal DIRECTO (CU-03): la persona de recepción escribe el titular, los ocupantes, las
@@ -36,6 +36,7 @@ export default function NuevaReservaRecepcion() {
       fechaEntrada: '',
       fechaSalida: '',
       horaEstimadaLlegada: '',
+      correoTitular: '',
       ocupantes: [{ ...OCUPANTE_VACIO }],
     },
   });
@@ -56,6 +57,7 @@ export default function NuevaReservaRecepcion() {
       fechaSalida: datos.fechaSalida,
       canalOrigen: 'DIRECTO',
       ...(datos.horaEstimadaLlegada !== '' && { horaEstimadaLlegada: datos.horaEstimadaLlegada }),
+      ...(datos.correoTitular !== '' && { correoTitular: datos.correoTitular }),
       titular,
       ocupantes: datos.ocupantes,
     };
@@ -118,6 +120,18 @@ export default function NuevaReservaRecepcion() {
 
             <AvisoAdultoResponsable />
             <CamposOcupantes primerEsTitular />
+
+            <Campo
+              id="correoTitular"
+              type="email"
+              etiqueta="Correo del titular (opcional)"
+              autoComplete="off"
+              error={errors.correoTitular?.message}
+              {...register('correoTitular')}
+            />
+            <div className="form-text mb-3">
+              Se le avisará a este correo cuando la reserva se cree, se confirme o se cancele. Si el titular ya tiene cuenta, se usa el correo de su cuenta.
+            </div>
 
             <div className="d-flex gap-2 mt-3">
               <button type="submit" className="btn btn-success" disabled={isSubmitting}>

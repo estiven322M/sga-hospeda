@@ -1,6 +1,9 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
 import co.edu.uniquindio.sga.infrastructure.persistence.jpa.entity.UsuarioEntity;
+import co.edu.uniquindio.sga.infrastructure.security.RolUsuario;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -16,4 +19,8 @@ public interface UsuarioJpaDataRepository extends JpaRepository<UsuarioEntity, L
     boolean existsByCorreo(String correo);
 
     boolean existsByDocumento(String documento);
+
+    Optional<UsuarioEntity> findByDocumentoAndActivoTrue(String documento);
+
+    Page<UsuarioEntity> findByRol(RolUsuario rol, Pageable pageable);
 }

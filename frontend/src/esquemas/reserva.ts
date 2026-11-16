@@ -20,7 +20,11 @@ export type FormularioReservaHuesped = z.infer<typeof esquemaReservaHuesped>;
 
 /** Reserva de recepción por DIRECTO: además se elige el apartamento. */
 export const esquemaReservaRecepcion = baseReserva
-  .extend({ identificacionApartamento: z.string().min(1, 'Elija el apartamento') })
+  .extend({
+    identificacionApartamento: z.string().min(1, 'Elija el apartamento'),
+    /** Opcional: a este correo se avisa si el titular no tiene cuenta (10.3.2-A). Vacío = no se da. */
+    correoTitular: z.union([z.literal(''), z.email('Ingrese un correo electrónico válido').max(120, 'El correo no puede superar 120 caracteres')]),
+  })
   .superRefine((datos, contexto) => validarEstancia(datos, contexto));
 export type FormularioReservaRecepcion = z.infer<typeof esquemaReservaRecepcion>;
 

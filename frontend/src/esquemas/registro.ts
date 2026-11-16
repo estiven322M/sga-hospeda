@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hoyISO } from '../utilidades/fechas';
+import { contrasenaSegura } from './contrasena';
 
 /**
  * Reglas de FORMA del registro: las mismas que el backend valida con Bean Validation (RegistroUsuarioRequest), para
@@ -11,12 +12,7 @@ export const esquemaRegistro = z
   .object({
     nombre: z.string().trim().min(1, 'Ingrese su nombre').max(100, 'El nombre no puede superar 100 caracteres'),
     correo: z.email('Ingrese un correo electrónico válido').max(120, 'El correo no puede superar 120 caracteres'),
-    contrasena: z
-      .string()
-      .min(8, 'La contraseña debe tener al menos 8 caracteres')
-      .max(72, 'La contraseña no puede superar 72 caracteres')
-      .regex(/[A-Z]/, 'La contraseña debe tener al menos una letra mayúscula')
-      .regex(/\d/, 'La contraseña debe tener al menos un número'),
+    contrasena: contrasenaSegura,
     confirmarContrasena: z.string().min(1, 'Confirme su contraseña'),
     telefono: z
       .string()

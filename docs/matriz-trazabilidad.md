@@ -191,6 +191,35 @@ Sigue pendiente (acotado, sin bloquear el frontend):
 
 ---
 
+## Notificaciones al titular (10.3.2-A), usuarios y recuperación (7.2) — J7
+
+### Integración de salida: requisitos I-01 a I-08 (sección 10.3.3)
+
+| # | Requisito | Cómo se cumple | Evidencia |
+|---|---|---|---|
+| I-01 | Detrás de un puerto del dominio | `Notificador` y `BandejaNotificaciones` en `domain/repository`; el dominio solo conoce `Notificacion`, `RegistroNotificacion` y `NotificacionFallidaException`. Los adaptadores viven en `infrastructure/notificaciones` | `NotificadoresTest` |
+| I-02 | Alternativa local sin internet ni credenciales | `NotificadorLocal` (log + bandeja en memoria) es el **activo por defecto** (`sga.notificaciones.proveedor=local`); `smtp` solo por configuración | `RecorridoNotificacionesIntegracionTest` (corre con el local), HTTP 10.33 a 10.53 |
+| I-03 | Tiempo de espera máximo explícito | `sga.notificaciones.tiempo-espera-ms=5000` se aplica a la conexión, la lectura y la escritura del cliente SMTP (`spring.mail.properties.mail.smtp.*timeout`) | `application.properties`; `RecorridoNotificacionFallidaIntegracionTest` (1,5 s) |
+| I-04 | Comportamiento ante fallo definido | Se registra en el log, queda **FALLIDA** con su causa en la bandeja (el administrador la ve) y el usuario no recibe ningún error; sin correo conocido queda **SIN_CORREO** | `NotificacionesUseCasesTest`, `NotificadoresTest`, HTTP 10.47, 10.48 |
+| I-05 | El fallo no impide reservar, registrar, cobrar ni cerrar un folio | Se notifica **después** de que el caso de uso confirmó su transacción (el controller llama a `NotificarReservaUseCase` al volver) y se captura toda excepción; `EmitirNotificacionUseCase` no es transaccional | `RecorridoNotificacionFallidaIntegracionTest` (SMTP real contra un puerto cerrado: 201, 200 y 200 igual); `ReservaControllerTest` |
+| I-06 | Credenciales fuera del repositorio | `spring.mail.username` / `spring.mail.password` en `application-secrets.properties` (ignorado; plantilla `.example`) o variables `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD` | `.gitignore`, `application-secrets.properties.example` |
+| I-07 | Nivel gratuito, de prueba o local | Local por defecto; real con Gmail y contraseña de aplicación (sin tarjeta) | README, sección "Notificaciones por correo" |
+| I-08 | Las pruebas no invocan servicios reales | Unitarias con `JavaMailSender` simulado; la integración con fallo usa SMTP hacia `127.0.0.1:1` (puerto cerrado de la misma máquina) | `NotificadoresTest`, `RecorridoNotificacionFallidaIntegracionTest` |
+
+### Reglas de las notificaciones y de los usuarios
+
+| ID | Regla | Responsable | Endpoint que la expone | Pruebas (evidencia) | Prueba HTTP | Estado |
+|---|---|---|---|---|---|---|
+| N-01 | Se avisa al titular cuando la reserva se **crea, confirma y cancela**; el aviso lleva código, apartamento, fechas y noches | `RedactorNotificaciones` (dominio), `NotificarReservaUseCase` | `POST /api/reservas`, `PUT .../confirmar`, `PUT .../cancelar` | `RedactorNotificacionesTest` (5), `NotificacionesUseCasesTest`, `ReservaControllerTest`, `RecorridoNotificacionesIntegracionTest` | 10.40 a 10.46 | Implementada |
+| N-02 | A quién se escribe: el correo de la **cuenta** del titular (mismo documento); si no tiene, el **correo de contacto** dado al reservar (`correoTitular`, opcional); si no hay ninguno, queda registrado SIN_CORREO | `NotificarReservaUseCase`, `DirectorioCorreos`, `ContactoReservaRepository` | `POST /api/reservas` (campo `correoTitular`) | `NotificacionesUseCasesTest`, `ContactoYRecuperacionPersistenciaTest`, `RecorridoNotificacionesIntegracionTest` | 10.40, 10.41, 10.47, 10.48 | Implementada |
+| N-03 | El correo de contacto se valida (400 si está mal escrito, antes de crear nada) y no es un dato de la reserva | `CrearReservaRequest` (`@Email`), `CorreoElectronico` | `POST /api/reservas` | `ReservaControllerTest`, `NotificacionYCorreoTest` | 10.49 | Implementada |
+| N-04 | Bandeja de notificaciones: de 10 en 10, de la más reciente a la más antigua, solo para el administrador; los avisos sensibles no dejan su contenido con el proveedor real | `BandejaEnMemoria`, `ListarNotificacionesUseCase`, `Notificacion.mensajeRegistrable` | `GET /api/notificaciones` | `NotificadoresTest`, `RecorridoNotificacionesIntegracionTest` | 10.50 a 10.53 | Implementada |
+| U-01 | No se desactiva a un titular de reservas PENDIENTE, CONFIRMADA o EN_CURSO; la baja es lógica y conserva al titular y sus reservas | `BajaUsuarioService` (dominio, por documento) | `PUT /api/usuarios/{id}/desactivar` | `BajaUsuarioServiceTest` (5), `RecorridoUsuariosIntegracionTest` | 10.54 a 10.63 | Implementada |
+| U-02 | Un administrador no cambia su propio rol ni desactiva su cuenta; correo y documento únicos | `GestionUsuariosServiceImpl` | `PUT .../rol`, `PUT .../desactivar`, `POST /api/usuarios` | `RecorridoUsuariosIntegracionTest` | 10.8, 10.9, 10.18, 10.19 | Implementada |
+| U-03 | Solo el administrador crea usuarios internos y cambia roles; el registro público sigue creando solo huéspedes | `@PreAuthorize` en `UsuarioController`, `CrearUsuarioInternoRequest` | `GET/POST /api/usuarios`, `PUT .../rol` | `RecorridoUsuariosIntegracionTest` (403 y 401 en cada operación) | 10.1 a 10.16 | Implementada |
+| U-04 | Perfil: solo nombre y teléfono; el correo no se edita; cambio de contraseña con la actual y las reglas del registro | `GestionUsuariosServiceImpl`, `ReglasContrasena` | `GET/PUT /api/usuarios/yo`, `PUT /api/usuarios/yo/contrasena` | `RecorridoUsuariosIntegracionTest` | 10.17 a 10.29 | Implementada |
+| U-05 | Recuperación: código de 6 dígitos, 15 minutos, un solo uso, 5 intentos, guardado con hash; respuesta genérica que no revela si el correo existe | `CodigoRecuperacion` (dominio), `RecuperacionContrasenaServiceImpl` | `POST /api/auth/recuperacion/solicitar` y `/confirmar` | `CodigoRecuperacionTest` (11), `ContactoYRecuperacionPersistenciaTest`, `SecurityControllerTest`, `RecorridoUsuariosIntegracionTest` (vencimiento con el reloj movido, un solo uso, bloqueo) | 10.30 a 10.39, 10.63 | Implementada |
+
 ## Seguridad (Guía 12, proyecto 7.1 y 7.2)
 
 Las reglas de acceso **no son reglas de negocio**: no viven en el dominio (el usuario es un concepto de acceso, 3.6),

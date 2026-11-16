@@ -110,6 +110,13 @@ public class GlobalExceptionHandler {
     }
 
     /** Registro público (Guía 12): el correo o el documento ya pertenecen a otro usuario. */
+    /** Operación de usuarios no permitida (contraseña actual incorrecta, desactivarse a sí mismo...): 409. */
+    @ExceptionHandler(co.edu.uniquindio.sga.application.exception.OperacionUsuarioNoPermitidaException.class)
+    public ResponseEntity<ErrorResponse> handleOperacionUsuarioNoPermitida(
+            co.edu.uniquindio.sga.application.exception.OperacionUsuarioNoPermitidaException ex, HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(UsuarioYaRegistradoException.class)
     public ResponseEntity<ErrorResponse> handleUsuarioYaRegistrado(UsuarioYaRegistradoException ex,
                                                                    HttpServletRequest request) {

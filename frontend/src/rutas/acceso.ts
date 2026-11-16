@@ -20,7 +20,10 @@ export const ROLES_RECEPCION: readonly RolUsuario[] = ['RECEPCIONISTA', 'ADMINIS
 /** Preparar apartamentos (iniciar-preparacion y marcar-preparado). */
 export const ROLES_SERVICIO: readonly RolUsuario[] = ['PERSONAL_SERVICIO', 'ADMINISTRADOR'];
 
-/** Inventario, bloqueos, temporadas, tarifas, política de cancelación y rechazos del canal externo. */
+/** Cualquier usuario con sesión: su perfil y el cambio de su contraseña (GET/PUT /usuarios/yo). */
+export const ROLES_TODOS: readonly RolUsuario[] = ['HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR', 'PERSONAL_SERVICIO'];
+
+/** Inventario, bloqueos, temporadas, tarifas, política de cancelación, rechazos del canal externo, usuarios y notificaciones. */
 export const ROLES_ADMINISTRACION: readonly RolUsuario[] = ['ADMINISTRADOR'];
 
 interface ReglaDeAcceso {
@@ -29,6 +32,8 @@ interface ReglaDeAcceso {
 }
 
 const REGLAS: readonly ReglaDeAcceso[] = [
+  { patron: PATRONES.perfil, roles: ROLES_TODOS },
+
   { patron: PATRONES.buscar, roles: ROLES_BUSQUEDA },
   { patron: PATRONES.detalleApartamento, roles: ROLES_BUSQUEDA },
 
@@ -51,6 +56,8 @@ const REGLAS: readonly ReglaDeAcceso[] = [
   { patron: PATRONES.temporadasTarifas, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.politicaCancelacion, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.rechazosExternos, roles: ROLES_ADMINISTRACION },
+  { patron: PATRONES.usuarios, roles: ROLES_ADMINISTRACION },
+  { patron: PATRONES.notificaciones, roles: ROLES_ADMINISTRACION },
 ];
 
 /** ¿Puede alguno de estos roles abrir esta ruta? Una ruta sin regla (inicio, login...) es de acceso libre. */

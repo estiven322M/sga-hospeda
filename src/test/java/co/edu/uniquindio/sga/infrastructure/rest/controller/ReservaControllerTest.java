@@ -1,6 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
 
@@ -11,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -73,6 +75,7 @@ class ReservaControllerTest {
     @Mock private RegistrarLlegadaUseCase llegada;
     @Mock private RegistrarSalidaUseCase salida;
     @Mock private DeclararNoShowUseCase noShow;
+    @Mock private co.edu.uniquindio.sga.application.usecase.NotificarReservaUseCase notificar;
     private MockMvc mvc;
 
     // 10:00 hora de Colombia del 2-nov-2026
@@ -91,7 +94,7 @@ class ReservaControllerTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.standaloneSetup(new ReservaController(crear, consultar, listar, listarMias, modificar, cancelar,
-                        confirmar, llegada, salida, noShow, new ReservaMapperImpl(), new SolicitudMapperImpl(), reloj))
+                        confirmar, llegada, salida, noShow, notificar, new ReservaMapperImpl(), new SolicitudMapperImpl(), reloj))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -121,6 +124,39 @@ class ReservaControllerTest {
         ArgumentCaptor<LocalDateTime> ahora = ArgumentCaptor.forClass(LocalDateTime.class);
         verify(crear).ejecutar(any(), any(), any(), any(), any(), any(), any(), ahora.capture());
         assertEquals(LocalDateTime.of(2026, 11, 2, 10, 0), ahora.getValue());
+    }
+
+    @Test
+    void crearAvisaAlTitularConElCorreoDeContactoYDespuesDeCrear() throws Exception {
+        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(reserva());
+
+        mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(CREAR.replace("\"canalOrigen\":\"PORTAL\",", "\"canalOrigen\":\"PORTAL\",\"correoTitular\":\"juan@correo.com\",")))
+                .andExpect(status().isCreated());
+
+        var orden = org.mockito.Mockito.inOrder(crear, notificar);
+        orden.verify(crear).ejecutar(any(), any(), any(), any(), any(), any(), any(), any());
+        orden.verify(notificar).reservaCreada(any(), eq("juan@correo.com"), eq(LocalDateTime.of(2026, 11, 2, 10, 0)));
+    }
+
+    @Test
+    void crearConUnCorreoDeTitularMalEscritoResponde400() throws Exception {
+        mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(CREAR.replace("\"canalOrigen\":\"PORTAL\",", "\"canalOrigen\":\"PORTAL\",\"correoTitular\":\"no-es-un-correo\",")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.correoTitular").exists());
+        verify(crear, never()).ejecutar(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(notificar, never()).reservaCreada(any(), any(), any());
+    }
+
+    @Test
+    void unaReservaRechazadaPorElDominioNoNotificaNada() throws Exception {
+        when(crear.ejecutar(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new ReglaDominioException("El apartamento no está disponible"));
+
+        mvc.perform(post("/api/reservas").contentType(MediaType.APPLICATION_JSON).content(CREAR))
+                .andExpect(status().isConflict());
+        verify(notificar, never()).reservaCreada(any(), any(), any());
     }
 
     @Test
@@ -233,6 +269,7 @@ class ReservaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("CONFIRMADA"))
                 .andExpect(jsonPath("$.horaEstimadaLlegada").value("16:00:00"));
+        verify(notificar).reservaConfirmada(confirmada, LocalDateTime.of(2026, 11, 2, 10, 0));
     }
 
     @Test
@@ -264,6 +301,7 @@ class ReservaControllerTest {
                         .content("{\"motivo\":\"Cambio de planes\",\"autor\":\"Juan\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("CANCELADA"));
+        verify(notificar).reservaCancelada(eq(cancelada), any());
     }
 
     @Test

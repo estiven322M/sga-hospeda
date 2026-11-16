@@ -45,7 +45,7 @@ usuarios.
 
 | Endpoint | HUESPED | RECEPCIONISTA | ADMINISTRADOR | PERSONAL_SERVICIO |
 |---|:-:|:-:|:-:|:-:|
-| `POST /api/auth/login`, `POST /api/auth/registro` | público | público | público | público |
+| `POST /api/auth/login`, `POST /api/auth/registro`, `POST /api/auth/recuperacion/solicitar`, `POST /api/auth/recuperacion/confirmar` | público | público | público | público |
 | `GET /api/apartamentos` (con filtros `caracteristicas` y `estadoOperativo`), `GET /api/apartamentos/{id}`, `GET /api/caracteristicas` | ✔ | ✔ | ✔ | ✔ |
 | `POST /api/apartamentos`, `PUT /api/apartamentos/{id}`, `PUT .../activar`, `PUT .../baja` | ✘ | ✘ | ✔ | ✘ |
 | `PUT .../estado-operativo/iniciar-preparacion`, `.../marcar-preparado` | ✘ | ✘ | ✔ | ✔ |
@@ -71,7 +71,29 @@ usuarios.
 | `GET /api/servicios-adicionales` | ✘ | ✔ | ✔ | ✘ |
 | `POST /api/servicios-adicionales`, `PUT .../{codigo}`, `PUT .../baja`, `PUT .../activar` | ✘ | ✘ | ✔ | ✘ |
 | `POST /api/reservas/{codigo}/folio/cargos` (cargo de servicio adicional) | ✘ | ✔ | ✔ | ✘ |
+| `GET /api/usuarios` (filtro `rol`), `POST /api/usuarios` (usuario interno), `PUT /api/usuarios/{id}/rol`, `PUT /api/usuarios/{id}/desactivar` | ✘ | ✘ | ✔ | ✘ |
+| `GET /api/usuarios/yo`, `PUT /api/usuarios/yo`, `PUT /api/usuarios/yo/contrasena` (siempre el propio, por el sujeto del token) | ✔ | ✔ | ✔ | ✔ |
+| `GET /api/notificaciones` (bandeja de avisos) | ✘ | ✘ | ✔ | ✘ |
 | `GET /api/apartamentos/{id}/calendario` | ✔ solo libre o no disponible | ✔ con el código y el estado de la reserva | ✔ con el código y el estado de la reserva | ✘ |
+
+## 3.0 Usuarios, perfil y recuperación de contraseña (7.2, J7)
+
+El usuario sigue fuera del dominio (3.6): `UsuarioEntity` y `RolUsuario` viven en infraestructura y la gestión está detrás de los puertos
+`GestionUsuariosService` y `RecuperacionContrasenaService` (`application/security`), implementados en `infrastructure/security`.
+
+- **Una sola regla viene del negocio:** no se desactiva a un usuario que sea titular de reservas PENDIENTE, CONFIRMADA o EN_CURSO. La decide el
+  servicio de dominio `BajaUsuarioService`, que consulta las reservas **por documento** (409). La baja es lógica: el usuario no inicia sesión, pero
+  su titular y sus reservas históricas se conservan.
+- **Reglas de acceso (409, no 403):** un administrador no puede cambiar su propio rol ni desactivar su propia cuenta; el cambio de contraseña exige
+  la actual correcta y una nueva distinta; correo y documento son únicos (sin distinguir mayúsculas en el correo).
+- **`/yo` nunca recibe un identificador:** el perfil es el del sujeto del JWT (el correo). Solo se editan nombre y teléfono; el correo, el documento
+  y el rol se ignoran aunque se envíen. La contraseña nueva sigue las mismas reglas del registro (`ReglasContrasena`).
+- **Recuperación:** el código es de 6 dígitos, vale 15 minutos (`sga.recuperacion.vigencia-minutos`), sirve **una sola vez** y se bloquea tras 5 intentos
+  fallidos (`sga.recuperacion.intentos-maximos`). Se guarda solo su **hash BCrypt** (`CodigoRecuperacion`, entidad de dominio). Un código nuevo reemplaza
+  al anterior. `solicitar` responde SIEMPRE lo mismo (exista o no el correo, o esté desactivado el usuario) y `confirmar` responde el mismo 409
+  ("El código no es válido o ya venció") ante un correo desconocido, un código incorrecto, vencido, usado o bloqueado: no se revela el motivo.
+- **El código llega por el puerto Notificador.** Con el proveedor local se lee en `GET /api/notificaciones` (solo administrador); con `smtp` viaja por correo
+  y en la bandeja queda "(contenido sensible omitido)". La respuesta de la solicitud nunca lo trae.
 
 ## 3.1 CORS (para el frontend, Guía 15 4.2)
 
