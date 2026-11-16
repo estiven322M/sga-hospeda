@@ -8,7 +8,7 @@ Reglas del proyecto que aplican aquí: entidades JPA **separadas** del dominio, 
 mapper persistencia ↔ dominio, repos Spring Data + **adaptadores que implementan los puertos**, **eliminación lógica**
 (nunca física) y datos de prueba que se cargan solos al iniciar. Persistir no debe cambiar el dominio.
 
-## 1. Puertos que debes implementar (8)
+## 1. Puertos que debes implementar (10)
 
 ```java
 // ApartamentoRepository
@@ -72,6 +72,8 @@ CodigoReserva generar(LocalDate fecha);                             // formato R
 | `TarifarioRepository.tarifaDe` | Debe resolver la **temporada de la noche** con `CalendarioTemporadas` (la temporada cuyo periodo incluye la noche o, si ninguna, la base) y devolver la tarifa de esa temporada. Devolver `null` si no existe tarifa (el cotizador lo traduce en un 409). |
 | `TemporadaRepository.guardar` | Identidad por **nombre**. |
 | `PoliticaCancelacionRepository` | Las versiones **no se modifican ni se borran** (las reservas las tienen congeladas). |
+| `AlojamientoRepository` (J6) | Hay UN solo alojamiento: `obtener` devuelve vacío hasta que se siembra y `guardar` inserta la primera vez y reemplaza después (la fila lleva siempre el identificador 1). Lo siembra `InicializadorAlojamiento` desde `application.properties` y es idempotente: no pisa lo que el administrador editó. |
+| `ServicioAdicionalRepository` (J6) | Identidad por **código**. `guardar` crea o actualiza (la baja lógica es el campo `activo`, nunca se borra). `listarTodos` y `listarActivos` de 10 en 10 ordenados por código. El valor se guarda en pesos COP enteros. |
 | `GeneradorCodigoReserva.generar` | Dos peticiones simultáneas no pueden obtener el mismo código. Usa un contador persistente por año: la fila se crea solo si no existe (`INSERT … WHERE NOT EXISTS`, nunca un `save`/`merge`, que la reiniciaría a 0) y se incrementa con un único `UPDATE ultimo = ultimo + 1`. |
 
 ## 3. Cómo reconstruir las entidades del dominio desde la base de datos
@@ -86,6 +88,7 @@ El dominio no tiene setters ni constructor vacío. Para restaurar entidades:
 | `Folio` | Reproduce sus movimientos: `new Folio(reserva, cargoAlojamiento)` (el primer cargo), luego `registrarCargo`, `registrarAjuste` y `registrarPago` en el orden guardado y, si estaba cerrado, `cerrar(autorizacion)`. |
 | `Ocupante` | `new Ocupante(documento, nombre, fechaNacimiento, fechaActual)`; para restaurar pasa la fecha de hoy (`LocalDate.now(...)`) como `fechaActual`. |
 | `Bloqueo`, `Temporada`, `PoliticaCancelacion` | Sus constructores públicos. |
+| `Alojamiento`, `ServicioAdicional` (J6) | `new Alojamiento(...)` con `new Ubicacion(latitud, longitud)`; `ServicioAdicional.reconstruir(codigo, nombre, descripcion, generaCargo, valor, activo)` (el constructor deja el servicio activo). |
 | Objetos de valor (`Dinero`, `Estancia`, `CodigoReserva`...) | Sus constructores; ya validan. `Dinero` se guarda como entero de pesos COP (sin decimales). |
 
 Al **guardar**, el mapper lee el estado con los getters públicos (`getEstado()`, `getHistorial()`, `obtenerCargos()`,

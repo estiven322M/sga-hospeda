@@ -34,6 +34,17 @@ final class CatalogoDatosPrueba {
         }
     }
 
+    /** Un servicio adicional sembrado (L-17). Sin cargo (cortesía) lleva valor 0. */
+    record ServicioSemilla(String codigo, String nombre, String descripcion, boolean generaCargo, long valor) {
+    }
+
+    /** L-17: al menos un servicio; aquí cuatro, uno de ellos sin cargo para poder demostrar esa regla. */
+    static final List<ServicioSemilla> SERVICIOS_ADICIONALES = List.of(
+            new ServicioSemilla("DESAYUNO", "Desayuno típico", "Desayuno cafetero servido en el apartamento, por persona.", true, 25_000),
+            new ServicioSemilla("LAVANDERIA", "Lavandería", "Lavado y secado de una carga de ropa.", true, 18_000),
+            new ServicioSemilla("TRASLADO", "Traslado a Armenia", "Traslado en vehículo particular hasta el aeropuerto o la terminal de Armenia.", true, 90_000),
+            new ServicioSemilla("BIENVENIDA", "Detalle de bienvenida", "Cortesía del alojamiento: café de la región y una nota de bienvenida.", false, 0));
+
     /** Cada apartamento se diferencia de los demás por al menos una característica (L-06). */
     static final List<ApartamentoSemilla> APARTAMENTOS = List.of(
             new ApartamentoSemilla("APT-101", "Apartamento 101 - Vista al parque",

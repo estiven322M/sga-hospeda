@@ -3,9 +3,9 @@
 Interfaz web del Sistema de Gestión de Alojamiento **Hospeda**, de Programación Avanzada (Universidad del Quindío). Consume la API del backend Spring Boot que vive en la raíz del repositorio (`../`). El contrato es `../docs/api/openapi.yaml`; la seguridad, `../docs/seguridad.md`; las reglas del negocio, `../CLAUDE.md` y `../docs/matriz-trazabilidad.md`.
 
 ## Reglas de trabajo (obligatorias)
-- **No hagas commit sin que el usuario lo pida.** Máximo **7 commits en toda la entrega**; **cada paso del plan es un solo commit**.
-- **Equipo: Jhon Mendez (J1–J5) y Miguel Angel Villegas (M1 y M2).** Cada paso lo hace la persona que lo lleva.
-- Rama `feature/frontend` y Pull Request a `main`; nunca commit directo en `main`.
+- **Una rama y un commit por paso** (plan en `../CLAUDE.md`, sección "Entrega 3 (final)"): cada paso sale de `main` actualizado en su propia rama `feature/<tema>`, se rebasa con `git pull --rebase origin main` antes del commit y termina con push, Pull Request y fusión. No hagas commit sin que el usuario lo pida; nunca commit directo en `main`.
+- **Equipo: Jhon Mendez (J5 a J10) y Miguel Angel Villegas (M1 a M4).** Cada paso lo hace la persona que lo lleva. Al rebasar, los archivos que ambos tocan (`App.tsx`, `rutas/rutas.ts`, `rutas/acceso.ts`, `Encabezado.tsx`) se resuelven conservando los cambios de los dos lados.
+- Toda **integración** (correo, imágenes, mapa, IA, canal externo) cumple I-01 a I-08 (`../CLAUDE.md`): el frontend nunca depende de que una integración esté disponible; si falla, muestra un aviso y la pantalla sigue funcionando.
 - No versionar secretos ni `.env.local`. Las variables `VITE_*` terminan dentro del JavaScript que descarga el navegador: nunca van claves.
 - Explicar brevemente cada pieza creada: el equipo debe poder sustentarla.
 
@@ -39,17 +39,24 @@ El backend se arranca aparte (`../gradlew bootRun`, puerto 8080). La API se conf
 | `rutas/` | `rutas.ts` (todas las rutas y patrones en un solo lugar) y, desde J2, `RutaProtegida` y `RutaPublica` |
 | `utilidades/` | `formato.ts` (pesos COP sin decimales, fechas sin corrimiento de zona horaria) y `fechas.ts` |
 
-**`App.tsx` ya declara TODAS las rutas** (con `lazy`, salvo `Inicio`) y no se edita para agregar páginas: cada paso solo llena el contenido de las suyas. Las rutas salen de `rutas/rutas.ts`.
+**`App.tsx` declara las rutas** (con `lazy`, salvo `Inicio`) a partir de `rutas/rutas.ts`; las rutas protegidas se agrupan por rol con `RutaProtegida`.
 
 ## Páginas y a quién le toca llenarlas
-| Paso | Quién | Páginas |
+| Paso | Quién | Páginas y componentes |
 |---|---|---|
-| J2 | Jhon | `Login`, `Registro`, `NoAutorizado`, `NoEncontrada`; sesión, interceptores y `RutaProtegida` |
-| J3 | Jhon | Huésped: `Buscar`, `DetalleApartamento`, `NuevaReservaHuesped` |
-| J4 | Jhon | Huésped: `MisReservas`, `DetalleReserva` (con cancelación y folio). Recepción: `Reservas`, `NuevaReservaRecepcion`, `GestionReserva` |
-| M1 | Miguel | Servicio: `Preparacion` |
-| J5 | Jhon | Administración: `Apartamentos`, `ApartamentoFormulario`, `Bloqueos`, `TemporadasTarifas`, `PoliticaCancelacion`, `RechazosExternos`; revisión general del frontend |
-| M2 | Miguel | Cierre: pulido, documentación y revisión final |
+| J1–J4 | Jhon | Hechos: base, `Login`, `Registro`, huésped (`Buscar`, `DetalleApartamento`, `NuevaReservaHuesped`, `MisReservas`, `DetalleReserva`) y recepción (`Reservas`, `NuevaReservaRecepcion`, `GestionReserva`) |
+| J5 | Jhon | Administración: `Apartamentos`, `ApartamentoFormulario`, `Bloqueos`, `TemporadasTarifas`, `PoliticaCancelacion`, `RechazosExternos` |
+| J6 | Jhon | Administración `Alojamiento` (datos, parámetros y servicios adicionales); recepción `CalendarioOcupacion`; cargo de servicio adicional y medios de pago en `GestionReserva`; calendario de disponibilidad en `DetalleApartamento`; horarios, normas y mascotas en `Inicio`; aviso de capacidad en `ApartamentoFormulario` |
+| M1 | Miguel | Servicio: `Preparacion` y novedades (registrar e historial) |
+| J7 | Jhon | `Perfil`, recuperación de contraseña desde `Login`, administración `Usuarios` y `Notificaciones` |
+| M2 | Miguel | Administración `Reportes` (rango de fechas, tablas, barras con CSS, descarga de Excel) |
+| J8 | Jhon | Administración `Imágenes del apartamento`, galería en `DetalleApartamento`, imagen principal en `TarjetaApartamento` y mapa (Leaflet con OpenStreetMap) |
+| M3 | Miguel | Botón "Sugerir gravedad con IA" en el formulario de novedad (no bloqueante) |
+| J9 | Jhon | Administración `Canales`, `Conflictos` y `Bitácora` |
+| J10 | Jhon | `VITE_API_URL` por entorno y `vercel.json` para el despliegue |
+| M4 | Miguel | Pulido y verificación por rol |
+
+**Rutas nuevas:** se agregan en `rutas/rutas.ts` (`RUTAS` y `PATRONES`), en `App.tsx` (con `lazy`, dentro del grupo de su rol), en `rutas/acceso.ts` (la regla de rol) y en el menú de `Encabezado.tsx`.
 
 ## Reglas del código
 1. **Lenguaje ubicuo** en español, igual que el backend: apartamento, estancia, titular, ocupante, folio, cargo, pago, saldo, bloqueo, canal, temporada, tarifa. Nada de `room`, `booking`, `user`, `request`.

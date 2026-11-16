@@ -34,11 +34,13 @@ const DetalleReserva = lazy(() => import('./paginas/huesped/DetalleReserva'));
 const Reservas = lazy(() => import('./paginas/recepcion/Reservas'));
 const NuevaReservaRecepcion = lazy(() => import('./paginas/recepcion/NuevaReservaRecepcion'));
 const GestionReserva = lazy(() => import('./paginas/recepcion/GestionReserva'));
+const CalendarioOcupacion = lazy(() => import('./paginas/recepcion/CalendarioOcupacion'));
 
 // Personal de servicio
 const Preparacion = lazy(() => import('./paginas/servicio/Preparacion'));
 
 // Administración
+const Alojamiento = lazy(() => import('./paginas/administracion/Alojamiento'));
 const Apartamentos = lazy(() => import('./paginas/administracion/Apartamentos'));
 const ApartamentoFormulario = lazy(() => import('./paginas/administracion/ApartamentoFormulario'));
 const Bloqueos = lazy(() => import('./paginas/administracion/Bloqueos'));
@@ -89,6 +91,7 @@ export default function App() {
           <Route path={PATRONES.reservas} element={<Reservas />} />
           <Route path={PATRONES.nuevaReservaRecepcion} element={<NuevaReservaRecepcion />} />
           <Route path={PATRONES.gestionReserva} element={<GestionReserva />} />
+          <Route path={PATRONES.calendarioOcupacion} element={<CalendarioOcupacion />} />
         </Route>
 
         {/* Personal de servicio */}
@@ -98,6 +101,7 @@ export default function App() {
 
         {/* Administración */}
         <Route element={<RutaProtegida roles={ROLES_ADMINISTRACION} />}>
+          <Route path={PATRONES.alojamiento} element={<Alojamiento />} />
           <Route path={PATRONES.apartamentos} element={<Apartamentos />} />
           <Route path={PATRONES.apartamentoNuevo} element={<ApartamentoFormulario />} />
           <Route path={PATRONES.apartamentoEditar} element={<ApartamentoFormulario />} />

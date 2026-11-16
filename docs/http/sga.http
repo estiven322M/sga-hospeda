@@ -3388,3 +3388,850 @@ Authorization: Bearer {{tokenServicio}}
         client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
     });
 %}
+
+# =====================================================================================================
+# PARTE 9 · ALOJAMIENTO, SERVICIOS ADICIONALES, MEDIOS DE PAGO Y CALENDARIOS (J6: L-01, L-02, L-16, L-17, L-18, 7.1, 7.3, 7.5)
+#   Los datos del alojamiento son públicos; editarlos y ver los parámetros es del administrador. Los servicios se gestionan
+#   con baja lógica y se cargan al folio de una reserva CONFIRMADA o EN_CURSO. El pago exige un medio aceptado. El calendario
+#   muestra el estado de cada noche y baja el detalle para el huésped. Todas las aserciones comprueban el CUERPO.
+# =====================================================================================================
+
+### 9.1 [L-01 · L-02 · L-16 · L-18] La consulta del alojamiento es PÚBLICA: sin token -> 200
+GET {{host}}/api/alojamiento
+
+> {%
+    client.test("9.1 [L-01 · L-02 · L-16 · L-18] La consulta del alojamiento es PÚBLICA: sin token", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.nombre === "Hospeda Salento", "nombre: " + response.body.nombre);
+        client.assert(response.body.ciudad === "Salento, Quindío", "ciudad: " + response.body.ciudad);
+        client.assert(typeof response.body.latitud === "number" && typeof response.body.longitud === "number", "latitud y longitud deben ser números");
+        client.assert(response.body.horaEntrada === "15:00:00" && response.body.horaSalida === "11:00:00", "horas: " + response.body.horaEntrada + " / " + response.body.horaSalida);
+        client.assert(response.body.politicaMascotas === "No se aceptan mascotas.", "política de mascotas: " + response.body.politicaMascotas);
+        client.assert(response.body.normasConvivencia.length > 0, "debe traer las normas de convivencia");
+        client.assert(response.body.mediosPago.length >= 2 && response.body.mediosPago.indexOf("EFECTIVO") >= 0, "medios de pago: " + response.body.mediosPago);
+    });
+%}
+
+### 9.2 [403 · alojamiento] Recepción intenta editar el alojamiento (es del administrador) -> 403
+PUT {{host}}/api/alojamiento
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "nombre": "Hospeda Salento",
+  "descripcion": "Apartamentos turísticos con vista al Valle del Cocora, a pocos pasos de la plaza principal de Salento.",
+  "ciudad": "Salento, Quindío",
+  "direccion": "Carrera 6 # 3-45, Salento, Quindío",
+  "latitud": 4.6368,
+  "longitud": -75.57,
+  "horaEntrada": "15:00",
+  "horaSalida": "11:00",
+  "normasConvivencia": "Silencio entre las 10 p. m. y las 7 a. m. No se permite fumar dentro de los apartamentos.",
+  "politicaMascotas": "No se aceptan mascotas."
+}
+
+> {%
+    client.test("9.2 [403 · alojamiento] Recepción intenta editar el alojamiento (es del administrador)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.3 [401 · alojamiento] Editar el alojamiento sin token -> 401
+PUT {{host}}/api/alojamiento
+Content-Type: application/json
+
+{
+  "nombre": "Hospeda Salento",
+  "descripcion": "Apartamentos turísticos con vista al Valle del Cocora, a pocos pasos de la plaza principal de Salento.",
+  "ciudad": "Salento, Quindío",
+  "direccion": "Carrera 6 # 3-45, Salento, Quindío",
+  "latitud": 4.6368,
+  "longitud": -75.57,
+  "horaEntrada": "15:00",
+  "horaSalida": "11:00",
+  "normasConvivencia": "Silencio entre las 10 p. m. y las 7 a. m. No se permite fumar dentro de los apartamentos.",
+  "politicaMascotas": "No se aceptan mascotas."
+}
+
+> {%
+    client.test("9.3 [401 · alojamiento] Editar el alojamiento sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.4 [L-12 · L-16] El administrador edita las horas, las normas y la política de mascotas -> 200
+PUT {{host}}/api/alojamiento
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Hospeda Salento",
+  "descripcion": "Apartamentos turísticos con vista al Valle del Cocora, a pocos pasos de la plaza principal de Salento.",
+  "ciudad": "Salento, Quindío",
+  "direccion": "Carrera 6 # 3-45, Salento, Quindío",
+  "latitud": 4.6368,
+  "longitud": -75.57,
+  "horaEntrada": "14:00",
+  "horaSalida": "10:00",
+  "normasConvivencia": "Silencio entre las 10 p. m. y las 7 a. m. No se permite fumar dentro de los apartamentos.",
+  "politicaMascotas": "Se aceptan mascotas pequeñas con un cargo de limpieza."
+}
+
+> {%
+    client.test("9.4 [L-12 · L-16] El administrador edita las horas, las normas y la política de mascotas", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.horaEntrada === "14:00:00" && response.body.horaSalida === "10:00:00", "horas: " + response.body.horaEntrada + " / " + response.body.horaSalida);
+        client.assert(response.body.politicaMascotas === "Se aceptan mascotas pequeñas con un cargo de limpieza.", "política: " + response.body.politicaMascotas);
+    });
+%}
+
+### 9.5 [público] La consulta pública refleja lo que el administrador editó -> 200
+GET {{host}}/api/alojamiento
+
+> {%
+    client.test("9.5 [público] La consulta pública refleja lo que el administrador editó", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.horaEntrada === "14:00:00", "horaEntrada: " + response.body.horaEntrada);
+        client.assert(response.body.politicaMascotas.indexOf("mascotas pequeñas") >= 0, "política: " + response.body.politicaMascotas);
+    });
+%}
+
+### 9.6 [409 · L-12] La hora de salida debe ser anterior a la de entrada -> 409
+PUT {{host}}/api/alojamiento
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Hospeda Salento",
+  "descripcion": "Apartamentos turísticos con vista al Valle del Cocora, a pocos pasos de la plaza principal de Salento.",
+  "ciudad": "Salento, Quindío",
+  "direccion": "Carrera 6 # 3-45, Salento, Quindío",
+  "latitud": 4.6368,
+  "longitud": -75.57,
+  "horaEntrada": "09:00",
+  "horaSalida": "10:00",
+  "normasConvivencia": "Silencio entre las 10 p. m. y las 7 a. m. No se permite fumar dentro de los apartamentos.",
+  "politicaMascotas": "No se aceptan mascotas."
+}
+
+> {%
+    client.test("9.6 [409 · L-12] La hora de salida debe ser anterior a la de entrada", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "La hora de salida debe ser anterior a la hora de entrada", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.7 [400 · latitud] Una latitud fuera de rango se rechaza por forma -> 400
+PUT {{host}}/api/alojamiento
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Hospeda Salento",
+  "descripcion": "Apartamentos turísticos con vista al Valle del Cocora, a pocos pasos de la plaza principal de Salento.",
+  "ciudad": "Salento, Quindío",
+  "direccion": "Carrera 6 # 3-45, Salento, Quindío",
+  "latitud": 91,
+  "longitud": -75.57,
+  "horaEntrada": "14:00",
+  "horaSalida": "10:00",
+  "normasConvivencia": "Silencio entre las 10 p. m. y las 7 a. m. No se permite fumar dentro de los apartamentos.",
+  "politicaMascotas": "No se aceptan mascotas."
+}
+
+> {%
+    client.test("9.7 [400 · latitud] Una latitud fuera de rango se rechaza por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.latitud, "debe traer el error del campo latitud");
+    });
+%}
+
+### 9.8 Se deja el alojamiento como estaba -> 200
+PUT {{host}}/api/alojamiento
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Hospeda Salento",
+  "descripcion": "Apartamentos turísticos con vista al Valle del Cocora, a pocos pasos de la plaza principal de Salento.",
+  "ciudad": "Salento, Quindío",
+  "direccion": "Carrera 6 # 3-45, Salento, Quindío",
+  "latitud": 4.6368,
+  "longitud": -75.57,
+  "horaEntrada": "15:00",
+  "horaSalida": "11:00",
+  "normasConvivencia": "Silencio entre las 10 p. m. y las 7 a. m. No se permite fumar dentro de los apartamentos.",
+  "politicaMascotas": "No se aceptan mascotas."
+}
+
+> {%
+    client.test("9.8 Se deja el alojamiento como estaba", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.horaEntrada === "15:00:00" && response.body.politicaMascotas === "No se aceptan mascotas.", "debe volver a los valores iniciales");
+    });
+%}
+
+### 9.9 [sección 6] El administrador ve los parámetros del sistema en solo lectura -> 200
+GET {{host}}/api/alojamiento/parametros
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("9.9 [sección 6] El administrador ve los parámetros del sistema en solo lectura", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.umbralEdadFacturableAnios > 0 && response.body.tiempoPreparacionHoras > 0 && response.body.plazoConfirmacionHoras > 0, "umbral, preparación y plazo deben ser positivos");
+        client.assert(response.body.anticipoPorcentaje >= 0 && response.body.edadAdultoResponsableAnios === 18, "anticipo y edad del adulto responsable");
+        client.assert(response.body.estanciaMinimaPorTemporada.ALTA === 3, "RP-01: ALTA exige 3 noches");
+        client.assert(response.body.calendarioMaximoNoches === 62, "el calendario admite 62 noches");
+        client.assert(response.body.mediosPago.length >= 2, "medios de pago");
+        client.assert(response.body.nota.indexOf("configuración del sistema") >= 0, "debe aclarar que son configuración del sistema");
+    });
+%}
+
+### 9.10 [403 · parámetros] Recepción no ve los parámetros -> 403
+GET {{host}}/api/alojamiento/parametros
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.10 [403 · parámetros] Recepción no ve los parámetros", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.11 [401 · parámetros] Sin token -> 401
+GET {{host}}/api/alojamiento/parametros
+
+> {%
+    client.test("9.11 [401 · parámetros] Sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.12 [L-17] Recepción lista los servicios adicionales activos (hay al menos tres sembrados) -> 200
+GET {{host}}/api/servicios-adicionales?soloActivos=true
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.12 [L-17] Recepción lista los servicios adicionales activos (hay al menos tres sembrados)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tamanio === 10 && response.body.contenido.length >= 3, "al menos tres servicios sembrados: " + response.body.contenido.length);
+        client.assert(response.body.contenido.some(s => s.codigo === "DESAYUNO" && s.valor === 25000 && s.moneda === "COP" && s.generaCargo === true), "DESAYUNO a 25000 COP");
+        client.assert(response.body.contenido.some(s => s.codigo === "BIENVENIDA" && s.generaCargo === false && s.valor === 0), "BIENVENIDA no genera cargo");
+        client.assert(response.body.contenido.every(s => s.activo === true), "solo activos");
+    });
+%}
+
+### 9.13 [403 · servicios] El huésped no lista los servicios adicionales -> 403
+GET {{host}}/api/servicios-adicionales
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("9.13 [403 · servicios] El huésped no lista los servicios adicionales", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.14 [401 · servicios] Sin token -> 401
+GET {{host}}/api/servicios-adicionales
+
+> {%
+    client.test("9.14 [401 · servicios] Sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.15 [403 · servicios] Recepción no crea servicios adicionales -> 403
+POST {{host}}/api/servicios-adicionales
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigo": "SPA", "nombre": "Masaje", "descripcion": "Una hora", "generaCargo": true, "valor": 80000}
+
+> {%
+    client.test("9.15 [403 · servicios] Recepción no crea servicios adicionales", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.16 [L-17] El administrador crea un servicio adicional -> 201 con Location
+POST {{host}}/api/servicios-adicionales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"codigo": "spa", "nombre": "Masaje", "descripcion": "Una hora", "generaCargo": true, "valor": 80000}
+
+> {%
+    client.test("9.16 [L-17] El administrador crea un servicio adicional", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.codigo === "SPA" && response.body.activo === true && response.body.valor === 80000, "cuerpo: " + JSON.stringify(response.body));
+        client.assert((response.headers.valueOf("Location") || "").endsWith("/api/servicios-adicionales/SPA"), "Location: " + response.headers.valueOf("Location"));
+    });
+%}
+
+### 9.17 [409 · L-17] Un código repetido se rechaza -> 409
+POST {{host}}/api/servicios-adicionales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"codigo": "SPA", "nombre": "Otro", "generaCargo": true, "valor": 1}
+
+> {%
+    client.test("9.17 [409 · L-17] Un código repetido se rechaza", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "Ya existe un servicio adicional con el código SPA", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.18 [409 · L-17] Un servicio que genera cargo debe tener valor -> 409
+POST {{host}}/api/servicios-adicionales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"codigo": "GRATIS", "nombre": "Gratis", "generaCargo": true, "valor": 0}
+
+> {%
+    client.test("9.18 [409 · L-17] Un servicio que genera cargo debe tener valor", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "Un servicio adicional que genera cargo debe tener un valor mayor que cero", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.19 [409 · L-17] Una cortesía no lleva valor -> 409
+POST {{host}}/api/servicios-adicionales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"codigo": "CORTESIA", "nombre": "Cortesía", "generaCargo": false, "valor": 500}
+
+> {%
+    client.test("9.19 [409 · L-17] Una cortesía no lleva valor", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "Un servicio adicional que no genera cargo no puede tener valor", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.20 [400 · servicios] Código vacío y valor negativo se rechazan por forma -> 400
+POST {{host}}/api/servicios-adicionales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"codigo": "", "nombre": "X", "generaCargo": true, "valor": -5}
+
+> {%
+    client.test("9.20 [400 · servicios] Código vacío y valor negativo se rechazan por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.codigo && response.body.errores.valor, "errores por campo: " + JSON.stringify(response.body.errores));
+    });
+%}
+
+### 9.21 [L-17] El administrador edita el servicio -> 200
+PUT {{host}}/api/servicios-adicionales/SPA
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"nombre": "Masaje relajante", "descripcion": "Una hora", "generaCargo": true, "valor": 90000}
+
+> {%
+    client.test("9.21 [L-17] El administrador edita el servicio", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.nombre === "Masaje relajante" && response.body.valor === 90000 && response.body.codigo === "SPA", "cuerpo: " + JSON.stringify(response.body));
+    });
+%}
+
+### 9.22 [404 · servicios] Editar un servicio que no existe -> 404
+PUT {{host}}/api/servicios-adicionales/NO-EXISTE
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"nombre": "X", "generaCargo": true, "valor": 1}
+
+> {%
+    client.test("9.22 [404 · servicios] Editar un servicio que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 9.23 Recepción crea una reserva DIRECTO de dos adultos (noches 6, 7 y 8 de noviembre de 2028) -> 201
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-11-06",
+  "fechaSalida": "2028-11-09",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "CC-9601", "nombre": "Cliente J6", "fechaNacimiento": "1985-05-05"},
+  "ocupantes": [{"documento": "CC-9601", "nombre": "Cliente J6", "fechaNacimiento": "1985-05-05"}, {"documento": "CC-9602", "nombre": "Acompañante J6", "fechaNacimiento": "1986-06-06"}]
+}
+
+> {%
+    client.test("9.23 Recepción crea una reserva DIRECTO de dos adultos (noches 6, 7 y 8 de noviembre de 2028)", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE" && response.body.noches === 3, "cuerpo: " + JSON.stringify(response.body));
+    });
+    client.global.set("codigoServicios", response.body.codigo);
+    client.global.set("valorTotalServicios", response.body.valorTotal);
+%}
+
+### 9.24 [409 · L-17] No se registra un servicio en una reserva PENDIENTE -> 409
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigoServicio": "DESAYUNO", "cantidad": 1}
+
+> {%
+    client.test("9.24 [409 · L-17] No se registra un servicio en una reserva PENDIENTE", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje.indexOf("Solo se registran servicios adicionales en reservas CONFIRMADA o EN_CURSO") === 0 && response.body.mensaje.endsWith("está PENDIENTE"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.25 [409 · L-18] Un medio de pago no aceptado se rechaza con la lista de los aceptados -> 409
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"medio": "CRIPTOMONEDA", "fecha": "2028-11-01", "valor": 50000}
+
+> {%
+    client.test("9.25 [409 · L-18] Un medio de pago no aceptado se rechaza con la lista de los aceptados", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El medio de pago CRIPTOMONEDA no es aceptado; los medios aceptados son: EFECTIVO, TARJETA, TRANSFERENCIA", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.26 [L-18] Un medio aceptado se registra sin distinguir mayúsculas: el valor total de la reserva -> 201
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"medio": "efectivo", "fecha": "2028-11-01", "valor": {{valorTotalServicios}}}
+
+> {%
+    client.test("9.26 [L-18] Un medio aceptado se registra sin distinguir mayúsculas: el valor total de la reserva", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.pagos.length === 1 && response.body.pagos[0].medio === "efectivo", "pagos: " + JSON.stringify(response.body.pagos));
+        client.assert(response.body.saldo === 0, "con el valor total pagado el saldo es 0: " + response.body.saldo);
+    });
+%}
+
+### 9.27 Recepción confirma la reserva (el anticipo ya está pagado) -> 200 CONFIRMADA
+PUT {{host}}/api/reservas/{{codigoServicios}}/confirmar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"horaEstimadaLlegada": "16:00", "autor": "Recepción"}
+
+> {%
+    client.test("9.27 Recepción confirma la reserva (el anticipo ya está pagado)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CONFIRMADA", "estado: " + response.body.estado);
+    });
+%}
+
+### 9.28 [L-17] Recepción carga 2 desayunos al folio -> 201: el cargo vale el servicio por la cantidad
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigoServicio": "desayuno", "cantidad": 2}
+
+> {%
+    client.test("9.28 [L-17] Recepción carga 2 desayunos al folio", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.cargos.length === 2, "alojamiento y servicio: " + JSON.stringify(response.body.cargos));
+        client.assert(response.body.cargos.some(c => c.concepto === "Servicio adicional: Desayuno típico x2" && c.valor === 50000), "cargos: " + JSON.stringify(response.body.cargos));
+        client.assert(response.body.saldo === 50000 && response.body.cerrado === false, "saldo: " + response.body.saldo);
+        client.assert((response.headers.valueOf("Location") || "").endsWith("/folio"), "Location: " + response.headers.valueOf("Location"));
+    });
+%}
+
+### 9.29 [409 · L-17] Un servicio que no genera cargo no se carga -> 409
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigoServicio": "BIENVENIDA", "cantidad": 1}
+
+> {%
+    client.test("9.29 [409 · L-17] Un servicio que no genera cargo no se carga", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El servicio adicional BIENVENIDA no genera cargo", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.30 El administrador da de baja el servicio SPA (baja lógica) -> 200 inactivo
+PUT {{host}}/api/servicios-adicionales/SPA/baja
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("9.30 El administrador da de baja el servicio SPA (baja lógica)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.activo === false && response.body.codigo === "SPA", "cuerpo: " + JSON.stringify(response.body));
+    });
+%}
+
+### 9.31 [409 · L-17] Un servicio dado de baja no se carga -> 409
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigoServicio": "SPA", "cantidad": 1}
+
+> {%
+    client.test("9.31 [409 · L-17] Un servicio dado de baja no se carga", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El servicio adicional SPA está dado de baja", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.32 [409 · L-17] Dar de baja dos veces el mismo servicio -> 409
+PUT {{host}}/api/servicios-adicionales/SPA/baja
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("9.32 [409 · L-17] Dar de baja dos veces el mismo servicio", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El servicio adicional SPA ya está dado de baja", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.33 El administrador vuelve a dar de alta el servicio SPA -> 200 activo
+PUT {{host}}/api/servicios-adicionales/SPA/activar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("9.33 El administrador vuelve a dar de alta el servicio SPA", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.activo === true, "debe quedar activo");
+    });
+%}
+
+### 9.34 [400 · cargo] Una cantidad menor que uno se rechaza por forma -> 400
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigoServicio": "DESAYUNO", "cantidad": 0}
+
+> {%
+    client.test("9.34 [400 · cargo] Una cantidad menor que uno se rechaza por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores.cantidad, "debe traer el error del campo cantidad");
+    });
+%}
+
+### 9.35 [404 · cargo] Un servicio que no existe -> 404
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigoServicio": "NO-EXISTE", "cantidad": 1}
+
+> {%
+    client.test("9.35 [404 · cargo] Un servicio que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 9.36 [403 · cargo] El huésped no registra cargos en el folio -> 403
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{"codigoServicio": "DESAYUNO", "cantidad": 1}
+
+> {%
+    client.test("9.36 [403 · cargo] El huésped no registra cargos en el folio", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.37 [401 · cargo] Sin token -> 401
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Content-Type: application/json
+
+{"codigoServicio": "DESAYUNO", "cantidad": 1}
+
+> {%
+    client.test("9.37 [401 · cargo] Sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.38 [7.1 · 7.5] Recepción ve el calendario con el código y el estado de la reserva -> 200
+GET {{host}}/api/apartamentos/{{apt}}/calendario?desde=2028-11-05&hasta=2028-11-10
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.38 [7.1 · 7.5] Recepción ve el calendario con el código y el estado de la reserva", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches.length === 5, "cinco noches: " + response.body.noches.length);
+        client.assert(response.body.noches[0].estado === "LIBRE" && response.body.noches[0].codigoReserva === null, "la noche del 5 está libre");
+        client.assert([1, 2, 3].every(i => response.body.noches[i].estado === "RESERVADA" && response.body.noches[i].estadoReserva === "CONFIRMADA"), "las noches 6, 7 y 8 están reservadas y confirmadas");
+        client.assert([1, 2, 3].every(i => response.body.noches[i].codigoReserva === client.global.get("codigoServicios")), "traen el código de la reserva");
+        client.assert(response.body.noches[4].estado === "LIBRE", "la noche del 9 (la de la salida) queda libre");
+    });
+%}
+
+### 9.39 [7.1] El huésped solo ve LIBRE o NO_DISPONIBLE, sin saber de quién es la reserva -> 200
+GET {{host}}/api/apartamentos/{{apt}}/calendario?desde=2028-11-05&hasta=2028-11-10
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("9.39 [7.1] El huésped solo ve LIBRE o NO_DISPONIBLE, sin saber de quién es la reserva", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches[0].estado === "LIBRE", "la noche del 5 está libre");
+        client.assert([1, 2, 3].every(i => response.body.noches[i].estado === "NO_DISPONIBLE"), "las noches reservadas se ven como NO_DISPONIBLE");
+        client.assert(response.body.noches.every(n => n.codigoReserva === null && n.estadoReserva === null), "el huésped no ve códigos ni estados de reservas");
+        client.assert(response.body.noches[4].estado === "LIBRE", "la noche de la salida queda libre");
+    });
+%}
+
+### 9.40 [7.5] El calendario admite exactamente 62 noches -> 200
+GET {{host}}/api/apartamentos/{{apt}}/calendario?desde=2028-12-01&hasta=2029-02-01
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.40 [7.5] El calendario admite exactamente 62 noches", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches.length === 62, "62 noches: " + response.body.noches.length);
+    });
+%}
+
+### 9.41 [409 · 7.5] Más de 62 noches se rechaza -> 409
+GET {{host}}/api/apartamentos/{{apt}}/calendario?desde=2028-12-01&hasta=2029-02-02
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.41 [409 · 7.5] Más de 62 noches se rechaza", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El calendario admite como máximo 62 noches; se pidieron 63", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.42 [400 · calendario] Falta el parámetro hasta -> 400
+GET {{host}}/api/apartamentos/{{apt}}/calendario?desde=2028-12-01
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.42 [400 · calendario] Falta el parámetro hasta", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 9.43 [404 · calendario] Un apartamento que no existe -> 404
+GET {{host}}/api/apartamentos/APT-NO-EXISTE/calendario?desde=2028-12-01&hasta=2028-12-05
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.43 [404 · calendario] Un apartamento que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 9.44 [403 · calendario] El personal de servicio no usa el calendario -> 403
+GET {{host}}/api/apartamentos/{{apt}}/calendario?desde=2028-12-01&hasta=2028-12-05
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("9.44 [403 · calendario] El personal de servicio no usa el calendario", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.45 [401 · calendario] Sin token -> 401
+GET {{host}}/api/apartamentos/{{apt}}/calendario?desde=2028-12-01&hasta=2028-12-05
+
+> {%
+    client.test("9.45 [401 · calendario] Sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.46 Recepción paga el cargo de los desayunos -> 201 saldo 0
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/pagos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"medio": "TARJETA", "fecha": "2028-11-06", "valor": 50000}
+
+> {%
+    client.test("9.46 Recepción paga el cargo de los desayunos", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.saldo === 0, "saldo: " + response.body.saldo);
+    });
+%}
+
+### 9.47 Recepción cierra el folio (saldo 0, sin autorización) -> 200 cerrado
+PUT {{host}}/api/reservas/{{codigoServicios}}/folio/cerrar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("9.47 Recepción cierra el folio (saldo 0, sin autorización)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.cerrado === true, "cerrado: " + response.body.cerrado);
+    });
+%}
+
+### 9.48 [409 · L-17] En un folio cerrado no se registra un cargo -> 409
+POST {{host}}/api/reservas/{{codigoServicios}}/folio/cargos
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigoServicio": "DESAYUNO", "cantidad": 1}
+
+> {%
+    client.test("9.48 [409 · L-17] En un folio cerrado no se registra un cargo", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "Un folio cerrado no admite movimientos", "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 9.49 Se consulta el apartamento para repetir sus datos al editarlo -> 200
+GET {{host}}/api/apartamentos/{{apt}}
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("9.49 Se consulta el apartamento para repetir sus datos al editarlo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.capacidad >= 2, "el apartamento admite al menos dos personas: " + response.body.capacidad);
+    });
+    client.global.set("aptNombre", response.body.nombre);
+    client.global.set("aptDescripcion", response.body.descripcion);
+    client.global.set("aptDormitorios", response.body.dormitorios);
+    client.global.set("aptCapacidad", response.body.capacidad);
+    client.global.set("aptDotacion", JSON.stringify(response.body.dotacion));
+    client.global.set("aptCaracteristicas", JSON.stringify(response.body.caracteristicas));
+%}
+
+### 9.50 [7.3] Bajar la capacidad a 1: la respuesta avisa de la reserva de dos personas y la actualización no se bloquea -> 200
+PUT {{host}}/api/apartamentos/{{apt}}
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "{{aptNombre}}",
+  "descripcion": "{{aptDescripcion}}",
+  "dormitorios": {{aptDormitorios}},
+  "capacidad": 1,
+  "dotacion": {{aptDotacion}},
+  "caracteristicas": {{aptCaracteristicas}}
+}
+
+> {%
+    client.test("9.50 [7.3] Bajar la capacidad a 1: la respuesta avisa de la reserva de dos personas y la actualización no se bloquea", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.capacidad === 1, "la capacidad se actualizó: " + response.body.capacidad);
+        client.assert(response.body.reservasPorEncimaDeLaCapacidad.length >= 1, "debe avisar de al menos una reserva");
+        client.assert(response.body.reservasPorEncimaDeLaCapacidad.some(r => r.codigo === client.global.get("codigoServicios") && r.totalOcupantes === 2), "debe listar la reserva de dos ocupantes: " + JSON.stringify(response.body.reservasPorEncimaDeLaCapacidad));
+    });
+%}
+
+### 9.51 [7.3] La reserva que quedó por encima conserva sus dos ocupantes -> 200
+GET {{host}}/api/reservas/{{codigoServicios}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("9.51 [7.3] La reserva que quedó por encima conserva sus dos ocupantes", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.ocupantes.length === 2, "cambiar la capacidad no afecta las reservas ya creadas: " + response.body.ocupantes.length);
+    });
+%}
+
+### 9.52 [7.3] Se restablece la capacidad: sin bajarla no hay aviso -> 200
+PUT {{host}}/api/apartamentos/{{apt}}
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "{{aptNombre}}",
+  "descripcion": "{{aptDescripcion}}",
+  "dormitorios": {{aptDormitorios}},
+  "capacidad": {{aptCapacidad}},
+  "dotacion": {{aptDotacion}},
+  "caracteristicas": {{aptCaracteristicas}}
+}
+
+> {%
+    client.test("9.52 [7.3] Se restablece la capacidad: sin bajarla no hay aviso", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.capacidad === Number(client.global.get("aptCapacidad")), "capacidad restablecida: " + response.body.capacidad);
+        client.assert(response.body.reservasPorEncimaDeLaCapacidad.length === 0, "subir la capacidad no avisa de nada");
+    });
+%}

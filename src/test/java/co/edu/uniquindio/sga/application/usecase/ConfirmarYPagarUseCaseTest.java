@@ -29,6 +29,7 @@ import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
 import co.edu.uniquindio.sga.domain.repository.FolioRepository;
 import co.edu.uniquindio.sga.domain.repository.ReservaRepository;
 import co.edu.uniquindio.sga.domain.service.ConfirmacionReservaService;
+import co.edu.uniquindio.sga.domain.service.RegistroPagoService;
 import co.edu.uniquindio.sga.domain.valueobject.*;
 
 /** Confirmar reserva (con anticipo) y CU-08 Registrar pago en folio. */
@@ -53,7 +54,7 @@ class ConfirmarYPagarUseCaseTest {
     void setUp() {
         confirmar = new ConfirmarReservaUseCase(reservaRepository, folioRepository,
                 new ConfirmacionReservaService(configuracion));
-        pagar = new RegistrarPagoUseCase(folioRepository);
+        pagar = new RegistrarPagoUseCase(folioRepository, new RegistroPagoService(configuracion));
         reserva = Reserva.crear(codigo, new IdentificacionApartamento("APT-101"),
                 new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)), titular, List.of(titular),
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
@@ -66,6 +67,7 @@ class ConfirmarYPagarUseCaseTest {
         lenient().when(reservaRepository.guardar(any(Reserva.class))).then(returnsFirstArg());
         lenient().when(folioRepository.guardar(any(Folio.class))).then(returnsFirstArg());
         lenient().when(configuracion.anticipoPorcentaje()).thenReturn(30);
+        lenient().when(configuracion.mediosPagoAceptados()).thenReturn(List.of("EFECTIVO", "TARJETA", "TRANSFERENCIA"));
     }
 
     // ---------- Confirmar ----------

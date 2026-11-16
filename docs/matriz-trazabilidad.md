@@ -53,7 +53,7 @@ solo ofrece los endpoints para gestionarlas. Los **parámetros** viven en `appli
 
 | ID | Decisión | Dónde vive / quién la hace cumplir | Endpoint | Pruebas (evidencia) | Estado |
 |---|---|---|---|---|---|
-| L-01, L-02 | Nombre, identidad y ubicación del alojamiento | **No hay entidad Alojamiento** en el dominio | - | - | Pendiente |
+| L-01, L-02 | Nombre, identidad y ubicación del alojamiento | `Alojamiento` (nombre, descripción, ciudad, dirección) y `Ubicacion` (latitud −90..90, longitud −180..180); se siembra desde `application.properties` (`InicializadorAlojamiento`) y el administrador lo edita | `GET /api/alojamiento` (público), `PUT /api/alojamiento` (ADMINISTRADOR) | `AlojamientoTest` (datos obligatorios, ubicación posible, edición atómica), `AlojamientoYServiciosPersistenciaTest`, `AlojamientoServiciosIntegracionTest.alojamiento_*`; HTTP 9.1 a 9.8 | Implementada |
 | L-03 | Entre 5 y 15 apartamentos | Datos sembrados por persistencia | `GET /api/apartamentos` | - | Dato de persistencia (no verificable desde este lado) |
 | L-04 | Identificación única y estable | `RegistroApartamentoService` | `POST /api/apartamentos` | `ApartamentoUseCasesTest.rechazaUnaIdentificacionRepetidaL04YNoGuarda`; HTTP 3.16 | Implementada |
 | L-05 | Dormitorios y capacidad (al menos dos capacidades distintas) | `Apartamento` | `POST/PUT /api/apartamentos` | `ApartamentoTest.actualizarDatosCambiaNombreDormitoriosYCapacidad`, `.actualizarDatosInvalidosNoModificaNada` | Implementada (la variedad de capacidades es dato sembrado) |
@@ -67,9 +67,9 @@ solo ofrece los endpoints para gestionarlas. Los **parámetros** viven en `appli
 | L-13 | Tiempo de preparación | `TiempoPreparacion`; propiedad `sga.alojamiento.tiempo-preparacion-horas` | (afecta disponibilidad) | `TiempoPreparacionTest` | Implementada |
 | L-14 | Plazo de confirmación | `PlazoConfirmacion`; propiedad `sga.alojamiento.plazo-confirmacion-horas` | ninguno: lo usa el proceso programado (ver RN-21) | `ReservaCicloDeVidaTest` (vencimiento); `VencerReservasPendientesUseCaseTest.consultaLasPendientesCreadasAntesDelLimiteQueCalculaElPlazo` | Implementada |
 | L-15 | Hora límite de no-show | `Reserva.declararNoShow`; propiedad `sga.alojamiento.hora-limite-no-show` | `PUT /api/reservas/{codigo}/declarar-no-show` | `ReservaCicloDeVidaTest.elNoShowSoloSeDeclaraVencidaLaHoraLimiteDelDiaDeEntrada`, `.elNoShowSoloAplicaAReservasConfirmadasRN08`; `OperacionDiariaUseCasesTest.antesDeLaHoraLimiteNoSePuedeDeclararNoShowYNoSeLiquidaNada` (HTTP 5.3); `RecorridoOperacionDiariaIntegracionTest` (`elNoShowSoloSeDeclaraDesdeLaHoraLimiteYAplicaLaPoliticaCongelada`: 409 a las 12:00 y a las 21:59, 200 a las 22:00 en punto) | Implementada |
-| L-16 | Mascotas | - | - | - | Pendiente |
-| L-17 | Servicios adicionales y su cargo | `Folio.registrarCargo` existe | **ninguno** | - | Pendiente (sin caso de uso ni endpoint) |
-| L-18 | Medios de pago (mínimo 2) | `Pago.medio` es texto libre; no hay lista configurada | `POST .../folio/pagos` | `ConfirmarYPagarUseCaseTest.admiteVariosPagosConMediosDistintos` | Parcial: no se valida contra una lista de medios aceptados |
+| L-16 | Mascotas | `Alojamiento.politicaMascotas`: decisión explícita y obligatoria (hoy "No se aceptan mascotas", propiedad `sga.alojamiento.politica-mascotas`); el administrador la edita | `GET/PUT /api/alojamiento` | `AlojamientoTest.exigeNombreDescripcionCiudadDireccionNormasYPoliticaDeMascotas`; HTTP 9.1, 9.4, 9.5 | Implementada |
+| L-17 | Servicios adicionales y su cargo | `ServicioAdicional` (genera cargo ⇒ valor > 0; cortesía ⇒ valor 0; baja lógica), `RegistroServicioAdicionalService` (código único) y `CargoServicioAdicionalService` (folio abierto, servicio activo que genera cargo, reserva CONFIRMADA o EN_CURSO); 4 servicios sembrados | `POST/GET /api/servicios-adicionales`, `PUT .../{codigo}`, `PUT .../baja`, `PUT .../activar`, `POST /api/reservas/{codigo}/folio/cargos` | `ServicioAdicionalTest`, `RegistroServicioAdicionalServiceTest`, `CargoServicioAdicionalServiceTest` (cada regla y su caso que falla); `AlojamientoServiciosIntegracionTest.servicios_*` y `.cargo_*`; HTTP 9.12 a 9.37, 9.46 a 9.48 | Implementada |
+| L-18 | Medios de pago (mínimo 2) | `RegistroPagoService` rechaza un medio fuera de `ConfiguracionAlojamiento.mediosPagoAceptados()` (propiedad `sga.alojamiento.medios-pago`, al menos dos; si hay menos el sistema no arranca); la lista sale en `GET /api/alojamiento` | `POST .../folio/pagos` (409 con un medio no aceptado), `GET /api/alojamiento` | `RegistroPagoServiceTest`, `DomainServiceConfigTest.losMediosDePagoSeNormalizanYExigenAlMenosDos`, `ConfirmarYPagarUseCaseTest.admiteVariosPagosConMediosDistintos`; `AlojamientoServiciosIntegracionTest.pago_*`; HTTP 9.25, 9.26 | Implementada |
 | L-19 | Reportes adicionales | - | - | - | Pendiente |
 | L-20 | Tres reglas propias aprobadas por el docente | RP-01 `EstanciaMinimaPorTemporada` + `CotizadorEstancia`; RP-02 `PoliticaDescuentoEstanciaLarga` + `ValorCongelado`; RP-03 `EdadAdultoResponsable` + `Ocupante.esAdultoEn` + `Reserva`. Detalle en la sección 2.1 | `POST /api/cotizaciones`, `POST /api/reservas`, `PUT /api/reservas/{codigo}/modificar`, `POST /api/disponibilidad` | Sección 2.1 | **Implementada - aprobación del docente solicitada el 15-nov-2026** |
 | L-21 | Caso de uso del modelo de IA (no bloqueante) | - | - | - | Pendiente |
@@ -138,6 +138,10 @@ La clave de RP-01 es el nombre de la temporada (un dato, L-08): se pueden agrega
 | - | Confirmar reserva | `ConfirmarReservaUseCase` | `PUT /api/reservas/{codigo}/confirmar` | Implementado |
 | - | Rechazos de reservas externas (RN-18) | `ListarRechazosReservasExternasUseCase` | `GET /api/reservas-externas/rechazos` | Implementado |
 | - | Consultas de reserva y folio | `ConsultarReservaUseCase`, `ListarReservasUseCase`, `ConsultarFolioUseCase` | `GET /api/reservas` (con `salidaDesde`, `salidaHasta` y `nombreTitular`), `GET /api/reservas/{codigo}`, `GET .../folio` | Implementado |
+| - | Alojamiento y parámetros (J6) | `ConsultarAlojamientoUseCase`, `ActualizarAlojamientoUseCase`, `ConsultarParametrosUseCase` | `GET /api/alojamiento` (público), `PUT /api/alojamiento`, `GET /api/alojamiento/parametros` | Implementado |
+| - | Servicios adicionales y su cargo (J6, L-17) | `CrearServicioAdicionalUseCase`, `ActualizarServicioAdicionalUseCase`, `CambiarActividadServicioAdicionalUseCase`, `ListarServiciosAdicionalesUseCase`, `RegistrarCargoServicioUseCase` | `/api/servicios-adicionales` (5 endpoints), `POST /api/reservas/{codigo}/folio/cargos` | Implementado |
+| - | Calendario de ocupación (J6, 7.1 y 7.5) | `ConsultarCalendarioUseCase` + `CalendarioOcupacionService` | `GET /api/apartamentos/{id}/calendario?desde&hasta` (máximo 62 noches; el huésped solo ve libre o no disponible) | Implementado (`CalendarioOcupacionServiceTest`; HTTP 9.38 a 9.45) |
+| - | Aviso de capacidad (J6, 7.3) | `ActualizarApartamentoUseCase` + `ControlCapacidadService` | `PUT /api/apartamentos/{id}`: la respuesta trae `reservasPorEncimaDeLaCapacidad`; la actualización no se bloquea | Implementado (`ControlCapacidadServiceTest`, `ApartamentoUseCasesTest`; HTTP 9.49 a 9.52) |
 | - | Mis reservas del huésped | `ListarMisReservasUseCase` | `GET /api/reservas/mias` (solo HUESPED; el titular sale del claim `documento` del token) | Implementado |
 | - | Gestión de apartamentos | `CrearApartamentoUseCase`, `ConsultarApartamentoUseCase`, `ListarApartamentosUseCase`, `ActualizarApartamentoUseCase`, `ActivarApartamentoUseCase`, `DarDeBajaApartamentoUseCase` | `/api/apartamentos` (6 endpoints, con filtros por características y por `estadoOperativo` en el listado) y `GET /api/caracteristicas` (`ListarCaracteristicasUseCase`) | Implementado |
 | - | Temporadas, tarifas y política | `RegistrarTemporadaUseCase`, `ListarTemporadasUseCase`, `RegistrarTarifaUseCase`, `ListarTarifasUseCase`, `RegistrarPoliticaCancelacionUseCase`, `ConsultarPoliticaVigenteUseCase`, `ConsultarPoliticaPorVersionUseCase` | `/api/temporadas`, `/api/apartamentos/{id}/tarifas`, `/api/politicas-cancelacion` | Implementado |
@@ -148,7 +152,7 @@ La clave de RP-01 es el nombre de la temporada (un dato, L-08): se pueden agrega
 
 Las verificaciones de la Entrega 2 son de **cuerpo y regla de negocio**, no solo de código HTTP (observación del profesor).
 
-**Suite automática (`./gradlew test`, también con `--rerun-tasks`): 739 pruebas, 0 fallos, 0 omitidas.** Incluye:
+**Suite automática (`./gradlew test`, también con `--rerun-tasks`): 797 pruebas, 0 fallos, 0 omitidas.** Incluye:
 - Unitarias del dominio y de los casos de uso, con el caso en que cada regla se viola; de persistencia (cada lectura después de vaciar la sesión
   de Hibernate) y de controllers.
 - **Recorridos de extremo a extremo** con `@SpringBootTest` + MockMvc, login real, base H2 propia por clase y un reloj que la prueba mueve
@@ -158,10 +162,13 @@ Las verificaciones de la Entrega 2 son de **cuerpo y regla de negocio**, no solo
 - `ReglasPropiasIntegracionTest` (20, L-20), `ApartamentoCaracteristicasIntegracionTest` (17) y `ApartamentoEquipamientoIntegracionTest` (6, L-06),
   `SoporteFrontendIntegracionTest` (14) y `CorsIntegracionTest` (7).
 - `SembradoEnJunioTest` y `SembradoEnDiciembreTest`: la aplicación arranca con el reloj en temporada ALTA.
+- **J6:** `AlojamientoTest`, `ServicioAdicionalTest`, `CargoServicioAdicionalServiceTest`, `RegistroPagoServiceTest`, `CalendarioOcupacionServiceTest`, `ControlCapacidadServiceTest` y
+  `RegistroServicioAdicionalServiceTest` (cada regla con su caso en que se viola); `AlojamientoYServiciosPersistenciaTest`; y `AlojamientoServiciosIntegracionTest` (14, login real, cuerpo de cada respuesta,
+  cada endpoint con el rol que no corresponde y sin token).
 - `OpenApiCoherenciaTest`: las operaciones de `docs/api/openapi.yaml` son exactamente las de la aplicación y todo endpoint protegido documenta 401 y 403.
 
 **Colección `docs/http/sga.http`** (detalle y reproducción en [`docs/http/resultado-corrida.md`](http/resultado-corrida.md)): se ejecutó completa contra la
-aplicación recién arrancada: **168 solicitudes, 168 `client.test` y 168 en verde**, con cero fallos. Cada solicitud verifica el cuerpo de su
+aplicación recién arrancada: **220 solicitudes, 220 `client.test` y 220 en verde**, con cero fallos. Cada solicitud verifica el cuerpo de su
 respuesta, y cada 409 verifica que el mensaje incluya el texto de la regla. La corrida de verificación encontró y corrigió dos defectos previos del
 propio `.http`: el paso 6.18 reservaba las mismas noches que la reserva externa de 3.26 (409 por RN-01) y las URL con espacios de la PARTE 8 debían
 ir codificadas. **Paso manual:** 6.14 (token vencido), que exige arrancar con la expiración en 1 minuto; lo verifica `JwtConfigTest`.
@@ -180,7 +187,7 @@ Decisiones que se dejaron anotadas:
 Sigue pendiente (acotado, sin bloquear el frontend):
 - Verificar automáticamente que los **esquemas** del yaml (campos de cada request y response) coincidan con los records del código; hoy se
   comprueban las operaciones y los 401/403, y los esquemas se revisan a mano.
-- Los pendientes de la Ficha que no son del backend actual: L-01/L-02, L-16, L-17, L-19, L-21 y L-23 (ver la sección 2).
+- Los pendientes de la Ficha que no son de este paso: L-19, L-21 y L-23 (ver la sección 2).
 
 ---
 

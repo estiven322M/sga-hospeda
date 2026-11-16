@@ -65,6 +65,7 @@ class ConsultasYBloqueosControllerTest {
     @Mock private ConsultarFolioUseCase consultarFolio;
     @Mock private RegistrarPagoUseCase registrarPago;
     @Mock private CerrarFolioUseCase cerrarFolio;
+    @Mock private co.edu.uniquindio.sga.application.usecase.RegistrarCargoServicioUseCase registrarCargoServicio;
 
     private MockMvc mvc;
     private final Clock reloj = Clock.fixed(Instant.parse("2026-11-02T15:00:00Z"), ZoneId.of("America/Bogota"));
@@ -87,7 +88,8 @@ class ConsultasYBloqueosControllerTest {
                         new CotizacionController(cotizar, reservaMapper, solicitud, reloj),
                         new DisponibilidadController(disponibilidad, reservaMapper, solicitud, reloj),
                         new BloqueoController(registrarBloqueo, listarBloqueos, new BloqueoMapperImpl(), solicitud),
-                        new FolioController(consultarFolio, registrarPago, cerrarFolio, new FolioMapperImpl(), solicitud))
+                        new FolioController(consultarFolio, registrarPago, cerrarFolio, registrarCargoServicio,
+                                new FolioMapperImpl(), solicitud))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 

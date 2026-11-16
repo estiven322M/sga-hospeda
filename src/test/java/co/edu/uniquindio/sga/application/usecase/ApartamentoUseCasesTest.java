@@ -7,6 +7,9 @@ import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.Optional;
@@ -19,12 +22,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import co.edu.uniquindio.sga.application.exception.ApartamentoNoEncontradoException;
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
+import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
 import co.edu.uniquindio.sga.domain.repository.FiltroApartamentos;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.service.ActivacionApartamentoService;
+import co.edu.uniquindio.sga.domain.service.ControlCapacidadService;
 import co.edu.uniquindio.sga.domain.service.RegistroApartamentoService;
 import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
@@ -35,6 +40,7 @@ class ApartamentoUseCasesTest {
 
     @Mock private ApartamentoRepository repositorio;
     @Mock private ActivacionApartamentoService activacionService;
+    @Mock private ControlCapacidadService controlCapacidad;
 
     private final IdentificacionApartamento id = new IdentificacionApartamento("APT-101");
     private Apartamento apartamento;
@@ -44,6 +50,11 @@ class ApartamentoUseCasesTest {
         apartamento = ApartamentoDePrueba.nuevo(id, "Vista", 2, 4);
         lenient().when(repositorio.buscarPorIdentificacion(id)).thenReturn(Optional.of(apartamento));
         lenient().when(repositorio.guardar(any(Apartamento.class))).then(returnsFirstArg());
+    }
+
+    private ActualizarApartamentoUseCase actualizar() {
+        return new ActualizarApartamentoUseCase(repositorio, controlCapacidad,
+                Clock.fixed(Instant.parse("2026-11-16T15:00:00Z"), ZoneId.of("America/Bogota")));
     }
 
     private CrearApartamentoUseCase crear() {
@@ -125,8 +136,8 @@ class ApartamentoUseCasesTest {
 
     @Test
     void actualizaLosDatosYGuarda() {
-        Apartamento resultado = new ActualizarApartamentoUseCase(repositorio).ejecutar(id, "Nuevo",
-                "Descripción nueva", 3, 6, List.of("Lavadora"), Set.of(Caracteristica.JACUZZI));
+        Apartamento resultado = actualizar().ejecutar(id, "Nuevo",
+                "Descripción nueva", 3, 6, List.of("Lavadora"), Set.of(Caracteristica.JACUZZI)).apartamento();
 
         assertEquals("Nuevo", resultado.getNombre());
         assertEquals("Descripción nueva", resultado.getDescripcion());
@@ -136,15 +147,37 @@ class ApartamentoUseCasesTest {
         verify(repositorio).guardar(apartamento);
     }
 
+    /** 7.3: al BAJAR la capacidad se avisa de las reservas que quedan por encima, y la actualización no se bloquea. */
+    @Test
+    void alBajarLaCapacidadAvisaDeLasReservasQueQuedanPorEncimaSinBloquear() {
+        Reserva afectada = mock(Reserva.class);
+        when(controlCapacidad.reservasPorEncimaDeLaCapacidad(any(Apartamento.class), eq(java.time.LocalDate.of(2026, 11, 16))))
+                .thenReturn(List.of(afectada));
+
+        var resultado = actualizar().ejecutar(id, "Vista", "Descripción", 2, 2, List.of(), Set.of());
+
+        assertEquals(2, resultado.apartamento().getCapacidad()); // se actualizó: no se bloquea
+        assertEquals(List.of(afectada), resultado.reservasPorEncimaDeLaCapacidad());
+        verify(repositorio).guardar(apartamento);
+    }
+
+    @Test
+    void siLaCapacidadNoBajaNoHayAvisoNiSeConsultaLasReservas() {
+        var resultado = actualizar().ejecutar(id, "Vista", "Descripción", 2, 6, List.of(), Set.of());
+
+        assertTrue(resultado.reservasPorEncimaDeLaCapacidad().isEmpty());
+        verifyNoInteractions(controlCapacidad);
+    }
+
     @Test
     void noActualizaConDatosInvalidosNiSiNoExiste() {
         assertThrows(ReglaDominioException.class,
-                () -> new ActualizarApartamentoUseCase(repositorio).ejecutar(id, "X", "Descripción", 0, 4, List.of(), Set.of()));
+                () -> actualizar().ejecutar(id, "X", "Descripción", 0, 4, List.of(), Set.of()));
 
         IdentificacionApartamento otro = new IdentificacionApartamento("APT-999");
         when(repositorio.buscarPorIdentificacion(otro)).thenReturn(Optional.empty());
         assertThrows(ApartamentoNoEncontradoException.class,
-                () -> new ActualizarApartamentoUseCase(repositorio).ejecutar(otro, "X", "Descripción", 1, 1, List.of(), Set.of()));
+                () -> actualizar().ejecutar(otro, "X", "Descripción", 1, 1, List.of(), Set.of()));
 
         verify(repositorio, never()).guardar(any());
     }

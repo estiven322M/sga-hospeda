@@ -119,3 +119,52 @@ export function solicitudDePolitica(datos: FormularioPolitica): RegistrarPolitic
     })),
   };
 }
+
+// ---------- Alojamiento (7.3, L-01, L-02, L-12, L-16) ----------
+const HORA = /^\d{2}:\d{2}$/;
+const coordenada = (nombre: string, limite: number) =>
+  z
+    .string()
+    .trim()
+    .refine((valor) => valor !== '' && !Number.isNaN(Number(valor)), `Ingrese la ${nombre} como un número`)
+    .refine((valor) => Math.abs(Number(valor)) <= limite, `La ${nombre} debe estar entre -${limite} y ${limite}`);
+
+/** Forma de los datos del alojamiento. Que la salida sea anterior a la entrada lo decide el dominio (409). */
+export const esquemaAlojamiento = z.object({
+  nombre: z.string().trim().min(1, 'Ingrese el nombre').max(80, 'El nombre no puede superar 80 caracteres'),
+  descripcion: z.string().trim().min(1, 'Ingrese la descripción').max(1000, 'La descripción no puede superar 1000 caracteres'),
+  ciudad: z.string().trim().min(1, 'Ingrese la ciudad').max(80, 'La ciudad no puede superar 80 caracteres'),
+  direccion: z.string().trim().min(1, 'Ingrese la dirección').max(160, 'La dirección no puede superar 160 caracteres'),
+  latitud: coordenada('latitud', 90),
+  longitud: coordenada('longitud', 180),
+  horaEntrada: z.string().regex(HORA, 'Ingrese la hora de entrada'),
+  horaSalida: z.string().regex(HORA, 'Ingrese la hora de salida'),
+  normasConvivencia: z.string().trim().min(1, 'Ingrese las normas de convivencia').max(2000, 'Las normas no pueden superar 2000 caracteres'),
+  politicaMascotas: z
+    .string()
+    .trim()
+    .min(1, 'Indique la política de mascotas (aunque sea que no se aceptan)')
+    .max(2000, 'La política de mascotas no puede superar 2000 caracteres'),
+});
+export type FormularioAlojamiento = z.infer<typeof esquemaAlojamiento>;
+
+// ---------- Servicio adicional (L-17) ----------
+/** Forma del servicio. Genera cargo ⇒ valor > 0 y cortesía ⇒ valor 0 lo decide el dominio (409). */
+export const esquemaServicioAdicional = z.object({
+  codigo: z.string().trim().min(1, 'Ingrese el código').max(30, 'El código no puede superar 30 caracteres'),
+  nombre: z.string().trim().min(1, 'Ingrese el nombre').max(80, 'El nombre no puede superar 80 caracteres'),
+  descripcion: z.string().trim().max(300, 'La descripción no puede superar 300 caracteres'),
+  generaCargo: z.boolean(),
+  valor: enteroNoNegativo('El valor debe ser un número entero de pesos (0 o más)'),
+});
+export type FormularioServicioAdicional = z.infer<typeof esquemaServicioAdicional>;
+
+// ---------- Cargo de servicio adicional en el folio ----------
+export const esquemaCargoServicio = z.object({
+  codigoServicio: z.string().min(1, 'Elija el servicio'),
+  cantidad: z
+    .string()
+    .regex(/^[1-9]\d*$/, 'La cantidad debe ser un número entero de 1 en adelante')
+    .refine((valor) => Number(valor) <= 100, 'La cantidad no puede superar 100'),
+});
+export type FormularioCargoServicio = z.infer<typeof esquemaCargoServicio>;

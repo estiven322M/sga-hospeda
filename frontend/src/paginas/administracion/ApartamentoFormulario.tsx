@@ -9,7 +9,9 @@ import { SelectorCaracteristicas } from '../../componentes/SelectorCaracteristic
 import { esquemaApartamento, solicitudDeApartamento, type FormularioApartamento } from '../../esquemas/administracion';
 import { useConsulta } from '../../hooks/useConsulta';
 import type { ApartamentoResponse } from '../../modelos/apartamento';
+import type { ReservaResumenResponse } from '../../modelos/reserva';
 import { RUTAS } from '../../rutas/rutas';
+import { formatearRango } from '../../utilidades/formato';
 import { actualizarApartamento, crearApartamento, obtenerApartamento } from '../../servicios/apartamentoServicio';
 import { erroresDeCampo, mensajeDeError } from '../../utilidades/errores';
 import { notificarExito } from '../../utilidades/notificaciones';
@@ -59,6 +61,8 @@ function Edicion({ identificacion }: { identificacion: string }) {
 function Formulario({ inicial }: { inicial: ApartamentoResponse | null }) {
   const navigate = useNavigate();
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  // 7.3: reservas que quedaron por encima de la nueva capacidad (la actualización no se bloquea, solo se avisa)
+  const [reservasPorEncima, setReservasPorEncima] = useState<ReservaResumenResponse[]>([]);
   const editando = inicial !== null;
 
   const {
@@ -76,11 +80,13 @@ function Formulario({ inicial }: { inicial: ApartamentoResponse | null }) {
 
   async function enviar(datos: FormularioApartamento) {
     setErrorServidor(null);
+    setReservasPorEncima([]);
     const solicitud = solicitudDeApartamento(datos);
+    let excedidas: ReservaResumenResponse[] = [];
     try {
       if (inicial) {
         const { identificacion: _inmutable, ...editables } = solicitud;
-        await actualizarApartamento(inicial.identificacion, editables);
+        excedidas = (await actualizarApartamento(inicial.identificacion, editables)).reservasPorEncimaDeLaCapacidad;
       } else {
         await crearApartamento(solicitud);
       }
@@ -93,6 +99,11 @@ function Formulario({ inicial }: { inicial: ApartamentoResponse | null }) {
       return;
     }
     notificarExito(editando ? 'Apartamento actualizado' : 'Apartamento creado: queda inactivo hasta tener tarifa en todas las temporadas');
+    if (excedidas.length > 0) {
+      // Se quedó en la página para que el administrador vea la lista: no se navega
+      setReservasPorEncima(excedidas);
+      return;
+    }
     void navigate(RUTAS.apartamentos);
   }
 
@@ -101,6 +112,25 @@ function Formulario({ inicial }: { inicial: ApartamentoResponse | null }) {
       <div className="col-12 col-lg-8">
         <h1 className="h3 mb-3">{editando ? `Editar ${inicial.identificacion}` : 'Nuevo apartamento'}</h1>
         {errorServidor && <div className="alert alert-danger" role="alert">{errorServidor}</div>}
+        {reservasPorEncima.length > 0 && (
+          <div className="alert alert-warning" role="alert">
+            <p className="fw-semibold mb-1">
+              Se actualizó el apartamento, pero {reservasPorEncima.length === 1 ? 'una reserva activa queda' : `${reservasPorEncima.length} reservas activas quedan`} por encima de la nueva capacidad.
+            </p>
+            <p className="small mb-2">
+              Cambiar la capacidad no afecta las reservas ya creadas: conservan su grupo. Convendría contactar a sus titulares o reasignarlas desde recepción.
+            </p>
+            <ul className="small mb-2">
+              {reservasPorEncima.map((reserva) => (
+                <li key={reserva.codigo}>
+                  <Link to={RUTAS.gestionReserva(reserva.codigo)}>{reserva.codigo}</Link> · {reserva.estado} · {reserva.totalOcupantes}{' '}
+                  {reserva.totalOcupantes === 1 ? 'ocupante' : 'ocupantes'} · {formatearRango(reserva.fechaEntrada, reserva.fechaSalida)} · titular {reserva.nombreTitular}
+                </li>
+              ))}
+            </ul>
+            <Link to={RUTAS.apartamentos} className="btn btn-sm btn-outline-dark">Volver a los apartamentos</Link>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(enviar)} noValidate>
           <Campo

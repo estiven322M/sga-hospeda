@@ -5,29 +5,29 @@ sobre el **cuerpo** de cada respuesta (`client.test`), no solo sobre el código 
 
 | Dato | Valor |
 |---|---|
-| Fecha | 2026-11-15 a las 21:57:45 (hora de Bogotá) |
-| Código base | `e689343` (más los cambios del commit "recorridos de extremo a extremo y soporte del backend para el frontend") |
+| Fecha | 2026-11-16 a las 03:11:50 (hora de Bogotá) |
+| Código base | `57916d7` (`main`) más los cambios del paso J6 (rama `feature/alojamiento-servicios`) |
 | Aplicación | `./gradlew bootRun` recién arrancada, con los datos de prueba sembrados (H2 en memoria) |
 | Cliente | [`ejecutar-coleccion.js`](ejecutar-coleccion.js): ejecuta cada solicitud en orden y corre sus bloques `client.test` con la misma API del cliente HTTP de IntelliJ (`client.assert`, `client.global`, `response.body`, `response.headers.valueOf`) |
-| **Solicitudes ejecutadas** | **168** |
-| **`client.test` ejecutados** | **168** |
-| **`client.test` que pasaron** | **168** |
+| **Solicitudes ejecutadas** | **220** |
+| **`client.test` ejecutados** | **220** |
+| **`client.test` que pasaron** | **220** |
 | **`client.test` que fallaron** | **0** |
 
-Cada solicitud tiene al menos un `client.test` (168 de 168). Toda respuesta 409 verifica `status` = 409, que
-`mensaje` incluya el texto de la regla violada, que `errores` sea nulo y que no haya trazas técnicas (salvo los dos pasos, 0.6 y 3.26, que solo en una segunda pasada pueden dar 409 por haberse ejecutado antes: ahí se exige que el 409 explique la regla).
+Cada solicitud tiene al menos un `client.test` (220 de 220). Toda respuesta 409 verifica `status` = 409, que
+`mensaje` incluya el texto de la regla violada, que `errores` sea nulo y que no haya trazas técnicas.
 
 ## Códigos HTTP observados
 
 | Código | Solicitudes |
 |---|---|
-| 200 | 66 |
-| 201 | 12 |
-| 400 | 17 |
-| 401 | 6 |
-| 403 | 15 |
-| 404 | 7 |
-| 409 | 45 |
+| 200 | 84 |
+| 201 | 17 |
+| 400 | 21 |
+| 401 | 11 |
+| 403 | 21 |
+| 404 | 10 |
+| 409 | 56 |
 
 ## Solicitudes por parte de la colección
 
@@ -42,6 +42,7 @@ Cada solicitud tiene al menos un `client.test` (168 de 168). Toda respuesta 409 
 | 6 | Seguridad: 401, 403, propietario y rol/canal | 28 |
 | 7 | Reglas propias (L-20) | 19 |
 | 8 | Soporte del frontend: CORS, mis reservas, filtros | 18 |
+| 9 | Alojamiento, servicios adicionales, medios de pago y calendarios (J6) | 52 |
 | - | Pasos cuyo título está en un comentario (se numeran por su comentario) | 3 |
 
 ## Pasos manuales y límites

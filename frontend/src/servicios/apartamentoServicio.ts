@@ -1,5 +1,6 @@
 import type {
   ActualizarApartamentoRequest,
+  ApartamentoActualizadoResponse,
   ApartamentoResponse,
   Caracteristica,
   CrearApartamentoRequest,
@@ -76,9 +77,12 @@ export async function crearApartamento(solicitud: CrearApartamentoRequest): Prom
   return respuesta.data;
 }
 
-/** PUT /apartamentos/{identificacion}: reemplaza los datos editables; la identificación no cambia. */
-export async function actualizarApartamento(identificacion: string, solicitud: ActualizarApartamentoRequest): Promise<ApartamentoResponse> {
-  const respuesta = await api.put<ApartamentoResponse>(ruta(identificacion), solicitud);
+/**
+ * PUT /apartamentos/{identificacion}: reemplaza los datos editables; la identificación no cambia. Si se baja la capacidad, la
+ * respuesta trae las reservas que quedan por encima (7.3).
+ */
+export async function actualizarApartamento(identificacion: string, solicitud: ActualizarApartamentoRequest): Promise<ApartamentoActualizadoResponse> {
+  const respuesta = await api.put<ApartamentoActualizadoResponse>(ruta(identificacion), solicitud);
   return respuesta.data;
 }
 

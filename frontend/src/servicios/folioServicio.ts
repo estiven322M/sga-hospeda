@@ -1,3 +1,4 @@
+import type { RegistrarCargoServicioRequest } from '../modelos/alojamiento';
 import type { CerrarFolioRequest, FolioResponse, RegistrarPagoRequest } from '../modelos/folio';
 import { api } from './api';
 
@@ -12,6 +13,15 @@ export async function obtenerFolio(codigo: string, signal?: AbortSignal): Promis
 /** POST /reservas/{codigo}/folio/pagos (CU-08): devuelve el folio con el saldo actualizado. */
 export async function registrarPago(codigo: string, solicitud: RegistrarPagoRequest): Promise<FolioResponse> {
   const respuesta = await api.post<FolioResponse>(`${ruta(codigo)}/pagos`, solicitud);
+  return respuesta.data;
+}
+
+/**
+ * POST /reservas/{codigo}/folio/cargos (L-17): registra un servicio adicional con su cantidad. 409 si el folio está cerrado, el
+ * servicio está de baja o no genera cargo, o la reserva no está CONFIRMADA ni EN_CURSO. Devuelve el folio con el saldo actualizado.
+ */
+export async function registrarCargoServicio(codigo: string, solicitud: RegistrarCargoServicioRequest): Promise<FolioResponse> {
+  const respuesta = await api.post<FolioResponse>(`${ruta(codigo)}/cargos`, solicitud);
   return respuesta.data;
 }
 

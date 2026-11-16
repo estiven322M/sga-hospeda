@@ -1,7 +1,20 @@
-# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 2)
+# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 3, paso J6)
 
 El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencian entre sí **solo por identificador**
 (`Reserva` guarda `IdentificacionApartamento`; `Folio` guarda `CodigoReserva`).
+
+**Cambios del paso J6 (Entrega 3)** (marcados con `«nuevo J6»` en el diagrama):
+- `Alojamiento` (L-01, L-02, L-12, L-16): nombre, descripción, ciudad, dirección, `Ubicacion` (latitud y longitud), horas de entrada y salida, normas de
+  convivencia y política de mascotas. Hay uno solo por sistema (igualdad: toda instancia es "el mismo alojamiento"). Regla: la salida es anterior a la entrada.
+  Puerto `AlojamientoRepository`. `ConfiguracionConAlojamiento` (infraestructura) hace que las horas editadas rijan de inmediato en las reglas.
+- `ServicioAdicional` (L-17): código (identidad), nombre, descripción, `generaCargo`, valor en `Dinero` y baja lógica. Regla: genera cargo ⇒ valor > 0; cortesía ⇒ valor 0.
+  Puerto `ServicioAdicionalRepository`; `RegistroServicioAdicionalService` (código único).
+- `CargoServicioAdicionalService` (L-17, 7.7): carga el servicio al `Folio` solo si la reserva está CONFIRMADA o EN_CURSO, el servicio está activo y genera cargo y el folio está abierto.
+- `RegistroPagoService` (L-18): el medio de pago debe estar en `ConfiguracionAlojamiento.mediosPagoAceptados()` (configuración, no código).
+- `CalendarioOcupacionService` (7.1, 7.5) con `EstadoNoche` y `NocheCalendario`: estado de cada noche (LIBRE, RESERVADA, BLOQUEADA), máximo de noches
+  configurable (`calendarioMaximoNoches()`, 62).
+- `ControlCapacidadService` (7.3): reservas activas que quedan por encima de una capacidad menor; solo informa.
+- `ConfiguracionAlojamiento` gana `mediosPagoAceptados()` y `calendarioMaximoNoches()`.
 
 **Cambios del dominio respecto a la Entrega 1** (marcados con `«nuevo»` o `«cambio»` en el diagrama):
 - Nuevos: `Temporada`, `PoliticaCancelacion`, `Periodo`, `TramoRetencion`, `Ajuste`, y los servicios `CalendarioTemporadas`,
@@ -225,6 +238,49 @@ classDiagram
         +String temporada
         +Dinero valorPorOcupanteNoche
     }
+    class Alojamiento {
+        <<entidad «nuevo J6»>>
+        -nombre
+        -descripcion
+        -ciudad
+        -direccion
+        -ubicacion
+        -horaEntrada
+        -horaSalida
+        -normasConvivencia
+        -politicaMascotas
+        +actualizarDatos(...)
+    }
+    class Ubicacion {
+        <<record «nuevo J6»>>
+        latitud
+        longitud
+    }
+    class ServicioAdicional {
+        <<entidad «nuevo J6»>>
+        -codigo
+        -nombre
+        -generaCargo
+        -valor
+        -activo
+        +actualizarDatos(...)
+        +darDeBaja()
+        +activar()
+    }
+    class NocheCalendario {
+        <<record «nuevo J6»>>
+        noche
+        estado
+        reserva
+        estadoReserva
+    }
+    class EstadoNoche {
+        <<enum «nuevo J6»>>
+        LIBRE
+        RESERVADA
+        BLOQUEADA
+    }
+
     class EstadoReserva {
         <<enum>>
         PENDIENTE
@@ -277,6 +333,10 @@ classDiagram
     Bloqueo "1" *-- "1" Estancia
     Temporada "1" *-- "0..*" Periodo
     PoliticaCancelacion "1" *-- "2..*" TramoRetencion
+
+    Alojamiento "1" *-- "1" Ubicacion
+    ServicioAdicional "1" *-- "1" Dinero
+    NocheCalendario ..> EstadoNoche
 
     Reserva ..> Apartamento : por IdentificacionApartamento
     Folio ..> Reserva : por CodigoReserva
@@ -342,6 +402,29 @@ classDiagram
         7.6 RN-17
     }
 
+    class CargoServicioAdicionalService {
+        <<nuevo J6>>
+        L-17 7.7
+    }
+    class RegistroServicioAdicionalService {
+        <<nuevo J6>>
+        L-17
+    }
+    class RegistroPagoService {
+        <<nuevo J6>>
+        L-18
+    }
+    class CalendarioOcupacionService {
+        <<nuevo J6>>
+        7.1 7.5
+    }
+    class ControlCapacidadService {
+        <<nuevo J6>>
+        7.3
+    }
+    class AlojamientoRepository { <<puerto «nuevo J6»>> }
+    class ServicioAdicionalRepository { <<puerto «nuevo J6»>> }
+
     class ReservaRepository { <<puerto>> }
     class ApartamentoRepository { <<puerto>> }
     class FolioRepository { <<puerto>> }
@@ -370,4 +453,12 @@ classDiagram
     RegistroApartamentoService ..> ApartamentoRepository
     RegistroPoliticaCancelacionService ..> PoliticaCancelacionRepository
     RegistroTarifaService ..> TemporadaRepository
+    RegistroServicioAdicionalService ..> ServicioAdicionalRepository
+    CargoServicioAdicionalService ..> ServicioAdicional
+    CargoServicioAdicionalService ..> Folio
+    RegistroPagoService ..> ConfiguracionAlojamiento
+    CalendarioOcupacionService ..> ReservaRepository
+    CalendarioOcupacionService ..> BloqueoRepository
+    CalendarioOcupacionService ..> ConfiguracionAlojamiento
+    ControlCapacidadService ..> ReservaRepository
 ```

@@ -3,6 +3,7 @@ package co.edu.uniquindio.sga.infrastructure.config;
 import java.time.Clock;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -12,15 +13,23 @@ import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
+import co.edu.uniquindio.sga.domain.repository.AlojamientoRepository;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
 import co.edu.uniquindio.sga.domain.repository.BloqueoRepository;
+import co.edu.uniquindio.sga.domain.repository.ServicioAdicionalRepository;
 import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
 import co.edu.uniquindio.sga.domain.repository.PoliticaCancelacionRepository;
 import co.edu.uniquindio.sga.domain.repository.ReservaRepository;
 import co.edu.uniquindio.sga.domain.repository.TarifarioRepository;
 import co.edu.uniquindio.sga.domain.repository.TemporadaRepository;
 import co.edu.uniquindio.sga.domain.service.ActivacionApartamentoService;
+import co.edu.uniquindio.sga.domain.service.CalendarioOcupacionService;
+import co.edu.uniquindio.sga.domain.service.CargoServicioAdicionalService;
 import co.edu.uniquindio.sga.domain.service.ConfirmacionReservaService;
+import co.edu.uniquindio.sga.domain.service.ControlCapacidadService;
+import co.edu.uniquindio.sga.domain.service.RegistroPagoService;
+import co.edu.uniquindio.sga.domain.service.RegistroServicioAdicionalService;
 import co.edu.uniquindio.sga.domain.service.CotizadorEstancia;
 import co.edu.uniquindio.sga.domain.service.RecepcionReservaExternaService;
 import co.edu.uniquindio.sga.domain.service.DisponibilidadApartamentoService;
@@ -51,7 +60,10 @@ public class DomainServiceConfig {
         return Clock.system(ZoneId.of(zona));
     }
 
-    /** Implementación del puerto ConfiguracionAlojamiento respaldada por application.properties. */
+    /**
+     * Implementación del puerto ConfiguracionAlojamiento: los valores salen de application.properties, salvo las horas de
+     * entrada y salida, que salen del alojamiento que el administrador edita (ver {@link ConfiguracionConAlojamiento}).
+     */
     @Bean
     public ConfiguracionAlojamiento configuracionAlojamiento(
             @Value("${sga.alojamiento.zona-horaria}") String zona,
@@ -66,7 +78,31 @@ public class DomainServiceConfig {
             @Value("${sga.alojamiento.descuento-estancia-larga-noches}") int nochesDescuentoEstanciaLarga,
             @Value("${sga.alojamiento.descuento-estancia-larga-porcentaje}") int porcentajeDescuentoEstanciaLarga,
             @Value("${sga.alojamiento.edad-adulto-responsable-anios}") int edadAdultoResponsableAnios,
-            Environment entorno) {
+            // L-18 y calendario (7.5)
+            @Value("${sga.alojamiento.medios-pago}") List<String> mediosPago,
+            @Value("${sga.alojamiento.calendario-maximo-noches}") int calendarioMaximoNoches,
+            Environment entorno, AlojamientoRepository alojamiento) {
+        ConfiguracionAlojamiento base = configuracionPropiedades(zona, horaEntrada, horaSalida, tiempoPreparacionHoras,
+                plazoConfirmacionHoras, umbralEdadAnios, horaLimiteNoShow, anticipoPorcentaje,
+                nochesDescuentoEstanciaLarga, porcentajeDescuentoEstanciaLarga, edadAdultoResponsableAnios, mediosPago,
+                calendarioMaximoNoches, entorno);
+        return new ConfiguracionConAlojamiento(base, alojamiento);
+    }
+
+    /** Los parámetros leídos de application.properties, validados al arrancar (no en la primera operación). */
+    ConfiguracionAlojamiento configuracionPropiedades(
+            String zona, String horaEntrada, String horaSalida, int tiempoPreparacionHoras, int plazoConfirmacionHoras,
+            int umbralEdadAnios, String horaLimiteNoShow, int anticipoPorcentaje, int nochesDescuentoEstanciaLarga,
+            int porcentajeDescuentoEstanciaLarga, int edadAdultoResponsableAnios, List<String> mediosPago,
+            int calendarioMaximoNoches, Environment entorno) {
+        List<String> medios = mediosPago.stream().map(String::trim).filter(medio -> !medio.isEmpty())
+                .map(String::toUpperCase).distinct().toList();
+        if (medios.size() < 2) {
+            throw new ReglaDominioException("L-18: el alojamiento debe aceptar al menos dos medios de pago (sga.alojamiento.medios-pago)");
+        }
+        if (calendarioMaximoNoches < 1) {
+            throw new ReglaDominioException("El máximo de noches del calendario debe ser al menos 1");
+        }
         // RP-01: sga.alojamiento.estancia-minima.<TEMPORADA>=<noches>; el nombre de la temporada es un dato (L-08)
         Map<String, Integer> estanciaMinima = Binder.get(entorno)
                 .bind("sga.alojamiento.estancia-minima", Bindable.mapOf(String.class, Integer.class))
@@ -78,7 +114,35 @@ public class DomainServiceConfig {
                 new TiempoPreparacion(tiempoPreparacionHoras), new PlazoConfirmacion(plazoConfirmacionHoras),
                 new UmbralEdadFacturable(umbralEdadAnios), LocalTime.parse(horaLimiteNoShow), anticipoPorcentaje,
                 new EstanciaMinimaPorTemporada(estanciaMinima).minimos(), nochesDescuentoEstanciaLarga,
-                porcentajeDescuentoEstanciaLarga, new EdadAdultoResponsable(edadAdultoResponsableAnios).anios());
+                porcentajeDescuentoEstanciaLarga, new EdadAdultoResponsable(edadAdultoResponsableAnios).anios(),
+                medios, calendarioMaximoNoches);
+    }
+
+    @Bean
+    public RegistroServicioAdicionalService registroServicioAdicionalService(ServicioAdicionalRepository servicios) {
+        return new RegistroServicioAdicionalService(servicios);
+    }
+
+    @Bean
+    public CargoServicioAdicionalService cargoServicioAdicionalService() {
+        return new CargoServicioAdicionalService();
+    }
+
+    @Bean
+    public RegistroPagoService registroPagoService(ConfiguracionAlojamiento configuracion) {
+        return new RegistroPagoService(configuracion);
+    }
+
+    @Bean
+    public CalendarioOcupacionService calendarioOcupacionService(ReservaRepository reservaRepository,
+                                                                BloqueoRepository bloqueoRepository,
+                                                                ConfiguracionAlojamiento configuracion) {
+        return new CalendarioOcupacionService(reservaRepository, bloqueoRepository, configuracion);
+    }
+
+    @Bean
+    public ControlCapacidadService controlCapacidadService(ReservaRepository reservaRepository) {
+        return new ControlCapacidadService(reservaRepository);
     }
 
     @Bean
@@ -148,6 +212,7 @@ public class DomainServiceConfig {
             UmbralEdadFacturable umbralEdadFacturable, LocalTime horaLimiteNoShow,
             int anticipoPorcentaje, Map<String, Integer> estanciaMinimaPorTemporada,
             int nochesDescuentoEstanciaLarga, int porcentajeDescuentoEstanciaLarga,
-            int edadAdultoResponsableAnios) implements ConfiguracionAlojamiento {
+            int edadAdultoResponsableAnios, List<String> mediosPagoAceptados,
+            int calendarioMaximoNoches) implements ConfiguracionAlojamiento {
     }
 }
