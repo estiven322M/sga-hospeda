@@ -1794,8 +1794,8 @@ components:
         path:
           type: string
         errores:
-          type: object
-          description: Solo en un 400 de validación (campo a mensaje)
+          type: [object, "null"]
+          description: Solo en un 400 de validación (campo a mensaje). En los demás errores el backend lo envía null.
           additionalProperties:
             type: string
 
@@ -2420,7 +2420,10 @@ components:
         autor:
           type: string
         estadoAnterior:
-          $ref: '#/components/schemas/EstadoReserva'
+          description: Es null en el primer evento del historial (la creación de la reserva).
+          oneOf:
+            - $ref: '#/components/schemas/EstadoReserva'
+            - type: "null"
         estadoNuevo:
           $ref: '#/components/schemas/EstadoReserva'
         observacion:
@@ -2436,8 +2439,7 @@ components:
         canalOrigen:
           $ref: '#/components/schemas/CanalOrigen'
         identificadorExterno:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: Solo las reservas de canal EXTERNO lo tienen (RN-19)
         identificacionApartamento:
           type: string
@@ -2450,8 +2452,9 @@ components:
         noches:
           type: integer
         horaEstimadaLlegada:
-          type: string
+          type: [string, "null"]
           format: time
+          description: Es null mientras no se haya informado; es obligatoria para confirmar la reserva (RN-09).
         titular:
           $ref: '#/components/schemas/OcupanteResponse'
         ocupantes:
@@ -2569,4 +2572,5 @@ components:
         cerrado:
           type: boolean
         autorizacionCierre:
-          type: string
+          type: [string, "null"]
+          description: Quién autorizó el cierre con saldo y por qué (CU-11). Es null si el folio no se ha cerrado o se cerró sin saldo pendiente.

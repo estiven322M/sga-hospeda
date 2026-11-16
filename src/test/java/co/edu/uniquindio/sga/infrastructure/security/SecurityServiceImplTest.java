@@ -66,7 +66,7 @@ class SecurityServiceImplTest {
     }
 
     @Test
-    void conCredencialesCorrectasEmiteUnTokenBearerConRolYDocumento() {
+    void conCredencialesCorrectasEmiteUnTokenBearerConNombreRolYDocumento() {
         CustomUserDetails principal = new CustomUserDetails(recepcionista());
         when(authenticationManager.authenticate(any())).thenReturn(
                 UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
@@ -85,6 +85,7 @@ class SecurityServiceImplTest {
         Jwt jwt = lector.decode(respuesta.token());
         assertEquals("recepcion@sga.local", jwt.getSubject());
         assertEquals("1000000002", jwt.getClaimAsString("documento"));
+        assertEquals("Recepcion", jwt.getClaimAsString("nombre"));
         assertEquals(List.of("RECEPCIONISTA"), jwt.getClaimAsStringList("roles"));
 
         // El correo se normaliza antes de autenticar

@@ -13,13 +13,15 @@ import java.util.List;
 
 /**
  * Construye y firma el JWT del SGA (Guía 12, 5.5). El JWT se FIRMA, no se cifra: cualquiera puede leer los claims,
- * por eso solo viajan el correo (sub), los roles y el documento. Nunca la contraseña ni la fecha de nacimiento.
+ * por eso solo viajan el correo (sub), el nombre, los roles y el documento. Nunca la contraseña ni la fecha de nacimiento.
  */
 @Component
 public class JwtTokenProvider {
 
     /** Claim con los roles; JwtConfig lo convierte en autoridades. */
     public static final String CLAIM_ROLES = "roles";
+    /** Claim con el nombre de la persona: el frontend lo muestra y precarga con él al titular de su reserva. */
+    public static final String CLAIM_NOMBRE = "nombre";
     /** Claim con el documento de identidad; con él se verifica el propietario del recurso (7.2). */
     public static final String CLAIM_DOCUMENTO = "documento";
 
@@ -31,7 +33,7 @@ public class JwtTokenProvider {
         this.emisor = emisor;
     }
 
-    public String generateTokenAsString(String correo, String documento, List<String> roles,
+    public String generateTokenAsString(String correo, String nombre, String documento, List<String> roles,
                                         Instant emitidoEn, Instant expiraEn) {
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
@@ -41,6 +43,7 @@ public class JwtTokenProvider {
                 .issuedAt(emitidoEn)
                 .expiresAt(expiraEn)
                 .subject(correo)
+                .claim(CLAIM_NOMBRE, nombre)
                 .claim(CLAIM_ROLES, roles)
                 .claim(CLAIM_DOCUMENTO, documento)
                 .build();
