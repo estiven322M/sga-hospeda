@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { CamposOcupantes } from '../../componentes/CamposOcupantes';
 import { Campo } from '../../componentes/Campo';
+import { CampoCasilla } from '../../componentes/CampoCasilla';
 import { Cargando } from '../../componentes/Cargando';
 import { Paginacion } from '../../componentes/Paginacion';
 import { TarjetaApartamento } from '../../componentes/TarjetaApartamento';
@@ -181,18 +182,13 @@ export default function Buscar() {
                   {errorCatalogo && <div className="text-danger small">{errorCatalogo}</div>}
                   {!catalogo && !errorCatalogo && <div className="text-body-secondary small">Cargando características…</div>}
                   {catalogo?.map((caracteristica) => (
-                    <div className="form-check" key={caracteristica}>
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id={`caracteristica-${caracteristica}`}
-                        value={caracteristica}
-                        {...register('caracteristicas')}
-                      />
-                      <label className="form-check-label" htmlFor={`caracteristica-${caracteristica}`}>
-                        {etiquetarCaracteristica(caracteristica)}
-                      </label>
-                    </div>
+                    <CampoCasilla
+                      key={caracteristica}
+                      id={`caracteristica-${caracteristica}`}
+                      etiqueta={etiquetarCaracteristica(caracteristica)}
+                      value={caracteristica}
+                      {...register('caracteristicas')}
+                    />
                   ))}
                 </div>
               </fieldset>

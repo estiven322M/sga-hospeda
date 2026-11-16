@@ -2369,7 +2369,7 @@ Authorization: Bearer {{tokenHuesped1}}
         client.assert(response.body.noches === 3, "noches: " + response.body.noches);
         client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
         client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
-        client.assert(response.body.titular.nombre === "Titular 1094000111", "nombre: " + response.body.titular.nombre);
+        client.assert(response.body.titular.nombre === "Laura Gomez", "nombre: " + response.body.titular.nombre);
         client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
         client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
         client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");

@@ -16,7 +16,8 @@ interface Guardada<T> {
  * `clave === null` no se consulta. `recargar()` repite la misma petición (tras una acción, por ejemplo).
  *
  * `resultado` es null mientras no haya respuesta para la petición actual: "cargando" se DERIVA, no se guarda en un
- * efecto.
+ * efecto. `ultimo` es la última respuesta recibida (de cualquier petición): sirve para seguir mostrando los datos
+ * anteriores mientras se recarga, sin hacer desaparecer la pantalla.
  */
 export function useConsulta<T>(clave: string | null, consultar: (signal: AbortSignal) => Promise<T>) {
   const [guardada, setGuardada] = useState<Guardada<T> | null>(null);
@@ -49,5 +50,5 @@ export function useConsulta<T>(clave: string | null, consultar: (signal: AbortSi
   const resultado = claveCompleta !== null && guardada?.clave === claveCompleta ? guardada.resultado : null;
   const recargar = useCallback(() => setVersion((anterior) => anterior + 1), []);
 
-  return { resultado, cargando: claveCompleta !== null && resultado === null, recargar };
+  return { resultado, ultimo: guardada?.resultado ?? null, cargando: claveCompleta !== null && resultado === null, recargar };
 }

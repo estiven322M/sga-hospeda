@@ -45,11 +45,11 @@ El backend se arranca aparte (`../gradlew bootRun`, puerto 8080). La API se conf
 | Paso | Quién | Páginas |
 |---|---|---|
 | J2 | Jhon | `Login`, `Registro`, `NoAutorizado`, `NoEncontrada`; sesión, interceptores y `RutaProtegida` |
-| J3 | Jhon | Huésped: `Buscar`, `DetalleApartamento`, `NuevaReservaHuesped`, `MisReservas`, `DetalleReserva` |
-| J4 | Jhon | Recepción: `Reservas`, `NuevaReservaRecepcion`, `GestionReserva` |
+| J3 | Jhon | Huésped: `Buscar`, `DetalleApartamento`, `NuevaReservaHuesped` |
+| J4 | Jhon | Huésped: `MisReservas`, `DetalleReserva` (con cancelación y folio). Recepción: `Reservas`, `NuevaReservaRecepcion`, `GestionReserva` |
 | M1 | Miguel | Servicio: `Preparacion` |
-| M2 | Miguel | Administración: `Apartamentos`, `ApartamentoFormulario`, `Bloqueos`, `TemporadasTarifas`, `PoliticaCancelacion`, `RechazosExternos` |
-| J5 | Jhon | Cierre: pulido, documentación y revisión final |
+| J5 | Jhon | Administración: `Apartamentos`, `ApartamentoFormulario`, `Bloqueos`, `TemporadasTarifas`, `PoliticaCancelacion`, `RechazosExternos`; revisión general del frontend |
+| M2 | Miguel | Cierre: pulido, documentación y revisión final |
 
 ## Reglas del código
 1. **Lenguaje ubicuo** en español, igual que el backend: apartamento, estancia, titular, ocupante, folio, cargo, pago, saldo, bloqueo, canal, temporada, tarifa. Nada de `room`, `booking`, `user`, `request`.

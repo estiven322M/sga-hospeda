@@ -118,11 +118,14 @@ class SoporteFrontendIntegracionTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.contenido[0].estado").value("PENDIENTE"))
                 .andExpect(jsonPath("$.contenido[0].canalOrigen").value("PORTAL"))
+                // la reserva sembrada está a nombre del propio huésped (application.properties), no a un nombre genérico
+                .andExpect(jsonPath("$.contenido[*].nombreTitular", org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("Laura Gomez"))))
                 .andExpect(jsonPath("$.tamanio").value(10))
                 .andReturn().getResponse().getContentAsString();
         String delHuesped2 = mvc.perform(get("/api/reservas/mias").header(HttpHeaders.AUTHORIZATION, huesped2()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.contenido[0].estado").value("FINALIZADA"))
+                .andExpect(jsonPath("$.contenido[*].nombreTitular", org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("Andres Rios"))))
                 .andReturn().getResponse().getContentAsString();
 
         List<String> codigos1 = JsonPath.read(delHuesped1, CODIGOS);

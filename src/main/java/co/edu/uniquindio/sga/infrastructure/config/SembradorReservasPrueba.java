@@ -28,6 +28,7 @@ import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 import co.edu.uniquindio.sga.domain.valueobject.Pago;
 import co.edu.uniquindio.sga.domain.valueobject.ValorCongelado;
+import co.edu.uniquindio.sga.infrastructure.config.setup.DefaultUserProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +37,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Siembra una reserva en cada estado y por cada canal usando los métodos reales del dominio. Cada reserva
@@ -86,12 +88,14 @@ class SembradorReservasPrueba {
     private final ConfirmacionReservaService confirmacion;
     private final RetencionCancelacionService retencion;
     private final ConfiguracionAlojamiento configuracion;
+    private final DefaultUserProperties usuariosIniciales;
 
     SembradorReservasPrueba(Clock reloj, ApartamentoRepository apartamentos, ReservaRepository reservas,
                             FolioRepository folios, RechazoReservaExternaRepository rechazos, PoliticaCancelacionRepository politicas,
                             GeneradorCodigoReserva generador, DisponibilidadApartamentoService disponibilidad,
                             CotizadorEstancia cotizador, ConfirmacionReservaService confirmacion,
-                            RetencionCancelacionService retencion, ConfiguracionAlojamiento configuracion) {
+                            RetencionCancelacionService retencion, ConfiguracionAlojamiento configuracion,
+                            DefaultUserProperties usuariosIniciales) {
         this.hoy = LocalDate.now(reloj);
         this.apartamentos = apartamentos;
         this.reservas = reservas;
@@ -104,6 +108,7 @@ class SembradorReservasPrueba {
         this.confirmacion = confirmacion;
         this.retencion = retencion;
         this.configuracion = configuracion;
+        this.usuariosIniciales = usuariosIniciales;
     }
 
     void sembrar() {
@@ -223,10 +228,27 @@ class SembradorReservasPrueba {
     }
 
     private List<Ocupante> grupoDe(String documentoTitular) {
-        Ocupante titular = ocupante(documentoTitular, "Titular " + documentoTitular, EDAD_DE_LOS_ADULTOS);
+        Ocupante titular = titularDe(documentoTitular);
         return List.of(titular,
                 ocupante(documentoTitular + "-A", "Acompañante " + documentoTitular, EDAD_DE_LOS_ADULTOS),
                 ocupante(documentoTitular + "-M", "Menor " + documentoTitular, EDAD_DEL_MENOR));
+    }
+
+    /**
+     * Si el documento es el de un usuario inicial (application.properties), el titular lleva SU nombre y SU fecha de
+     * nacimiento: así en la demostración cada huésped ve reservas a su propio nombre. Los demás documentos conservan
+     * el nombre genérico "Titular <documento>".
+     */
+    private Ocupante titularDe(String documento) {
+        Optional<DefaultUserProperties.DefaultUser> usuario = usuariosIniciales.usuarios().stream()
+                .filter(u -> documento.equals(u.documento()))
+                .findFirst();
+        String nombre = usuario.map(DefaultUserProperties.DefaultUser::nombre).orElse("Titular " + documento);
+        LocalDate nacimiento = usuario.map(DefaultUserProperties.DefaultUser::fechaNacimiento)
+                .filter(texto -> texto != null && !texto.isBlank())
+                .map(LocalDate::parse)
+                .orElse(hoy.minusYears(EDAD_DE_LOS_ADULTOS));
+        return new Ocupante(new DocumentoIdentidad(documento), nombre, nacimiento, hoy);
     }
 
     private Ocupante ocupante(String documento, String nombre, int edad) {

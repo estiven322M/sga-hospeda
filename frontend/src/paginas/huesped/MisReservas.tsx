@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router';
+import { CampoSelect } from '../../componentes/CampoSelect';
 import { Cargando } from '../../componentes/Cargando';
 import { Paginacion } from '../../componentes/Paginacion';
 import { TarjetaReserva } from '../../componentes/TarjetaReserva';
@@ -38,13 +39,12 @@ export default function MisReservas() {
 
       <div className="row mb-3">
         <div className="col-12 col-md-4">
-          <label htmlFor="filtroEstado" className="form-label">Estado</label>
-          <select id="filtroEstado" className="form-select" value={estado} onChange={alCambiarEstado}>
+          <CampoSelect id="filtroEstado" etiqueta="Estado" value={estado} onChange={alCambiarEstado}>
             <option value="">Todos</option>
             {ESTADOS_RESERVA.map((opcion) => (
               <option key={opcion} value={opcion}>{ETIQUETA_ESTADO[opcion]}</option>
             ))}
-          </select>
+          </CampoSelect>
         </div>
       </div>
 
