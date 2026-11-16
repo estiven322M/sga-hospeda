@@ -6,13 +6,15 @@ import { Campo } from '../../componentes/Campo';
 import { Cargando } from '../../componentes/Cargando';
 import { Paginacion } from '../../componentes/Paginacion';
 import { TarjetaApartamento } from '../../componentes/TarjetaApartamento';
-import { esquemaBusqueda, solicitudDeBusqueda, type FormularioBusqueda } from '../../esquemas/busqueda';
+import { esquemaBusqueda, faltantesDeBusqueda, solicitudDeBusqueda, type FormularioBusqueda } from '../../esquemas/busqueda';
+import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useFiltros } from '../../hooks/useFiltros';
 import type { Caracteristica } from '../../modelos/apartamento';
 import type { ApartamentoDisponibleResponse } from '../../modelos/cotizacion';
 import type { PaginaResponse } from '../../modelos/paginacion';
 import { listarCaracteristicas } from '../../servicios/apartamentoServicio';
+import { recordarFechaNacimiento } from '../../servicios/preferencias';
 import { consultarDisponibilidad } from '../../servicios/disponibilidadServicio';
 import { fueCancelada, mensajeDeError } from '../../utilidades/errores';
 import { etiquetarCaracteristica } from '../../utilidades/etiquetas';
@@ -38,6 +40,7 @@ const ESPERA_ESCRITURA_MS = 400;
  */
 export default function Buscar() {
   const { estado, dispatch } = useFiltros();
+  const { sesion } = useAuth();
 
   const formulario = useForm<FormularioBusqueda>({
     resolver: zodResolver(esquemaBusqueda),
@@ -49,6 +52,13 @@ export default function Buscar() {
     control,
     formState: { errors },
   } = formulario;
+
+  // Al abrir la página se valida todo el formulario: lo que falta se marca en su campo (is-invalid) desde el principio,
+  // no solo cuando la persona toca cada uno.
+  const { trigger } = formulario;
+  useEffect(() => {
+    void trigger();
+  }, [trigger]);
 
   // ---------- Formulario → filtros (con pausa) ----------
   const valores = useWatch({ control });
@@ -71,10 +81,18 @@ export default function Buscar() {
   }, []);
 
   // ---------- Filtros válidos → consulta ----------
-  const solicitud = useMemo(() => {
-    const analisis = esquemaBusqueda.safeParse(estado.filtros);
-    return analisis.success ? solicitudDeBusqueda(analisis.data) : null;
-  }, [estado.filtros]);
+  const analisis = useMemo(() => esquemaBusqueda.safeParse(estado.filtros), [estado.filtros]);
+  const solicitud = useMemo(() => (analisis.success ? solicitudDeBusqueda(analisis.data) : null), [analisis]);
+  // Qué falta, con precisión ("Falta la fecha de nacimiento del ocupante 1"), para decírselo a la persona
+  const faltantes = useMemo(() => (analisis.success ? [] : faltantesDeBusqueda(analisis.error, estado.filtros)), [analisis, estado.filtros]);
+
+  // Un huésped escribe su fecha de nacimiento una vez: se recuerda (en esta pestaña) para las búsquedas siguientes
+  const primero = estado.filtros.ocupantes[0];
+  useEffect(() => {
+    if (primero && sesion?.documento && primero.documento === sesion.documento) {
+      recordarFechaNacimiento(primero.documento, primero.fechaNacimiento);
+    }
+  }, [primero, sesion?.documento]);
 
   // Mientras no haya una respuesta para la petición ACTUAL (clave distinta), se está cargando: se deriva, no se guarda.
   const clave = JSON.stringify([solicitud, estado.pagina]);
@@ -107,7 +125,7 @@ export default function Buscar() {
                     etiqueta="Entrada"
                     min={hoyISO()}
                     error={errors.fechaEntrada?.message}
-                    {...register('fechaEntrada')}
+                    {...register('fechaEntrada', { deps: ['fechaSalida'] })}
                   />
                 </div>
                 <div className="col-6">
@@ -184,8 +202,13 @@ export default function Buscar() {
 
         <div className="col-12 col-lg-8" aria-live="polite">
           {!solicitud ? (
-            <div className="alert alert-info">
-              Elija las fechas de la estancia y complete los datos de los ocupantes para ver los apartamentos disponibles.
+            <div className="alert alert-info" role="status">
+              <p className="mb-1">Para ver los apartamentos disponibles falta:</p>
+              <ul className="mb-0">
+                {faltantes.map((faltante) => (
+                  <li key={faltante}>{faltante}</li>
+                ))}
+              </ul>
             </div>
           ) : consulta === null ? (
             <Cargando />

@@ -11,6 +11,8 @@ interface CamposOcupantesProps {
   documentoTitularFijo?: boolean;
   /** El nombre del titular viene de la sesión y no se puede cambiar. */
   nombreTitularFijo?: boolean;
+  /** El primer ocupante es el titular de la reserva (se rotula así aunque se pueda editar). */
+  primerEsTitular?: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ interface CamposOcupantesProps {
  * <FormProvider>: así sirve igual en la búsqueda y en la reserva, y no depende del tipo del formulario que la contiene.
  * La fecha de nacimiento es lo que permite al backend decidir quién paga y si hay adulto responsable.
  */
-export function CamposOcupantes({ documentoTitularFijo = false, nombreTitularFijo = false }: CamposOcupantesProps) {
+export function CamposOcupantes({ documentoTitularFijo = false, nombreTitularFijo = false, primerEsTitular = false }: CamposOcupantesProps) {
   const {
     control,
     register,
@@ -35,8 +37,8 @@ export function CamposOcupantes({ documentoTitularFijo = false, nombreTitularFij
           // campo.id lo genera React Hook Form: es estable aunque se quite un ocupante del medio (el índice no lo es)
           <div key={campo.id} className="border rounded p-2 mb-2">
             <div className="d-flex justify-content-between align-items-center mb-1">
-              <span className="small fw-semibold">{indice === 0 && documentoTitularFijo ? 'Titular (usted)' : `Ocupante ${indice + 1}`}</span>
-              {fields.length > 1 && !(indice === 0 && documentoTitularFijo) && (
+              <span className="small fw-semibold">{indice === 0 && documentoTitularFijo ? 'Titular (usted)' : indice === 0 && primerEsTitular ? 'Titular' : `Ocupante ${indice + 1}`}</span>
+              {fields.length > 1 && !(indice === 0 && (documentoTitularFijo || primerEsTitular)) && (
                 <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => remove(indice)}>
                   Quitar
                 </button>

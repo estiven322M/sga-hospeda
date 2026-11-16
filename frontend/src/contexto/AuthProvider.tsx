@@ -4,6 +4,7 @@ import type { LoginRequest, RolUsuario, TokenResponse } from '../modelos/auth';
 import { RUTAS } from '../rutas/rutas';
 import { registrarManejadores } from '../servicios/api';
 import { login } from '../servicios/authServicio';
+import { olvidarPreferencias } from '../servicios/preferencias';
 import { borrarSesion, guardarSesion, obtenerToken, sesionVigente } from '../servicios/sesion';
 import { leerToken } from '../utilidades/jwt';
 import { notificarAviso } from '../utilidades/notificaciones';
@@ -52,6 +53,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const cerrarSesion = useCallback(() => {
     borrarSesion();
+    // Cerrar la sesión a propósito es irse: lo que el navegador recordaba de esta persona (su fecha de nacimiento)
+    // se borra. Si la sesión solo expira, se conserva para no volver a pedirla.
+    olvidarPreferencias();
     setSesion(null);
   }, []);
 

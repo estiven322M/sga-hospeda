@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { Route, Routes } from 'react-router';
 import { Layout } from './componentes/Layout';
 import { FiltrosProvider } from './contexto/FiltrosProvider';
+import { FiltrosReservasProvider } from './contexto/FiltrosReservasProvider';
 import { useAuth } from './hooks/useAuth';
 import Inicio from './paginas/Inicio';
 import {
@@ -57,6 +58,7 @@ export default function App() {
   return (
     // key por usuario: quien ingrese después en el mismo navegador no hereda los filtros de la búsqueda anterior
     <FiltrosProvider key={sesion?.correo ?? 'anonimo'}>
+    <FiltrosReservasProvider key={sesion?.correo ?? 'anonimo'}>
     <Routes>
       <Route element={<Layout />}>
         {/* Inicio se carga de inmediato: es la primera página que ve casi todo el mundo */}
@@ -108,6 +110,7 @@ export default function App() {
         <Route path="*" element={<NoEncontrada />} />
       </Route>
     </Routes>
+    </FiltrosReservasProvider>
     </FiltrosProvider>
   );
 }

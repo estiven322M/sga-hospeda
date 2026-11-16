@@ -1,6 +1,7 @@
 import { useMemo, useReducer, type ReactNode } from 'react';
 import type { FormularioOcupante } from '../esquemas/ocupante';
 import { useAuth } from '../hooks/useAuth';
+import { fechaNacimientoRecordada } from '../servicios/preferencias';
 import { ContextoFiltros, type ValorFiltros } from './contextoFiltros';
 import { estadoInicial, reductorFiltros } from './filtrosReductor';
 
@@ -12,10 +13,11 @@ import { estadoInicial, reductorFiltros } from './filtrosReductor';
 export function FiltrosProvider({ children }: { children: ReactNode }) {
   const { sesion, tieneRol } = useAuth();
 
-  // Un huésped es, casi siempre, uno de los ocupantes: se le ofrece ya escrito con los datos de su sesión.
+  // Un huésped es, casi siempre, uno de los ocupantes: se le ofrece ya escrito con los datos de su sesión y la fecha
+  // de nacimiento que ya escribió antes en esta pestaña (servicios/preferencias).
   const titular: FormularioOcupante | undefined =
     tieneRol('HUESPED') && sesion?.documento
-      ? { documento: sesion.documento, nombre: sesion.nombre ?? '', fechaNacimiento: '' }
+      ? { documento: sesion.documento, nombre: sesion.nombre ?? '', fechaNacimiento: fechaNacimientoRecordada(sesion.documento) }
       : undefined;
 
   const [estado, dispatch] = useReducer(reductorFiltros, titular, estadoInicial);

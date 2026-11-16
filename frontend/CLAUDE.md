@@ -22,16 +22,18 @@ npm run dev          # http://localhost:5173 (el origen que el backend autoriza 
 npm run build        # tsc -b + vite build
 npm run lint         # oxlint
 ```
+`VITE_EDAD_ADULTO_RESPONSABLE` (18) solo sirve para AVISAR del adulto responsable (RP-03) en los formularios de reserva: la regla real vive en el backend.
+
 El backend se arranca aparte (`../gradlew bootRun`, puerto 8080). La API se configura en `.env.development` (`VITE_API_URL=http://localhost:8080/api`); `.env.example` es la plantilla.
 
 ## Estructura de `src/`
 | Carpeta | Contenido |
 |---|---|
 | `modelos/` | Interfaces y uniones de texto, **espejo exacto de los DTOs** del `openapi.yaml` (`apartamento`, `cotizacion`, `reserva`, `folio`, `tarifario`, `rechazo`, `auth`, `ocupante`, `paginacion`, `error`, `comun`) |
-| `servicios/` | `api.ts` (el cliente Axios único, con los interceptores del token y del 401/403) y, por entidad, las funciones que llaman a la API (`authServicio`, `apartamentoServicio`, `disponibilidadServicio`, `cotizacionServicio`, `reservaServicio`). Reciben un `AbortSignal` opcional para cancelar la consulta |
+| `servicios/` | `api.ts` (el cliente Axios único, con los interceptores del token y del 401/403) y, por entidad, las funciones que llaman a la API (`authServicio`, `apartamentoServicio`, `disponibilidadServicio`, `cotizacionServicio`, `reservaServicio`, `folioServicio`) y `preferencias` (la fecha de nacimiento del huésped, en `sessionStorage`). Reciben un `AbortSignal` opcional para cancelar la consulta |
 | `esquemas/` | Esquemas Zod de los formularios (solo validan la **forma**; ver las reglas) |
-| `contexto/` | Contextos de React (sesión, filtros). Se llenan desde J2 |
-| `hooks/` | Hooks propios (`useAuth`, `useDebounce`...). Se llenan desde J2 |
+| `contexto/` | Contextos de React: la sesión y los filtros de la búsqueda y del listado de reservas de recepción (cada uno con su **reductor puro**, para que los filtros sobrevivan a cambiar de página) |
+| `hooks/` | Hooks propios: `useAuth`, `useDebounce`, `useConsulta` (consulta con `AbortController`, `recargar()` y "cargando" derivado), `useApartamentos`, `useAutor`, `useFiltros`, `useFiltrosReservas` |
 | `componentes/` | Piezas reutilizables sin lógica de negocio: `Layout`, `Encabezado`, `MenuDesplegable`, `PiePagina`, `Cargando`, `Paginacion`, `Campo`, `EstadoReservaBadge`, `EstadoOperativoBadge` |
 | `paginas/` | Una carpeta por rol (`huesped/`, `recepcion/`, `servicio/`, `administracion/`) más las páginas comunes (`Inicio`, `Login`, `Registro`, `NoAutorizado`, `NoEncontrada`) |
 | `rutas/` | `rutas.ts` (todas las rutas y patrones en un solo lugar) y, desde J2, `RutaProtegida` y `RutaPublica` |

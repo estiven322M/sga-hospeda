@@ -46,3 +46,33 @@ export async function confirmarAccion(titulo: string, texto: string): Promise<bo
   });
   return resultado.isConfirmed;
 }
+
+interface OpcionesPedirDato {
+  titulo: string;
+  texto: string;
+  tipo: 'text' | 'textarea' | 'time';
+  etiqueta: string;
+  /** Texto del botón que confirma. */
+  confirmar: string;
+  /** Longitud máxima, si el backend la limita. */
+  maximo?: number;
+}
+
+/**
+ * Diálogo que pide UN dato obligatorio (el motivo de una cancelación, la hora estimada de llegada...). Devuelve el
+ * texto escrito, o null si la persona cancela el diálogo.
+ */
+export async function pedirDato({ titulo, texto, tipo, etiqueta, confirmar, maximo }: OpcionesPedirDato): Promise<string | null> {
+  const resultado = await Dialogo.fire({
+    title: titulo,
+    text: texto,
+    input: tipo,
+    inputLabel: etiqueta,
+    inputAttributes: maximo ? { maxlength: String(maximo) } : {},
+    showCancelButton: true,
+    confirmButtonText: confirmar,
+    cancelButtonText: 'Volver',
+    inputValidator: (valor) => (valor.trim() === '' ? 'Este dato es obligatorio' : null),
+  });
+  return resultado.isConfirmed && typeof resultado.value === 'string' ? resultado.value.trim() : null;
+}

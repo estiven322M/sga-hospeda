@@ -1,28 +1,24 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
-import { FormProvider, useForm, useWatch } from 'react-hook-form';
+import { FormProvider, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
+import { AvisoAdultoResponsable } from '../../componentes/AvisoAdultoResponsable';
 import { CamposOcupantes } from '../../componentes/CamposOcupantes';
 import { Campo } from '../../componentes/Campo';
 import { Cargando } from '../../componentes/Cargando';
 import { OCUPANTE_VACIO, type FormularioOcupante } from '../../esquemas/ocupante';
-import { edadALaFecha, esquemaReservaHuesped, type FormularioReservaHuesped } from '../../esquemas/reserva';
+import { esquemaReservaHuesped, type FormularioReservaHuesped } from '../../esquemas/reserva';
 import { useAuth } from '../../hooks/useAuth';
 import { useFiltros } from '../../hooks/useFiltros';
 import type { ApartamentoResponse } from '../../modelos/apartamento';
 import type { CrearReservaRequest } from '../../modelos/reserva';
 import { RUTAS } from '../../rutas/rutas';
 import { obtenerApartamento } from '../../servicios/apartamentoServicio';
+import { fechaNacimientoRecordada, recordarFechaNacimiento } from '../../servicios/preferencias';
 import { crearReserva } from '../../servicios/reservaServicio';
 import { erroresDeCampo, fueCancelada, mensajeDeError } from '../../utilidades/errores';
 import { hoyISO } from '../../utilidades/fechas';
 import { notificarExito } from '../../utilidades/notificaciones';
-
-/**
- * Edad desde la que una persona cuenta como adulto responsable (RP-03). La regla y su umbral son del backend
- * (propiedad de configuración): este valor solo sirve para AVISAR antes de enviar; el que decide es el backend.
- */
-const EDAD_ADULTO_RESPONSABLE = 18;
 
 const CAMPOS_DEL_FORMULARIO = ['fechaEntrada', 'fechaSalida', 'horaEstimadaLlegada'] as const;
 
@@ -58,7 +54,7 @@ export default function NuevaReservaHuesped() {
     const titular: FormularioOcupante = {
       documento,
       nombre: sesion?.nombre ?? delFiltro?.nombre ?? '',
-      fechaNacimiento: delFiltro?.fechaNacimiento ?? '',
+      fechaNacimiento: delFiltro?.fechaNacimiento || fechaNacimientoRecordada(documento),
     };
     const demas = filtros.ocupantes.filter((ocupante) => ocupante.documento !== documento && ocupante.documento !== '');
     return {
@@ -78,22 +74,10 @@ export default function NuevaReservaHuesped() {
   });
   const {
     register,
-    control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
   } = formulario;
-
-  // ---------- Aviso de RP-03 (no bloquea): ningún ocupante será adulto a la fecha de entrada ----------
-  const entrada = useWatch({ control, name: 'fechaEntrada' });
-  const ocupantes = useWatch({ control, name: 'ocupantes' });
-  const sinAdultoResponsable = useMemo(() => {
-    const fechas = (ocupantes ?? []).map((ocupante) => ocupante.fechaNacimiento);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(entrada) || fechas.length === 0 || fechas.some((f) => !/^\d{4}-\d{2}-\d{2}$/.test(f))) {
-      return false; // sin datos completos no se puede afirmar nada
-    }
-    return fechas.every((fecha) => edadALaFecha(fecha, entrada) < EDAD_ADULTO_RESPONSABLE);
-  }, [entrada, ocupantes]);
 
   async function enviar(datos: FormularioReservaHuesped) {
     setErrorServidor(null);
@@ -108,6 +92,7 @@ export default function NuevaReservaHuesped() {
       titular,
       ocupantes: datos.ocupantes,
     };
+    recordarFechaNacimiento(titular.documento, titular.fechaNacimiento);
     let codigo: string;
     try {
       codigo = (await crearReserva(solicitud)).codigo;
@@ -149,12 +134,6 @@ export default function NuevaReservaHuesped() {
         {errorServidor && (
           <div className="alert alert-danger" role="alert">{errorServidor}</div>
         )}
-        {sinAdultoResponsable && (
-          <div className="alert alert-warning" role="status">
-            Ningún ocupante tendrá {EDAD_ADULTO_RESPONSABLE} años cumplidos a la fecha de entrada. La reserva exige un adulto
-            responsable (RP-03) y el sistema la rechazará si no lo hay.
-          </div>
-        )}
 
         <FormProvider {...formulario}>
           <form onSubmit={handleSubmit(enviar)} noValidate>
@@ -166,7 +145,7 @@ export default function NuevaReservaHuesped() {
                   etiqueta="Entrada"
                   min={hoyISO()}
                   error={errors.fechaEntrada?.message}
-                  {...register('fechaEntrada')}
+                  {...register('fechaEntrada', { deps: ['fechaSalida'] })}
                 />
               </div>
               <div className="col-12 col-md-4">
@@ -190,6 +169,7 @@ export default function NuevaReservaHuesped() {
               </div>
             </div>
 
+            <AvisoAdultoResponsable />
             <CamposOcupantes documentoTitularFijo nombreTitularFijo={Boolean(sesion?.nombre)} />
 
             <div className="d-flex gap-2 mt-3">
