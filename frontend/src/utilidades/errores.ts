@@ -26,6 +26,11 @@ export function mensajeDeError(error: unknown): string {
   return `El servidor respondió con un error inesperado (${status})`;
 }
 
+/** ¿Se canceló la petición a propósito (AbortController)? Una petición cancelada no es un error que mostrar. */
+export function fueCancelada(error: unknown): boolean {
+  return axios.isCancel(error);
+}
+
 /** Código HTTP de la respuesta, o undefined si no hubo respuesta (error de red). */
 export function estadoHttp(error: unknown): number | undefined {
   return axios.isAxiosError(error) ? error.response?.status : undefined;

@@ -72,7 +72,7 @@ CodigoReserva generar(LocalDate fecha);                             // formato R
 | `TarifarioRepository.tarifaDe` | Debe resolver la **temporada de la noche** con `CalendarioTemporadas` (la temporada cuyo periodo incluye la noche o, si ninguna, la base) y devolver la tarifa de esa temporada. Devolver `null` si no existe tarifa (el cotizador lo traduce en un 409). |
 | `TemporadaRepository.guardar` | Identidad por **nombre**. |
 | `PoliticaCancelacionRepository` | Las versiones **no se modifican ni se borran** (las reservas las tienen congeladas). |
-| `GeneradorCodigoReserva.generar` | Dos peticiones simultáneas no pueden obtener el mismo código. Usa una secuencia/contador persistente. |
+| `GeneradorCodigoReserva.generar` | Dos peticiones simultáneas no pueden obtener el mismo código. Usa un contador persistente por año: la fila se crea solo si no existe (`INSERT … WHERE NOT EXISTS`, nunca un `save`/`merge`, que la reiniciaría a 0) y se incrementa con un único `UPDATE ultimo = ultimo + 1`. |
 
 ## 3. Cómo reconstruir las entidades del dominio desde la base de datos
 

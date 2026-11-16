@@ -28,12 +28,13 @@ usuarios.
 
 ```json
 { "iss": "sga", "sub": "huesped1@sga.local", "iat": 1761750000, "exp": 1761751800,
-  "roles": ["HUESPED"], "documento": "1094000111" }
+  "nombre": "María Pérez", "roles": ["HUESPED"], "documento": "1094000111" }
 ```
 
 - Algoritmo fijo **HS256** (`macAlgorithm`): un token con otro `alg` (incluido `none`) se rechaza.
 - Se validan la **firma**, el **emisor** (`sga.jwt.emisor`) y la **expiración** (`sga.jwt.expiracion-minutos=30`).
 - Está **firmado, no cifrado**: nunca lleva contraseña ni fecha de nacimiento.
+- El claim `nombre` se agregó en la Entrega 3: el frontend lo muestra en el encabezado y precarga con él al titular de la reserva del huésped (`CrearReservaRequest.titular` exige documento, nombre y fecha de nacimiento; la fecha de nacimiento NO viaja en el token y el huésped la escribe en el formulario). El claim `documento` sigue siendo el único que decide quién es el propietario de una reserva: el nombre solo se muestra.
 - La clave `sga.jwt.secret` (mínimo 32 caracteres) **no se versiona**: `application-secrets.properties` (ignorado por
   Git, con plantilla `.example`) o la variable de entorno `SGA_JWT_SECRET`, que tiene prioridad. Sin clave la aplicación
   no arranca.

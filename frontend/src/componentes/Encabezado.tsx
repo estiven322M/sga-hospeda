@@ -102,7 +102,7 @@ export function Encabezado({ nombreAlojamiento }: EncabezadoProps) {
             {sesion ? (
               <div className="d-flex align-items-center gap-2">
                 <span className="navbar-text small">
-                  {sesion.correo}{' '}
+                  {sesion.nombre ?? sesion.correo}{' '}
                   {sesion.roles.map((rol) => (
                     <span key={rol} className="badge text-bg-light border">{ETIQUETA_ROL[rol]}</span>
                   ))}

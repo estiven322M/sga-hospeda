@@ -7,7 +7,10 @@ import jakarta.persistence.Table;
 
 import java.util.Objects;
 
-/** Último consecutivo entregado en cada año; respalda el formato RES-AAAA-NNNNN. */
+/**
+ * Último consecutivo entregado en cada año; respalda el formato RES-AAAA-NNNNN. Solo se lee: la fila la crea y la
+ * incrementa el repositorio con sentencias propias (crearSiNoExiste y avanzar), nunca guardando esta entidad.
+ */
 @Entity
 @Table(name = "contador_codigo_reserva")
 public class ContadorCodigoReservaEntity {
@@ -20,14 +23,6 @@ public class ContadorCodigoReservaEntity {
     private int ultimo;
 
     protected ContadorCodigoReservaEntity() {
-    }
-
-    public ContadorCodigoReservaEntity(int anio) {
-        this.anio = anio;
-    }
-
-    public int avanzar() {
-        return ++ultimo;
     }
 
     public int getAnio() { return anio; }

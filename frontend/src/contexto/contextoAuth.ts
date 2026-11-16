@@ -5,8 +5,10 @@ import type { LoginRequest, RolUsuario } from '../modelos/auth';
 export interface Sesion {
   token: string;
   roles: RolUsuario[];
-  /** El `sub` del token. El backend no entrega el nombre de la persona: se muestra el correo. */
+  /** El `sub` del token. */
   correo: string | null;
+  /** Claim `nombre` del token: lo que se muestra de la persona. Null en una sesión anterior a ese claim. */
+  nombre: string | null;
   /** Documento del titular: es el puente con sus reservas (el backend filtra "mis reservas" por él). */
   documento: string | null;
   /** Expiración del token en milisegundos desde 1970. */

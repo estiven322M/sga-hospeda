@@ -16,6 +16,7 @@ function aSesion(respuesta: TokenResponse): Sesion {
     // Los roles que dice el backend en la respuesta del login; el token es la misma información firmada.
     roles: respuesta.roles,
     correo: datos?.correo ?? null,
+    nombre: datos?.nombre ?? null,
     documento: datos?.documento ?? null,
     expiraEnMs: datos?.expiraEnMs ?? null,
   };

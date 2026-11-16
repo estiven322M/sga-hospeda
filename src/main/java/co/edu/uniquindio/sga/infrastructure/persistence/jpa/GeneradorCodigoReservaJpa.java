@@ -11,8 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 
 /**
- * Lleva un consecutivo persistente por año. Es el único adaptador con transacción propia: leer, incrementar y
- * bloquear el contador debe ocurrir como una sola unidad para que dos peticiones simultáneas no repitan código.
+ * Lleva un consecutivo persistente por año. Es el único adaptador con transacción propia: incrementar el contador y
+ * leer el resultado debe ocurrir como una sola unidad. El incremento es atómico (un UPDATE que suma sobre el valor
+ * confirmado y deja la fila bloqueada hasta el fin de la transacción), así dos peticiones simultáneas nunca obtienen
+ * el mismo consecutivo.
  */
 @Repository
 public class GeneradorCodigoReservaJpa implements GeneradorCodigoReserva {
@@ -34,9 +36,10 @@ public class GeneradorCodigoReservaJpa implements GeneradorCodigoReserva {
     public CodigoReserva generar(LocalDate fecha) {
         int anio = fecha.getYear();
         asegurarContador(anio);
-        int consecutivo = contadores.bloquearPorAnio(anio)
-                .orElseThrow(() -> new IllegalStateException("No existe el contador de códigos del año " + anio))
-                .avanzar();
+        if (contadores.avanzar(anio) != 1) {
+            throw new IllegalStateException("No existe el contador de códigos del año " + anio);
+        }
+        int consecutivo = contadores.ultimo(anio);
         return new CodigoReserva(String.format(FORMATO, anio, consecutivo));
     }
 

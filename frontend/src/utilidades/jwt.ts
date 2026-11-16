@@ -1,8 +1,10 @@
 import { ROLES, type RolUsuario } from '../modelos/auth';
 
-/** Lo que el frontend lee de un JWT del SGA: correo (`sub`), roles, documento y expiración (`exp`). */
+/** Lo que el frontend lee de un JWT del SGA: correo (`sub`), nombre, roles, documento y expiración (`exp`). */
 export interface DatosToken {
   correo: string | null;
+  /** Claim `nombre`; los tokens emitidos antes de la Entrega 3 no lo traen. */
+  nombre: string | null;
   documento: string | null;
   roles: RolUsuario[];
   /** Momento de expiración en milisegundos desde 1970 (`exp` del token está en segundos), o null si no lo trae. */
@@ -11,6 +13,7 @@ export interface DatosToken {
 
 interface PayloadJwt {
   sub?: unknown;
+  nombre?: unknown;
   documento?: unknown;
   roles?: unknown;
   exp?: unknown;
@@ -36,6 +39,7 @@ export function leerToken(token: string): DatosToken | null {
       : [];
     return {
       correo: typeof payload.sub === 'string' ? payload.sub : null,
+      nombre: typeof payload.nombre === 'string' ? payload.nombre : null,
       documento: typeof payload.documento === 'string' ? payload.documento : null,
       roles,
       expiraEnMs: typeof payload.exp === 'number' ? payload.exp * 1000 : null,

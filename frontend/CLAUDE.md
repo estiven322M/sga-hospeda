@@ -28,7 +28,7 @@ El backend se arranca aparte (`../gradlew bootRun`, puerto 8080). La API se conf
 | Carpeta | Contenido |
 |---|---|
 | `modelos/` | Interfaces y uniones de texto, **espejo exacto de los DTOs** del `openapi.yaml` (`apartamento`, `cotizacion`, `reserva`, `folio`, `tarifario`, `rechazo`, `auth`, `ocupante`, `paginacion`, `error`, `comun`) |
-| `servicios/` | `api.ts` (el cliente Axios único) y, por entidad, las funciones que llaman a la API. Hoy solo existe `api.ts`; los interceptores (token y 401) llegan en J2 |
+| `servicios/` | `api.ts` (el cliente Axios único, con los interceptores del token y del 401/403) y, por entidad, las funciones que llaman a la API (`authServicio`, `apartamentoServicio`, `disponibilidadServicio`, `cotizacionServicio`, `reservaServicio`). Reciben un `AbortSignal` opcional para cancelar la consulta |
 | `esquemas/` | Esquemas Zod de los formularios (solo validan la **forma**; ver las reglas) |
 | `contexto/` | Contextos de React (sesión, filtros). Se llenan desde J2 |
 | `hooks/` | Hooks propios (`useAuth`, `useDebounce`...). Se llenan desde J2 |

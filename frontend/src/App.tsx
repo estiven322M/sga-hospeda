@@ -1,6 +1,8 @@
 import { lazy } from 'react';
 import { Route, Routes } from 'react-router';
 import { Layout } from './componentes/Layout';
+import { FiltrosProvider } from './contexto/FiltrosProvider';
+import { useAuth } from './hooks/useAuth';
 import Inicio from './paginas/Inicio';
 import {
   ROLES_ADMINISTRACION,
@@ -50,7 +52,11 @@ const RechazosExternos = lazy(() => import('./paginas/administracion/RechazosExt
  * indican roles, tener alguno de ellos; si no, lleva al login o a /no-autorizado.
  */
 export default function App() {
+  const { sesion } = useAuth();
+
   return (
+    // key por usuario: quien ingrese después en el mismo navegador no hereda los filtros de la búsqueda anterior
+    <FiltrosProvider key={sesion?.correo ?? 'anonimo'}>
     <Routes>
       <Route element={<Layout />}>
         {/* Inicio se carga de inmediato: es la primera página que ve casi todo el mundo */}
@@ -102,5 +108,6 @@ export default function App() {
         <Route path="*" element={<NoEncontrada />} />
       </Route>
     </Routes>
+    </FiltrosProvider>
   );
 }

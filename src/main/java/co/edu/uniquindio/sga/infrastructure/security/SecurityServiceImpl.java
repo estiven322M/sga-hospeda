@@ -68,7 +68,7 @@ public class SecurityServiceImpl implements SecurityService {
         Instant expira = ahora.plus(expiracionMinutos, ChronoUnit.MINUTES);
 
         String token = jwtTokenProvider.generateTokenAsString(
-                authentication.getName(), usuario.usuario().getDocumento(), roles, ahora, expira);
+                authentication.getName(), usuario.usuario().getNombre(), usuario.usuario().getDocumento(), roles, ahora, expira);
 
         return new TokenResponse(token, TIPO_TOKEN, expira, roles);
     }

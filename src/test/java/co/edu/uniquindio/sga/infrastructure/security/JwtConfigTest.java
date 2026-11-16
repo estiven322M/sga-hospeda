@@ -30,12 +30,12 @@ class JwtConfigTest {
 
     private String tokenVigente() {
         Instant ahora = Instant.now();
-        return proveedor.generateTokenAsString("huesped1@sga.local", "1094000111", List.of("HUESPED"),
+        return proveedor.generateTokenAsString("huesped1@sga.local", "María Pérez", "1094000111", List.of("HUESPED"),
                 ahora, ahora.plus(30, ChronoUnit.MINUTES));
     }
 
     @Test
-    void elTokenEmitidoSeValidaYTraeCorreoRolesYDocumento() {
+    void elTokenEmitidoSeValidaYTraeCorreoNombreRolesYDocumento() {
         Jwt jwt = decoder.decode(tokenVigente());
 
         assertEquals("huesped1@sga.local", jwt.getSubject());
@@ -87,7 +87,7 @@ class JwtConfigTest {
         JwtConfig otra = new JwtConfig("otra-clave-distinta-tambien-de-32-caracteres", "sga");
         Instant ahora = Instant.now();
         String ajeno = new JwtTokenProvider(otra.jwtEncoder(), "sga").generateTokenAsString(
-                "x@sga.local", "1", List.of("ADMINISTRADOR"), ahora, ahora.plusSeconds(600));
+                "x@sga.local", "X", "1", List.of("ADMINISTRADOR"), ahora, ahora.plusSeconds(600));
 
         assertThrows(JwtException.class, () -> decoder.decode(ajeno));
     }
@@ -96,7 +96,7 @@ class JwtConfigTest {
     void unTokenDeOtroEmisorSeRechaza() {
         JwtTokenProvider otroEmisor = new JwtTokenProvider(config.jwtEncoder(), "otro-sistema");
         Instant ahora = Instant.now();
-        String token = otroEmisor.generateTokenAsString("x@sga.local", "1", List.of("HUESPED"),
+        String token = otroEmisor.generateTokenAsString("x@sga.local", "X", "1", List.of("HUESPED"),
                 ahora, ahora.plusSeconds(600));
 
         assertThrows(JwtException.class, () -> decoder.decode(token));
@@ -105,7 +105,7 @@ class JwtConfigTest {
     @Test
     void unTokenVencidoSeRechaza() {
         Instant haceUnaHora = Instant.now().minus(1, ChronoUnit.HOURS);
-        String vencido = proveedor.generateTokenAsString("x@sga.local", "1", List.of("HUESPED"),
+        String vencido = proveedor.generateTokenAsString("x@sga.local", "X", "1", List.of("HUESPED"),
                 haceUnaHora, haceUnaHora.plus(30, ChronoUnit.MINUTES));
 
         assertThrows(JwtException.class, () -> decoder.decode(vencido));
