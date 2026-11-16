@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static co.edu.uniquindio.sga.infrastructure.persistence.jpa.ReservasDePrueba.AHORA;
 import static co.edu.uniquindio.sga.infrastructure.persistence.jpa.ReservasDePrueba.RELOJ;
 import static co.edu.uniquindio.sga.infrastructure.persistence.jpa.ReservasDePrueba.reserva;
@@ -113,7 +115,7 @@ class CanalExternoPersistenciaTest {
         Reserva repetida = Reserva.crear(new co.edu.uniquindio.sga.domain.valueobject.CodigoReserva("RES-2026-00005"),
                 new IdentificacionApartamento("APT-102"), primera.getEstancia(), primera.getTitular(),
                 primera.getOcupantes(), CanalOrigen.EXTERNO, primera.getIdentificadorExterno(), primera.getValor(),
-                primera.getPolitica(), AHORA);
+                primera.getPolitica(), AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         reservas.guardar(repetida);
 

@@ -1,11 +1,14 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,10 +21,12 @@ import co.edu.uniquindio.sga.application.exception.ApartamentoNoEncontradoExcept
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
+import co.edu.uniquindio.sga.domain.repository.FiltroApartamentos;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.service.ActivacionApartamentoService;
 import co.edu.uniquindio.sga.domain.service.RegistroApartamentoService;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 
 /** Gestión de apartamentos: crear, consultar, listar, editar, activar y dar de baja (lógica). */
@@ -36,7 +41,7 @@ class ApartamentoUseCasesTest {
 
     @BeforeEach
     void setUp() {
-        apartamento = new Apartamento(id, "Vista", 2, 4);
+        apartamento = ApartamentoDePrueba.nuevo(id, "Vista", 2, 4);
         lenient().when(repositorio.buscarPorIdentificacion(id)).thenReturn(Optional.of(apartamento));
         lenient().when(repositorio.guardar(any(Apartamento.class))).then(returnsFirstArg());
     }
@@ -51,16 +56,20 @@ class ApartamentoUseCasesTest {
     void creaUnApartamentoNuevoInactivoYLoGuarda() {
         IdentificacionApartamento nuevo = new IdentificacionApartamento("apt-202");
 
-        Apartamento creado = crear().ejecutar(nuevo, "Patio", 1, 2);
+        Apartamento creado = crear().ejecutar(nuevo, "Patio", "Patio interior con luz natural", 1, 2,
+                List.of("Nevera", "Wi-Fi"), Set.of(Caracteristica.BALCON));
 
         assertEquals("APT-202", creado.getIdentificacion().valor());
+        assertEquals("Patio interior con luz natural", creado.getDescripcion());
+        assertEquals(List.of("Nevera", "Wi-Fi"), creado.getDotacion());
+        assertEquals(Set.of(Caracteristica.BALCON), creado.getCaracteristicas());
         assertFalse(creado.isActivo()); // 7.4
         verify(repositorio).guardar(creado);
     }
 
     @Test
     void rechazaUnaIdentificacionRepetidaL04YNoGuarda() {
-        assertThrows(ReglaDominioException.class, () -> crear().ejecutar(id, "Otro", 1, 2));
+        assertThrows(ReglaDominioException.class, () -> crear().ejecutar(id, "Otro", "Descripción", 1, 2, List.of(), Set.of()));
 
         verify(repositorio, never()).guardar(any());
     }
@@ -68,7 +77,17 @@ class ApartamentoUseCasesTest {
     @Test
     void rechazaDatosInvalidosDelNegocio() {
         assertThrows(ReglaDominioException.class,
-                () -> crear().ejecutar(new IdentificacionApartamento("APT-203"), "X", 1, 0));
+                () -> crear().ejecutar(new IdentificacionApartamento("APT-203"), "X", "Descripción", 1, 0, List.of(), Set.of()));
+        verify(repositorio, never()).guardar(any());
+    }
+
+    @Test
+    void rechazaUnaDescripcionVaciaOUnaDotacionRepetidaL06YNoGuarda() {
+        var nuevo = new IdentificacionApartamento("APT-204");
+        assertThrows(ReglaDominioException.class,
+                () -> crear().ejecutar(nuevo, "X", "  ", 1, 2, List.of(), Set.of()));
+        assertThrows(ReglaDominioException.class,
+                () -> crear().ejecutar(nuevo, "X", "Descripción", 1, 2, List.of("Nevera", "nevera"), Set.of()));
         verify(repositorio, never()).guardar(any());
     }
 
@@ -87,18 +106,32 @@ class ApartamentoUseCasesTest {
     @Test
     void listaTodosLosApartamentosPaginados() {
         Pagina<Apartamento> pagina = new Pagina<>(List.of(apartamento), 0, 1);
-        when(repositorio.listarTodos(SolicitudPagina.primera())).thenReturn(pagina);
+        when(repositorio.listarTodos(FiltroApartamentos.SIN_FILTRO, SolicitudPagina.primera())).thenReturn(pagina);
 
-        assertSame(pagina, new ListarApartamentosUseCase(repositorio).ejecutar(SolicitudPagina.primera()));
+        assertSame(pagina, new ListarApartamentosUseCase(repositorio)
+                .ejecutar(FiltroApartamentos.SIN_FILTRO, SolicitudPagina.primera()));
+    }
+
+    @Test
+    void listaConFiltroDeCaracteristicasDelegandoElFiltroEnElPuertoL06() {
+        var filtro = FiltroApartamentos.de(Set.of(Caracteristica.TERRAZA));
+        Pagina<Apartamento> pagina = new Pagina<>(List.of(apartamento), 0, 1);
+        when(repositorio.listarTodos(filtro, SolicitudPagina.primera())).thenReturn(pagina);
+
+        assertSame(pagina, new ListarApartamentosUseCase(repositorio).ejecutar(filtro, SolicitudPagina.primera()));
     }
 
     // ---------- Actualizar ----------
 
     @Test
     void actualizaLosDatosYGuarda() {
-        Apartamento resultado = new ActualizarApartamentoUseCase(repositorio).ejecutar(id, "Nuevo", 3, 6);
+        Apartamento resultado = new ActualizarApartamentoUseCase(repositorio).ejecutar(id, "Nuevo",
+                "Descripción nueva", 3, 6, List.of("Lavadora"), Set.of(Caracteristica.JACUZZI));
 
         assertEquals("Nuevo", resultado.getNombre());
+        assertEquals("Descripción nueva", resultado.getDescripcion());
+        assertEquals(List.of("Lavadora"), resultado.getDotacion());
+        assertEquals(Set.of(Caracteristica.JACUZZI), resultado.getCaracteristicas());
         assertEquals(6, resultado.getCapacidad());
         verify(repositorio).guardar(apartamento);
     }
@@ -106,12 +139,12 @@ class ApartamentoUseCasesTest {
     @Test
     void noActualizaConDatosInvalidosNiSiNoExiste() {
         assertThrows(ReglaDominioException.class,
-                () -> new ActualizarApartamentoUseCase(repositorio).ejecutar(id, "X", 0, 4));
+                () -> new ActualizarApartamentoUseCase(repositorio).ejecutar(id, "X", "Descripción", 0, 4, List.of(), Set.of()));
 
         IdentificacionApartamento otro = new IdentificacionApartamento("APT-999");
         when(repositorio.buscarPorIdentificacion(otro)).thenReturn(Optional.empty());
         assertThrows(ApartamentoNoEncontradoException.class,
-                () -> new ActualizarApartamentoUseCase(repositorio).ejecutar(otro, "X", 1, 1));
+                () -> new ActualizarApartamentoUseCase(repositorio).ejecutar(otro, "X", "Descripción", 1, 1, List.of(), Set.of()));
 
         verify(repositorio, never()).guardar(any());
     }

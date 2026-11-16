@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -120,13 +121,18 @@ class ReconstruccionTest {
 
     @Test
     void restauraUnApartamentoEnSuEstadoOperativoYDeActividad() {
-        Apartamento ocupado = Apartamento.reconstruir(new IdentificacionApartamento("apt-101"), "Vista", 2, 4,
+        Apartamento ocupado = Apartamento.reconstruir(new IdentificacionApartamento("apt-101"), "Vista", "Descripción", 2, 4,
+                List.of("Nevera"), Set.of(Caracteristica.BALCON),
                 EstadoOperativo.OCUPADO, true);
         assertEquals(EstadoOperativo.OCUPADO, ocupado.getEstadoOperativo());
         assertTrue(ocupado.isActivo());
         assertEquals("APT-101", ocupado.getIdentificacion().valor());
+        assertEquals("Descripción", ocupado.getDescripcion());
+        assertEquals(List.of("Nevera"), ocupado.getDotacion());
+        assertEquals(Set.of(Caracteristica.BALCON), ocupado.getCaracteristicas());
 
-        Apartamento fuera = Apartamento.reconstruir(new IdentificacionApartamento("APT-102"), "Patio", 1, 2,
+        Apartamento fuera = Apartamento.reconstruir(new IdentificacionApartamento("APT-102"), "Patio", "Descripción", 1, 2,
+                List.of(), Set.of(),
                 EstadoOperativo.FUERA_DE_SERVICIO, false);
         assertEquals(EstadoOperativo.FUERA_DE_SERVICIO, fuera.getEstadoOperativo());
         assertFalse(fuera.isActivo());
@@ -134,7 +140,8 @@ class ReconstruccionTest {
 
     @Test
     void elApartamentoRestauradoSigueSujetoALasTransicionesDeNegocio() {
-        Apartamento ocupado = Apartamento.reconstruir(new IdentificacionApartamento("APT-101"), "Vista", 2, 4,
+        Apartamento ocupado = Apartamento.reconstruir(new IdentificacionApartamento("APT-101"), "Vista", "Descripción", 2, 4,
+                List.of(), Set.of(),
                 EstadoOperativo.OCUPADO, true);
 
         assertThrows(ReglaDominioException.class, ocupado::declararFueraDeServicio);
@@ -145,11 +152,11 @@ class ReconstruccionTest {
     @Test
     void elApartamentoRestauradoValidaSusDatos() {
         assertThrows(ReglaDominioException.class, () -> Apartamento.reconstruir(
-                new IdentificacionApartamento("APT-101"), " ", 2, 4, EstadoOperativo.PREPARADO, true));
+                new IdentificacionApartamento("APT-101"), " ", "Descripción", 2, 4, List.of(), Set.of(), EstadoOperativo.PREPARADO, true));
         assertThrows(ReglaDominioException.class, () -> Apartamento.reconstruir(
-                new IdentificacionApartamento("APT-101"), "Vista", 0, 4, EstadoOperativo.PREPARADO, true));
+                new IdentificacionApartamento("APT-101"), "Vista", "Descripción", 0, 4, List.of(), Set.of(), EstadoOperativo.PREPARADO, true));
         assertThrows(ReglaDominioException.class, () -> Apartamento.reconstruir(
-                new IdentificacionApartamento("APT-101"), "Vista", 2, 4, null, true));
+                new IdentificacionApartamento("APT-101"), "Vista", "Descripción", 2, 4, List.of(), Set.of(), null, true));
     }
 
     // ---------- Folio: se restaura reproduciendo sus movimientos (no necesita fábrica) ----------

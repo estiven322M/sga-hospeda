@@ -1,8 +1,12 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -16,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -136,8 +141,8 @@ class ConsultasYBloqueosControllerTest {
 
     @Test
     void consultarDisponibilidadResponde200Paginado() throws Exception {
-        var libre = new ApartamentoDisponible(new Apartamento(apt, "Vista", 2, 4), valor());
-        when(disponibilidad.ejecutar(any(), any(), eq(2), any(), any(), eq(new SolicitudPagina(0))))
+        var libre = new ApartamentoDisponible(ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4), valor());
+        when(disponibilidad.ejecutar(any(), any(), eq(2), any(), any(), any(), eq(new SolicitudPagina(0))))
                 .thenReturn(new Pagina<>(List.of(libre), 0, 1));
 
         mvc.perform(post("/api/disponibilidad").contentType(MediaType.APPLICATION_JSON).content("""
@@ -148,6 +153,33 @@ class ConsultasYBloqueosControllerTest {
                 .andExpect(jsonPath("$.contenido[0].identificacion").value("APT-101"))
                 .andExpect(jsonPath("$.contenido[0].capacidad").value(4))
                 .andExpect(jsonPath("$.contenido[0].total").value(200000));
+    }
+
+    @Test
+    void consultarDisponibilidadConCaracteristicasLasPasaAlCasoDeUsoYDevuelveLasDelApartamentoL06() throws Exception {
+        var conTerraza = new ApartamentoDisponible(new co.edu.uniquindio.sga.domain.entity.Apartamento(apt, "Terraza",
+                "Con terraza privada", 2, 4, List.of("Nevera"), Set.of(Caracteristica.TERRAZA, Caracteristica.JACUZZI)),
+                valor());
+        Set<Caracteristica> pedidas = Set.of(Caracteristica.TERRAZA, Caracteristica.JACUZZI);
+        when(disponibilidad.ejecutar(any(), any(), any(), any(), any(), eq(pedidas), eq(new SolicitudPagina(0))))
+                .thenReturn(new Pagina<>(List.of(conTerraza), 0, 1));
+
+        mvc.perform(post("/api/disponibilidad").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"fechaEntrada":"2026-12-10","fechaSalida":"2026-12-12","caracteristicas":["TERRAZA","JACUZZI"],%s}"""
+                        .formatted(GRUPO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[0].descripcion").value("Con terraza privada"))
+                .andExpect(jsonPath("$.contenido[0].caracteristicas.length()").value(2));
+        verify(disponibilidad).ejecutar(any(), any(), any(), any(), any(), eq(pedidas), eq(new SolicitudPagina(0)));
+    }
+
+    @Test
+    void consultarDisponibilidadConUnaCaracteristicaFueraDelCatalogoResponde400L06() throws Exception {
+        mvc.perform(post("/api/disponibilidad").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"fechaEntrada":"2026-12-10","fechaSalida":"2026-12-12","caracteristicas":["PISCINA"],%s}"""
+                        .formatted(GRUPO)))
+                .andExpect(status().isBadRequest());
+        verify(disponibilidad, never()).ejecutar(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

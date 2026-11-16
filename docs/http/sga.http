@@ -21,6 +21,12 @@
 #     DIRECTO, cobra, confirma y opera; el administrador gestiona inventario, tarifas, políticas, bloqueos,
 #     canal externo y autoriza cierres con saldo; el personal de servicio prepara los apartamentos.
 #   - Los tokens duran 30 minutos: si vencen, vuelva a ejecutar la PARTE 0.
+#
+# Pruebas del cuerpo (client.test): un código HTTP correcto no basta, así que los escenarios nuevos (L-06: 1.2,
+# 1.7 a 1.15 y 3.15a a 3.16f) comprueban el CUERPO de la respuesta: qué apartamentos devuelve cada filtro, el
+# total cotizado, el mensaje de la regla violada y los campos de "errores". El resultado de cada aserción aparece
+# en la pestaña de pruebas del cliente HTTP. Los escenarios 1.8 a 1.11 dependen de que el apartamento de demostración
+# (DEMO-SIN-TARIFAS, que se edita en 3.16e) no tenga TERRAZA, PARQUEADERO, BALCON ni ACCESIBLE: no se le asignan.
 #   - La PARTE 6 demuestra los casos 3 a 14 de la sección 9 de la Guía 12 (401 frente a 403 y propietario).
 # Códigos: 400 forma · 401 sin token o token inválido · 403 rol o propietario · 404 no existe · 409 negocio.
 # Cada escenario "409" indica la regla de negocio que viola.
@@ -36,7 +42,15 @@ Content-Type: application/json
 
 {"correo": "admin@sga.local", "contrasena": "Admin2026"}
 
-> {% client.global.set("tokenAdmin", response.body.token); %}
+> {%
+    client.test("0.1 Login del administrador", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tipo === "Bearer", "tipo: " + response.body.tipo);
+        client.assert(typeof response.body.expiraEn === "string", "expiraEn debe ser string");
+        client.assert(Array.isArray(response.body.roles), "roles debe ser una lista");
+    });
+    client.global.set("tokenAdmin", response.body.token);
+%}
 
 ### 0.2 Login de recepción -> 200 (tipo Bearer, roles [RECEPCIONISTA])
 POST {{host}}/api/auth/login
@@ -44,7 +58,15 @@ Content-Type: application/json
 
 {"correo": "recepcion@sga.local", "contrasena": "Recepcion2026"}
 
-> {% client.global.set("tokenRecepcion", response.body.token); %}
+> {%
+    client.test("0.2 Login de recepción", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tipo === "Bearer", "tipo: " + response.body.tipo);
+        client.assert(typeof response.body.expiraEn === "string", "expiraEn debe ser string");
+        client.assert(Array.isArray(response.body.roles), "roles debe ser una lista");
+    });
+    client.global.set("tokenRecepcion", response.body.token);
+%}
 
 ### 0.3 Login del personal de servicio -> 200
 POST {{host}}/api/auth/login
@@ -52,7 +74,15 @@ Content-Type: application/json
 
 {"correo": "servicio@sga.local", "contrasena": "Servicio2026"}
 
-> {% client.global.set("tokenServicio", response.body.token); %}
+> {%
+    client.test("0.3 Login del personal de servicio", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tipo === "Bearer", "tipo: " + response.body.tipo);
+        client.assert(typeof response.body.expiraEn === "string", "expiraEn debe ser string");
+        client.assert(Array.isArray(response.body.roles), "roles debe ser una lista");
+    });
+    client.global.set("tokenServicio", response.body.token);
+%}
 
 ### 0.4 Login de los dos huéspedes iniciales (documentos 1094000111 y 1094000222) -> 200
 POST {{host}}/api/auth/login
@@ -60,7 +90,15 @@ Content-Type: application/json
 
 {"correo": "huesped1@sga.local", "contrasena": "Huesped2026"}
 
-> {% client.global.set("tokenHuesped1", response.body.token); %}
+> {%
+    client.test("0.4 Login de los dos huéspedes iniciales (documentos 1094000111 y 1094000222)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tipo === "Bearer", "tipo: " + response.body.tipo);
+        client.assert(typeof response.body.expiraEn === "string", "expiraEn debe ser string");
+        client.assert(Array.isArray(response.body.roles), "roles debe ser una lista");
+    });
+    client.global.set("tokenHuesped1", response.body.token);
+%}
 
 ### 0.5
 POST {{host}}/api/auth/login
@@ -68,7 +106,15 @@ Content-Type: application/json
 
 {"correo": "huesped2@sga.local", "contrasena": "Huesped2026"}
 
-> {% client.global.set("tokenHuesped2", response.body.token); %}
+> {%
+    client.test("0.5", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tipo === "Bearer", "tipo: " + response.body.tipo);
+        client.assert(typeof response.body.expiraEn === "string", "expiraEn debe ser string");
+        client.assert(Array.isArray(response.body.roles), "roles debe ser una lista");
+    });
+    client.global.set("tokenHuesped2", response.body.token);
+%}
 
 ### 0.6 Registro público de Ana Ramírez: queda como HUESPED -> 201 (409 si la colección ya se ejecutó en esta sesión)
 POST {{host}}/api/auth/registro
@@ -83,13 +129,30 @@ Content-Type: application/json
   "fechaNacimiento": "1990-05-12"
 }
 
+> {%
+    client.test("0.6 Registro público de Ana Ramírez: queda como HUESPED", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.nombre === "Ana Ramírez", "nombre: " + response.body.nombre);
+        client.assert(typeof response.body.documento === "string", "documento debe ser string");
+        client.assert(typeof response.body.rol === "string", "rol debe ser string");
+    });
+%}
+
 ### 0.7 Login de Ana: es la titular de la reserva A de la PARTE 2 -> 200
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
 {"correo": "ana.ramirez@correo.com", "contrasena": "AnaRamirez2026"}
 
-> {% client.global.set("tokenHuesped", response.body.token); %}
+> {%
+    client.test("0.7 Login de Ana: es la titular de la reserva A de la PARTE 2", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tipo === "Bearer", "tipo: " + response.body.tipo);
+        client.assert(typeof response.body.expiraEn === "string", "expiraEn debe ser string");
+        client.assert(Array.isArray(response.body.roles), "roles debe ser una lista");
+    });
+    client.global.set("tokenHuesped", response.body.token);
+%}
 
 @apt = APT-101
 @aptBloqueo = APT-102
@@ -102,25 +165,252 @@ Content-Type: application/json
 GET {{host}}/api/apartamentos?pagina=0
 Authorization: Bearer {{tokenRecepcion}}
 
-### 1.2 Consultar un apartamento
+
+> {%
+    client.test("1.1 Listar apartamentos (de 10 en 10)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(response.body.contenido[0].identificacion === "APT-101", "identificacion: " + response.body.contenido[0].identificacion);
+        client.assert(response.body.contenido[0].nombre === "Apartamento 101 - Vista al parque", "nombre: " + response.body.contenido[0].nombre);
+        client.assert(typeof response.body.contenido[0].descripcion === "string", "descripcion debe ser string");
+        client.assert(typeof response.body.contenido[0].dormitorios === "number", "dormitorios debe ser number");
+        client.assert(typeof response.body.contenido[0].capacidad === "number", "capacidad debe ser number");
+        client.assert(Array.isArray(response.body.contenido[0].dotacion), "dotacion debe ser una lista");
+        client.assert(Array.isArray(response.body.contenido[0].caracteristicas), "caracteristicas debe ser una lista");
+        client.assert(response.body.contenido[0].estadoOperativo === "PREPARADO", "estadoOperativo: " + response.body.contenido[0].estadoOperativo);
+        client.assert(response.body.contenido[0].activo === true, "activo: " + response.body.contenido[0].activo);
+    });
+%}
+### 1.2 Consultar un apartamento (L-06: trae descripción, dotación y características) -> 200
 GET {{host}}/api/apartamentos/{{apt}}
 Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.2 el apartamento trae sus datos descriptivos", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.identificacion === "APT-101", "identificación: " + response.body.identificacion);
+        client.assert(response.body.descripcion && response.body.descripcion.length > 0, "falta la descripción");
+        client.assert(response.body.dotacion.length > 0, "falta la dotación");
+        client.assert(response.body.caracteristicas.indexOf("VISTA_AL_PARQUE") >= 0, "falta VISTA_AL_PARQUE");
+        client.assert(response.body.caracteristicas.indexOf("BALCON") >= 0, "falta BALCON");
+    });
+%}
 
 ### 1.3 Listar temporadas
 GET {{host}}/api/temporadas
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("1.3 Listar temporadas", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(response.body.contenido[0].nombre === "ALTA", "nombre: " + response.body.contenido[0].nombre);
+        client.assert(response.body.contenido[0].base === false, "base: " + response.body.contenido[0].base);
+        client.assert(Array.isArray(response.body.contenido[0].periodos), "periodos debe ser una lista");
+    });
+%}
 ### 1.4 Tarifas del apartamento (una por temporada)
 GET {{host}}/api/apartamentos/{{apt}}/tarifas
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("1.4 Tarifas del apartamento (una por temporada)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(typeof response.body.contenido[0].temporada === "string", "temporada debe ser string");
+        client.assert(typeof response.body.contenido[0].valorPorOcupanteNoche === "number", "valorPorOcupanteNoche debe ser number");
+        client.assert(response.body.contenido[0].moneda === "COP", "moneda: " + response.body.contenido[0].moneda);
+    });
+%}
 ### 1.5 Política de cancelación vigente
 GET {{host}}/api/politicas-cancelacion/vigente
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("1.5 Política de cancelación vigente", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.version === "number", "version debe ser number");
+        client.assert(typeof response.body.vigenteDesde === "string", "vigenteDesde debe ser string");
+        client.assert(Array.isArray(response.body.tramos), "tramos debe ser una lista");
+    });
+%}
 ### 1.6 Bloqueos del apartamento
 GET {{host}}/api/apartamentos/{{aptBloqueo}}/bloqueos
 Authorization: Bearer {{tokenRecepcion}}
+
+
+> {%
+    client.test("1.6 Bloqueos del apartamento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+    });
+%}
+# ---------- L-06 · Características de los apartamentos y su filtro ----------
+# Datos sembrados: TERRAZA = APT-102 y APT-301 · BALCON = APT-101, APT-201 y APT-302 · ACCESIBLE = APT-202 y APT-203
+# PARQUEADERO = APT-102 y APT-202 · JACUZZI = APT-301 · VISTA_AL_PARQUE = APT-101 · VISTA_PANORAMICA = APT-301.
+# Cada escenario verifica el CUERPO (qué apartamentos devuelve), no solo el código.
+
+### 1.7 [L-06] Catálogo cerrado de características -> 200 con los 7 valores
+GET {{host}}/api/caracteristicas
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("1.7 el catálogo trae las 7 características", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const esperadas = ["ACCESIBLE", "BALCON", "JACUZZI", "PARQUEADERO", "TERRAZA", "VISTA_AL_PARQUE", "VISTA_PANORAMICA"];
+        client.assert(JSON.stringify(response.body.slice().sort()) === JSON.stringify(esperadas),
+            "catálogo: " + response.body);
+    });
+%}
+
+### 1.8 [L-06] Listar filtrando por TERRAZA -> 200: exactamente APT-102 y APT-301
+GET {{host}}/api/apartamentos?caracteristicas=TERRAZA
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.8 TERRAZA devuelve solo APT-102 y APT-301", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion).sort();
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102", "APT-301"]), "ids devueltos: " + ids);
+        client.assert(response.body.totalElementos === 2, "totalElementos: " + response.body.totalElementos);
+        client.assert(response.body.contenido.every(a => a.caracteristicas.indexOf("TERRAZA") >= 0),
+            "todos deben tener TERRAZA");
+    });
+%}
+
+### 1.9 [L-06] Varias características exigen TODAS (TERRAZA y PARQUEADERO) -> 200: solo APT-102
+GET {{host}}/api/apartamentos?caracteristicas=TERRAZA&caracteristicas=PARQUEADERO
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.9 TERRAZA + PARQUEADERO devuelve solo APT-102", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion);
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102"]), "ids devueltos: " + ids);
+    });
+%}
+
+### 1.10 [L-06] Combinación que ningún apartamento cumple (BALCON y ACCESIBLE) -> 200 con la página vacía
+GET {{host}}/api/apartamentos?caracteristicas=BALCON&caracteristicas=ACCESIBLE
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.10 sin coincidencias: contenido vacío", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length === 0, "contenido: " + response.body.contenido.length);
+        client.assert(response.body.totalElementos === 0, "totalElementos: " + response.body.totalElementos);
+    });
+%}
+
+### 1.11 [400 · L-06] Una característica fuera del catálogo -> 400 con ErrorResponse
+GET {{host}}/api/apartamentos?caracteristicas=PISCINA
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("1.11 PISCINA no está en el catálogo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.length > 0, "falta el mensaje");
+        client.assert(response.body.trace === undefined, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 1.12 [L-06] Disponibilidad filtrando por JACUZZI (3 noches de agosto de 2028, 1 adulto) -> 200: solo APT-301, 420.000
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["JACUZZI"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.12 JACUZZI devuelve solo APT-301 con su cotización", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion);
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-301"]), "ids devueltos: " + ids);
+        const tarjeta = response.body.contenido[0];
+        client.assert(tarjeta.total === 420000, "total: " + tarjeta.total);
+        client.assert(tarjeta.desglose.length === 3, "noches del desglose: " + tarjeta.desglose.length);
+        client.assert(tarjeta.caracteristicas.indexOf("JACUZZI") >= 0, "la tarjeta debe traer sus características");
+        client.assert(tarjeta.descripcion.length > 0, "la tarjeta debe traer la descripción");
+    });
+%}
+
+### 1.13 [L-06] Disponibilidad filtrando por TERRAZA -> 200: APT-102 y APT-301
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["TERRAZA"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.13 TERRAZA devuelve APT-102 y APT-301", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion).sort();
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102", "APT-301"]), "ids devueltos: " + ids);
+    });
+%}
+
+### 1.14 [L-06] Disponibilidad con varias características: TERRAZA y PARQUEADERO -> 200: solo APT-102
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["TERRAZA", "PARQUEADERO"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.14 TERRAZA + PARQUEADERO devuelve solo APT-102", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const ids = response.body.contenido.map(a => a.identificacion);
+        client.assert(JSON.stringify(ids) === JSON.stringify(["APT-102"]), "ids devueltos: " + ids);
+    });
+%}
+
+### 1.15 [400 · L-06] Disponibilidad con una característica fuera del catálogo -> 400
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-21",
+  "fechaSalida": "2028-08-24",
+  "caracteristicas": ["PISCINA"],
+  "ocupantes": [{"documento": "CC-7001", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("1.15 PISCINA se rechaza por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+    });
+%}
 
 # =====================================================================================================
 # PARTE 2 · FLUJO COMPLETO DE UNA RESERVA (todos deben dar 2xx salvo los marcados 409)
@@ -142,6 +432,22 @@ Content-Type: application/json
   ]
 }
 
+> {%
+    client.test("2.1 CU-01 Cotizar la estancia (2 adultos y 1 niño: el niño no genera cargo, RN-05 y RN-06)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(typeof response.body.total === "number", "total debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+    });
+%}
+
 ### 2.2 CU-02 Consultar disponibilidad de la misma estancia (filtro de capacidad mínima) -> 200
 POST {{host}}/api/disponibilidad?pagina=0
 Authorization: Bearer {{tokenHuesped}}
@@ -157,6 +463,28 @@ Content-Type: application/json
     {"documento": "TI-9003", "nombre": "Sofía Gómez", "fechaNacimiento": "2020-03-02"}
   ]
 }
+
+> {%
+    client.test("2.2 CU-02 Consultar disponibilidad de la misma estancia (filtro de capacidad mínima)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(response.body.contenido[0].identificacion === "APT-201", "identificacion: " + response.body.contenido[0].identificacion);
+        client.assert(response.body.contenido[0].nombre === "Apartamento 201", "nombre: " + response.body.contenido[0].nombre);
+        client.assert(typeof response.body.contenido[0].descripcion === "string", "descripcion debe ser string");
+        client.assert(typeof response.body.contenido[0].dormitorios === "number", "dormitorios debe ser number");
+        client.assert(typeof response.body.contenido[0].capacidad === "number", "capacidad debe ser number");
+        client.assert(Array.isArray(response.body.contenido[0].caracteristicas), "caracteristicas debe ser una lista");
+        client.assert(typeof response.body.contenido[0].subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.contenido[0].porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.contenido[0].descuento === "number", "descuento debe ser number");
+        client.assert(typeof response.body.contenido[0].total === "number", "total debe ser number");
+        client.assert(response.body.contenido[0].moneda === "COP", "moneda: " + response.body.contenido[0].moneda);
+        client.assert(Array.isArray(response.body.contenido[0].desglose), "desglose debe ser una lista");
+    });
+%}
 
 ### 2.3 CU-03 Crear la reserva (queda PENDIENTE; abre el folio) -> 201 + Location
 POST {{host}}/api/reservas
@@ -180,18 +508,77 @@ Content-Type: application/json
 > {%
     client.global.set("codigoA", response.body.codigo);
     client.global.set("valorTotalA", response.body.valorTotal);
+    client.test("2.3 CU-03 Crear la reserva (queda PENDIENTE; abre el folio)", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "PORTAL", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.horaEstimadaLlegada === "string", "horaEstimadaLlegada debe ser string");
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Ana Ramírez", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
 %}
 
 ### 2.4 Consultar la reserva por su código -> 200
 GET {{host}}/api/reservas/{{codigoA}}
 Authorization: Bearer {{tokenHuesped}}
 
+
+> {%
+    client.test("2.4 Consultar la reserva por su código", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "PORTAL", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.horaEstimadaLlegada === "string", "horaEstimadaLlegada debe ser string");
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Ana Ramírez", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
 ### 2.5 [409 · L-11 anticipo] Confirmar SIN haber pagado el anticipo -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/confirmar
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Ana Ramírez"}
+
+> {%
+    client.test("2.5 [409 · L-11 anticipo] Confirmar SIN haber pagado el anticipo", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Para confirmar la reserva debe registrarse un anticipo de"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 2.6 CU-08 Registrar el pago (se paga el valor total, que cubre el anticipo) -> 201
 POST {{host}}/api/reservas/{{codigoA}}/folio/pagos
@@ -200,12 +587,51 @@ Content-Type: application/json
 
 {"medio": "TRANSFERENCIA", "fecha": "2026-11-02", "valor": {{valorTotalA}}}
 
+> {%
+    client.test("2.6 CU-08 Registrar el pago (se paga el valor total, que cubre el anticipo)", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(typeof response.body.codigoReserva === "string", "codigoReserva debe ser string");
+        client.assert(Array.isArray(response.body.cargos), "cargos debe ser una lista");
+        client.assert(Array.isArray(response.body.ajustes), "ajustes debe ser una lista");
+        client.assert(Array.isArray(response.body.pagos), "pagos debe ser una lista");
+        client.assert(typeof response.body.saldo === "number", "saldo debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.cerrado === false, "cerrado: " + response.body.cerrado);
+    });
+%}
+
 ### 2.7 Confirmar la reserva (hora de llegada ya informada, anticipo cubierto) -> 200 CONFIRMADA
 PUT {{host}}/api/reservas/{{codigoA}}/confirmar
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Ana Ramírez"}
+
+> {%
+    client.test("2.7 Confirmar la reserva (hora de llegada ya informada, anticipo cubierto)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CONFIRMADA", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "PORTAL", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.horaEstimadaLlegada === "string", "horaEstimadaLlegada debe ser string");
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Ana Ramírez", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
 
 ### 2.8 CU-04 Modificar: ampliar a 3 noches (el ajuste queda en el folio, la política no cambia) -> 200
 PUT {{host}}/api/reservas/{{codigoA}}/modificar
@@ -223,10 +649,49 @@ Content-Type: application/json
   ]
 }
 
+> {%
+    client.test("2.8 CU-04 Modificar: ampliar a 3 noches (el ajuste queda en el folio, la política no cambia)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CONFIRMADA", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "PORTAL", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 3, "noches: " + response.body.noches);
+        client.assert(typeof response.body.horaEstimadaLlegada === "string", "horaEstimadaLlegada debe ser string");
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Ana Ramírez", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
+
 ### 2.9 Consultar el folio: cargo de alojamiento, ajuste por la modificación, pago y saldo -> 200
 GET {{host}}/api/reservas/{{codigoA}}/folio
 Authorization: Bearer {{tokenHuesped}}
 
+
+> {%
+    client.test("2.9 Consultar el folio: cargo de alojamiento, ajuste por la modificación, pago y saldo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.codigoReserva === "string", "codigoReserva debe ser string");
+        client.assert(Array.isArray(response.body.cargos), "cargos debe ser una lista");
+        client.assert(Array.isArray(response.body.ajustes), "ajustes debe ser una lista");
+        client.assert(Array.isArray(response.body.pagos), "pagos debe ser una lista");
+        client.assert(typeof response.body.saldo === "number", "saldo debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.cerrado === false, "cerrado: " + response.body.cerrado);
+    });
+%}
 ### 2.10 CU-05 Cancelar (retención según la política congelada; devolución como saldo a favor) -> 200 CANCELADA
 PUT {{host}}/api/reservas/{{codigoA}}/cancelar
 Authorization: Bearer {{tokenHuesped}}
@@ -234,10 +699,49 @@ Content-Type: application/json
 
 {"motivo": "Cambio de planes", "autor": "Ana Ramírez"}
 
+> {%
+    client.test("2.10 CU-05 Cancelar (retención según la política congelada; devolución como saldo a favor)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CANCELADA", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "PORTAL", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 3, "noches: " + response.body.noches);
+        client.assert(typeof response.body.horaEstimadaLlegada === "string", "horaEstimadaLlegada debe ser string");
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Ana Ramírez", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
+
 ### 2.11 Folio tras cancelar: reverso del alojamiento, penalidad (si aplica) y saldo -> 200
 GET {{host}}/api/reservas/{{codigoA}}/folio
 Authorization: Bearer {{tokenHuesped}}
 
+
+> {%
+    client.test("2.11 Folio tras cancelar: reverso del alojamiento, penalidad (si aplica) y saldo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.codigoReserva === "string", "codigoReserva debe ser string");
+        client.assert(Array.isArray(response.body.cargos), "cargos debe ser una lista");
+        client.assert(Array.isArray(response.body.ajustes), "ajustes debe ser una lista");
+        client.assert(Array.isArray(response.body.pagos), "pagos debe ser una lista");
+        client.assert(typeof response.body.saldo === "number", "saldo debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.cerrado === false, "cerrado: " + response.body.cerrado);
+    });
+%}
 ### 2.12 Las noches quedaron libres (RN-12): la misma estancia vuelve a aparecer disponible -> 200
 POST {{host}}/api/disponibilidad
 Authorization: Bearer {{tokenHuesped}}
@@ -249,10 +753,50 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"}]
 }
 
+> {%
+    client.test("2.12 Las noches quedaron libres (RN-12): la misma estancia vuelve a aparecer disponible", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(response.body.contenido[0].identificacion === "APT-302", "identificacion: " + response.body.contenido[0].identificacion);
+        client.assert(response.body.contenido[0].nombre === "Apartamento 302", "nombre: " + response.body.contenido[0].nombre);
+        client.assert(typeof response.body.contenido[0].descripcion === "string", "descripcion debe ser string");
+        client.assert(typeof response.body.contenido[0].dormitorios === "number", "dormitorios debe ser number");
+        client.assert(typeof response.body.contenido[0].capacidad === "number", "capacidad debe ser number");
+        client.assert(Array.isArray(response.body.contenido[0].caracteristicas), "caracteristicas debe ser una lista");
+        client.assert(typeof response.body.contenido[0].subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.contenido[0].porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.contenido[0].descuento === "number", "descuento debe ser number");
+        client.assert(typeof response.body.contenido[0].total === "number", "total debe ser number");
+        client.assert(response.body.contenido[0].moneda === "COP", "moneda: " + response.body.contenido[0].moneda);
+        client.assert(Array.isArray(response.body.contenido[0].desglose), "desglose debe ser una lista");
+    });
+%}
+
 ### 2.13 Listar reservas con filtros (más recientes primero) -> 200
 GET {{host}}/api/reservas?estado=CANCELADA&apartamento={{apt}}&canal=PORTAL&titular=CC-9001&entradaDesde=2028-01-01&entradaHasta=2028-12-31&pagina=0
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("2.13 Listar reservas con filtros (más recientes primero)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(response.body.contenido[0].estado === "CANCELADA", "estado: " + response.body.contenido[0].estado);
+        client.assert(response.body.contenido[0].canalOrigen === "PORTAL", "canalOrigen: " + response.body.contenido[0].canalOrigen);
+        client.assert(response.body.contenido[0].identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.contenido[0].identificacionApartamento);
+        client.assert(typeof response.body.contenido[0].fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.contenido[0].fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(typeof response.body.contenido[0].nombreTitular === "string", "nombreTitular debe ser string");
+        client.assert(typeof response.body.contenido[0].totalOcupantes === "number", "totalOcupantes debe ser number");
+        client.assert(typeof response.body.contenido[0].valorTotal === "number", "valorTotal debe ser number");
+    });
+%}
 # =====================================================================================================
 # PARTE 3 · ESCENARIOS 409 (una regla de negocio violada por cada uno)
 # =====================================================================================================
@@ -274,6 +818,28 @@ Content-Type: application/json
 > {%
     client.global.set("codigoB", response.body.codigo);
     client.global.set("valorTotalB", response.body.valorTotal);
+    client.test("3.0 Preparación: reserva B sin hora de llegada y confirmable (se usa en varios escenarios)", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "DIRECTO", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Marta Ríos", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
 %}
 
 ### 3.1 [409 · RN-01] Otra reserva que solapa las noches de la reserva B (21 y 22 de abril) -> 409
@@ -289,6 +855,16 @@ Content-Type: application/json
   "titular": {"documento": "CC-9102", "nombre": "Pedro Soto", "fechaNacimiento": "1980-01-01"},
   "ocupantes": [{"documento": "CC-9102", "nombre": "Pedro Soto", "fechaNacimiento": "1980-01-01"}]
 }
+
+> {%
+    client.test("3.1 [409 · RN-01] Otra reserva que solapa las noches de la reserva B (21 y 22 de abril)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El apartamento ya tiene una reserva activa que solapa esas noches"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.2 [409 · RN-02] Grupo de 15 personas: excede la capacidad del apartamento -> 409
 POST {{host}}/api/reservas
@@ -320,6 +896,16 @@ Content-Type: application/json
   ]
 }
 
+> {%
+    client.test("3.2 [409 · RN-02] Grupo de 15 personas: excede la capacidad del apartamento", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El número de ocupantes excede la capacidad del apartamento"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.3 [409 · RN-03] La fecha de salida no es posterior a la de entrada -> 409
 POST {{host}}/api/cotizaciones
 Authorization: Bearer {{tokenRecepcion}}
@@ -331,6 +917,16 @@ Content-Type: application/json
   "fechaSalida": "2028-06-10",
   "ocupantes": [{"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"}]
 }
+
+> {%
+    client.test("3.3 [409 · RN-03] La fecha de salida no es posterior a la de entrada", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La fecha de salida debe ser posterior a la fecha de entrada"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.4 [409 · RN-04] Reserva con fecha de entrada en el pasado -> 409
 POST {{host}}/api/reservas
@@ -346,6 +942,16 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"}]
 }
 
+> {%
+    client.test("3.4 [409 · RN-04] Reserva con fecha de entrada en el pasado", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La fecha de entrada no puede ser anterior a la fecha actual"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.5 [409 · RN-06] Grupo formado solo por menores: ningún ocupante facturable -> 409
 POST {{host}}/api/cotizaciones
 Authorization: Bearer {{tokenRecepcion}}
@@ -358,12 +964,35 @@ Content-Type: application/json
   "ocupantes": [{"documento": "TI-9300", "nombre": "Menor Uno", "fechaNacimiento": "2020-01-01"}]
 }
 
+> {%
+    client.test("3.5 [409 · RN-06] Grupo formado solo por menores: ningún ocupante facturable", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La reserva debe tener al menos un ocupante facturable"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.6a Pagar el valor total de la reserva B para que el anticipo no sea el obstáculo -> 201
 POST {{host}}/api/reservas/{{codigoB}}/folio/pagos
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"medio": "EFECTIVO", "fecha": "2026-11-02", "valor": {{valorTotalB}}}
+
+> {%
+    client.test("3.6a Pagar el valor total de la reserva B para que el anticipo no sea el obstáculo", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(typeof response.body.codigoReserva === "string", "codigoReserva debe ser string");
+        client.assert(Array.isArray(response.body.cargos), "cargos debe ser una lista");
+        client.assert(Array.isArray(response.body.ajustes), "ajustes debe ser una lista");
+        client.assert(Array.isArray(response.body.pagos), "pagos debe ser una lista");
+        client.assert(typeof response.body.saldo === "number", "saldo debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.cerrado === false, "cerrado: " + response.body.cerrado);
+    });
+%}
 
 ###
 # 3.6b [409 · RN-09] Confirmar sin hora estimada de llegada (reserva B, anticipo ya pagado en 3.6a) -> 409
@@ -373,12 +1002,48 @@ Content-Type: application/json
 
 {"autor": "Marta Ríos"}
 
+> {%
+    client.test("3.6b [409 · RN-09] Confirmar sin hora estimada de llegada (reserva B, anticipo ya pagado en 3.6a)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede confirmar una reserva sin hora estimada de llegada"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.7 Confirmar la reserva B con hora de llegada -> 200 CONFIRMADA (la deja activa para los siguientes escenarios)
 PUT {{host}}/api/reservas/{{codigoB}}/confirmar
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"horaEstimadaLlegada": "15:30", "autor": "Marta Ríos"}
+
+> {%
+    client.test("3.7 Confirmar la reserva B con hora de llegada", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CONFIRMADA", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "DIRECTO", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.horaEstimadaLlegada === "string", "horaEstimadaLlegada debe ser string");
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Marta Ríos", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
 
 ### 3.8 [409 · RN-08] Cancelar una reserva que ya está CANCELADA (reserva A) -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/cancelar
@@ -387,12 +1052,32 @@ Content-Type: application/json
 
 {"motivo": "Intento repetido", "autor": "Ana Ramírez"}
 
+> {%
+    client.test("3.8 [409 · RN-08] Cancelar una reserva que ya está CANCELADA (reserva A)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Una reserva en estado terminal (CANCELADA) no admite modificaciones"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.9 [409 · RN-08] Confirmar una reserva CANCELADA (reserva A) -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/confirmar
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"horaEstimadaLlegada": "16:00", "autor": "Ana Ramírez"}
+
+> {%
+    client.test("3.9 [409 · RN-08] Confirmar una reserva CANCELADA (reserva A)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Una reserva en estado terminal (CANCELADA) no admite modificaciones"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.10 [409 · RN-14] Modificar una reserva CANCELADA (reserva A) -> 409
 PUT {{host}}/api/reservas/{{codigoA}}/modificar
@@ -405,6 +1090,16 @@ Content-Type: application/json
   "autor": "Ana Ramírez",
   "ocupantes": [{"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"}]
 }
+
+> {%
+    client.test("3.10 [409 · RN-14] Modificar una reserva CANCELADA (reserva A)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Una reserva en estado terminal (CANCELADA) no admite modificaciones"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.11a Reserva C, en fechas libres -> 201
 POST {{host}}/api/reservas
@@ -422,6 +1117,28 @@ Content-Type: application/json
 
 > {%
     client.global.set("codigoC", response.body.codigo);
+    client.test("3.11a Reserva C, en fechas libres", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "DIRECTO", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Carlos Vega", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
 %}
 
 ###
@@ -437,12 +1154,32 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
 
+> {%
+    client.test("3.11b [409 · RN-14 + RN-01] Modificar la reserva C para que solape con la reserva B (20 al 22 de abril)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El apartamento ya tiene una reserva activa que solapa esas noches"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.12 [409 · 7.3] Bloquear noches que ya tienen una reserva activa (reserva B) -> 409
 POST {{host}}/api/apartamentos/{{apt}}/bloqueos
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"fechaInicio": "2028-04-21", "fechaFin": "2028-04-23", "motivo": "Mantenimiento"}
+
+> {%
+    client.test("3.12 [409 · 7.3] Bloquear noches que ya tienen una reserva activa (reserva B)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede bloquear: el apartamento tiene la reserva activa"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.13 CU-09 Registrar un bloqueo en otro apartamento, sin reservas en esas noches -> 201 + Location
 POST {{host}}/api/apartamentos/{{aptBloqueo}}/bloqueos
@@ -451,38 +1188,188 @@ Content-Type: application/json
 
 {"fechaInicio": "2028-07-10", "fechaFin": "2028-07-13", "motivo": "Mantenimiento de la cocina"}
 
-### 3.14 [409 · RN-07] Reservar noches con bloqueo vigente -> 409
+> {%
+    client.test("3.13 CU-09 Registrar un bloqueo en otro apartamento, sin reservas en esas noches", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.identificacionApartamento === "APT-102", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaInicio === "string", "fechaInicio debe ser string");
+        client.assert(typeof response.body.fechaFin === "string", "fechaFin debe ser string");
+        client.assert(typeof response.body.motivo === "string", "motivo debe ser string");
+    });
+%}
+
+### 3.14 [409 · RN-07] Reservar noches con bloqueo vigente (10 al 13 de julio: 3 noches en ALTA, así que cumple RP-01) -> 409 por el bloqueo
+# Con 3 noches la estancia cumple la estancia mínima de ALTA (RP-01): el único motivo del 409 es el bloqueo (RN-07).
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{aptBloqueo}}",
-  "fechaEntrada": "2028-07-11",
-  "fechaSalida": "2028-07-12",
+  "fechaEntrada": "2028-07-10",
+  "fechaSalida": "2028-07-13",
   "canalOrigen": "DIRECTO",
   "titular": {"documento": "CC-9500", "nombre": "Elena Mora", "fechaNacimiento": "1991-11-11"},
   "ocupantes": [{"documento": "CC-9500", "nombre": "Elena Mora", "fechaNacimiento": "1991-11-11"}]
 }
+
+> {%
+    client.test("3.14 el 409 es por el bloqueo vigente (RN-07), no por la estancia mínima (RP-01)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El apartamento tiene un bloqueo vigente en las fechas solicitadas: Mantenimiento de la cocina",
+            "mensaje: " + response.body.mensaje);
+        client.assert(response.body.mensaje.indexOf("estancia mínima") < 0, "no debe ser la regla RP-01");
+        client.assert(response.body.trace === undefined, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.15a Crear el apartamento (nace inactivo) -> 201 la primera vez; si ya existe de una corrida anterior, 409 por L-04
 POST {{host}}/api/apartamentos
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
-{"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Apartamento de prueba", "dormitorios": 1, "capacidad": 2}
+{
+  "identificacion": "DEMO-SIN-TARIFAS",
+  "nombre": "Apartamento de prueba",
+  "descripcion": "Apartamento de demostración, sin tarifas todavía",
+  "dormitorios": 1,
+  "capacidad": 2,
+  "dotacion": ["Nevera", "Wi-Fi"],
+  "caracteristicas": ["VISTA_PANORAMICA"]
+}
+
+> {%
+    client.test("3.15a nace inactivo y devuelve lo que se guardó (o 409 si ya existía de una corrida anterior)", function () {
+        client.assert(response.status === 201 || response.status === 409, "código " + response.status);
+        if (response.status === 201) {
+            client.assert(response.body.activo === false, "debe nacer inactivo");
+            client.assert(response.body.descripcion === "Apartamento de demostración, sin tarifas todavía", "descripción");
+            client.assert(JSON.stringify(response.body.dotacion) === JSON.stringify(["Nevera", "Wi-Fi"]), "dotación en su orden");
+            client.assert(JSON.stringify(response.body.caracteristicas) === JSON.stringify(["VISTA_PANORAMICA"]), "características");
+        } else {
+            client.assert(response.body.mensaje.indexOf("Ya existe un apartamento") === 0, "mensaje: " + response.body.mensaje);
+        }
+    });
+%}
 
 ###
 # 3.15b [409 · 7.4] Activarlo sin tarifas completas -> 409
 PUT {{host}}/api/apartamentos/DEMO-SIN-TARIFAS/activar
 Authorization: Bearer {{tokenAdmin}}
 
+
+> {%
+    client.test("3.15b [409 · 7.4] Activarlo sin tarifas completas", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede activar el apartamento: faltan tarifas para las temporadas ALTA, BASE, MEDIA"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 3.16 [409 · L-04] Identificación de apartamento repetida -> 409
 POST {{host}}/api/apartamentos
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
-{"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Otro nombre", "dormitorios": 1, "capacidad": 2}
+{"identificacion": "DEMO-SIN-TARIFAS", "nombre": "Otro nombre", "descripcion": "Otra descripción", "dormitorios": 1, "capacidad": 2}
+
+> {%
+    client.test("3.16 la identificación repetida se rechaza por la regla L-04", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "Ya existe un apartamento con la identificación DEMO-SIN-TARIFAS",
+            "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 3.16b [409 · L-06] Dotación con un elemento repetido (sin importar mayúsculas) -> 409 y no se crea
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "identificacion": "DEMO-DOTACION-REPETIDA",
+  "nombre": "Dotación repetida",
+  "descripcion": "No debería crearse",
+  "dormitorios": 1,
+  "capacidad": 2,
+  "dotacion": ["Nevera", "nevera"]
+}
+
+> {%
+    client.test("3.16b la dotación repetida viola la regla del dominio", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "La dotación no puede repetir elementos: nevera", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 3.16c [400 · L-06] Crear un apartamento sin descripción -> 400 con el campo en "errores"
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"identificacion": "DEMO-SIN-DESCRIPCION", "nombre": "Sin descripción", "dormitorios": 1, "capacidad": 2}
+
+> {%
+    client.test("3.16c falta la descripción: error de forma por campo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.errores.descripcion === "La descripción del apartamento es obligatoria",
+            "errores: " + JSON.stringify(response.body.errores));
+    });
+%}
+
+### 3.16d [400 · L-06] Una característica fuera del catálogo al crear -> 400
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"identificacion": "DEMO-PISCINA", "nombre": "Con piscina", "descripcion": "D", "dormitorios": 1, "capacidad": 2, "caracteristicas": ["PISCINA"]}
+
+> {%
+    client.test("3.16d PISCINA no está en el catálogo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+    });
+%}
+
+### 3.16e [L-06] Editar el apartamento de demostración: la dotación y las características se reemplazan -> 200
+PUT {{host}}/api/apartamentos/DEMO-SIN-TARIFAS
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{
+  "nombre": "Apartamento de prueba editado",
+  "descripcion": "Descripción editada",
+  "dormitorios": 2,
+  "capacidad": 3,
+  "dotacion": ["Lavadora"],
+  "caracteristicas": ["VISTA_PANORAMICA", "JACUZZI"]
+}
+
+> {%
+    client.test("3.16e la edición reemplaza descripción, dotación y características", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.descripcion === "Descripción editada", "descripción");
+        client.assert(JSON.stringify(response.body.dotacion) === JSON.stringify(["Lavadora"]), "dotación: " + response.body.dotacion);
+        client.assert(response.body.caracteristicas.length === 2
+            && response.body.caracteristicas.indexOf("JACUZZI") >= 0
+            && response.body.caracteristicas.indexOf("VISTA_PANORAMICA") >= 0, "características: " + response.body.caracteristicas);
+        client.assert(response.body.activo === false, "sigue inactivo: la edición no lo activa");
+    });
+%}
+
+### 3.16f [403 · L-06] Un huésped intenta crear un apartamento -> 403
+POST {{host}}/api/apartamentos
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{"identificacion": "DEMO-403", "nombre": "No debería crearse", "descripcion": "D", "dormitorios": 1, "capacidad": 2}
+
+> {%
+    client.test("3.16f el rol HUESPED no crea apartamentos", function () {
+        client.assert(response.status === 403, "código " + response.status);
+    });
+%}
 
 ### 3.17 [409 · 7.4] Tarifa para una temporada que no existe -> 409
 PUT {{host}}/api/apartamentos/{{apt}}/tarifas/TEMPORADA-INEXISTENTE
@@ -491,12 +1378,32 @@ Content-Type: application/json
 
 {"valorPorOcupanteNoche": 100000}
 
+> {%
+    client.test("3.17 [409 · 7.4] Tarifa para una temporada que no existe", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La temporada TEMPORADA-INEXISTENTE no existe"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.18 [409 · 7.4] Una segunda temporada base -> 409
 POST {{host}}/api/temporadas
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"nombre": "OTRA-BASE", "base": true}
+
+> {%
+    client.test("3.18 [409 · 7.4] Una segunda temporada base", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Debe existir exactamente una temporada base"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.19 [409 · 7.4] Temporada cuyos periodos se solapan entre sí -> 409
 POST {{host}}/api/temporadas
@@ -512,12 +1419,32 @@ Content-Type: application/json
   ]
 }
 
+> {%
+    client.test("3.19 [409 · 7.4] Temporada cuyos periodos se solapan entre sí", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Los periodos de la temporada TEMPORADA-ERRONEA no pueden solaparse"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.20 [409 · L-10] Política de cancelación con un solo tramo (se exigen al menos dos) -> 409
 POST {{host}}/api/politicas-cancelacion
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"vigenteDesde": "2030-01-01", "tramos": [{"horasAntelacionMinima": 0, "porcentajeRetencion": 100}]}
+
+> {%
+    client.test("3.20 [409 · L-10] Política de cancelación con un solo tramo (se exigen al menos dos)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La política de cancelación requiere al menos dos tramos"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.21 [409 · F-07] Nueva versión de la política con una fecha anterior a la versión vigente -> 409
 POST {{host}}/api/politicas-cancelacion
@@ -532,6 +1459,16 @@ Content-Type: application/json
   ]
 }
 
+> {%
+    client.test("3.21 [409 · F-07] Nueva versión de la política con una fecha anterior a la versión vigente", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La nueva versión debe regir desde una fecha posterior al"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.22 CU-04 [RN-14] Cambiar la reserva C de apartamento (misma estancia): se revalida y se recotiza contra el destino -> 200
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
 Authorization: Bearer {{tokenRecepcion}}
@@ -545,18 +1482,52 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
 
-### 3.23 [409 · RN-14 + RN-07] Cambiar de apartamento hacia noches con bloqueo vigente -> 409
+> {%
+    client.test("3.22 CU-04 [RN-14] Cambiar la reserva C de apartamento (misma estancia): se revalida y se recotiza contra e...", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "DIRECTO", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-102", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Carlos Vega", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
+
+### 3.23 [409 · RN-14 + RN-07] Cambiar de apartamento hacia noches con bloqueo vigente (10 al 13 de julio, 3 noches) -> 409 por el bloqueo
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{aptBloqueo}}",
-  "fechaEntrada": "2028-07-11",
-  "fechaSalida": "2028-07-12",
+  "fechaEntrada": "2028-07-10",
+  "fechaSalida": "2028-07-13",
   "autor": "Carlos Vega",
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
+
+> {%
+    client.test("3.23 el 409 es por el bloqueo vigente (RN-07), no por la estancia mínima (RP-01)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "El apartamento tiene un bloqueo vigente en las fechas solicitadas: Mantenimiento de la cocina",
+            "mensaje: " + response.body.mensaje);
+        client.assert(response.body.mensaje.indexOf("estancia mínima") < 0, "no debe ser la regla RP-01");
+    });
+%}
 
 ### 3.24 [404 · RN-14] Cambiar de apartamento hacia uno que no existe -> 404
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
@@ -570,6 +1541,16 @@ Content-Type: application/json
   "autor": "Carlos Vega",
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
+
+> {%
+    client.test("3.24 [404 · RN-14] Cambiar de apartamento hacia uno que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se encontró el apartamento con identificación: NO-EXISTE"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.26 CU-03 [RN-19] Crear una reserva del canal externo con su identificador -> 201 + Location
 # Si la app no se reinició desde una corrida anterior, el identificador ya existe y responde 409 por RN-19.
@@ -587,6 +1568,32 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9600", "nombre": "Paula Nieto", "fechaNacimiento": "1985-04-04"}]
 }
 
+> {%
+    client.test("3.26 CU-03 [RN-19] Crear una reserva del canal externo con su identificador", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "EXTERNO", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(typeof response.body.identificadorExterno === "string", "identificadorExterno debe ser string");
+        client.assert(response.body.identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 2, "noches: " + response.body.noches);
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Paula Nieto", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
+
 ### 3.27 [409 · RN-19] El mismo mensaje del canal recibido dos veces no crea otra reserva -> 409
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenAdmin}}
@@ -601,6 +1608,16 @@ Content-Type: application/json
   "titular": {"documento": "CC-9600", "nombre": "Paula Nieto", "fechaNacimiento": "1985-04-04"},
   "ocupantes": [{"documento": "CC-9600", "nombre": "Paula Nieto", "fechaNacimiento": "1985-04-04"}]
 }
+
+> {%
+    client.test("3.27 [409 · RN-19] El mismo mensaje del canal recibido dos veces no crea otra reserva", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El mensaje ya fue recibido: el canal EXTERNO con el identificador BKG-"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.28 [409 · RN-18 + RN-01] Otra reserva externa sobre las mismas noches: se rechaza y no toca la vigente -> 409
 POST {{host}}/api/reservas
@@ -617,10 +1634,36 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9601", "nombre": "Mario Rojas", "fechaNacimiento": "1983-08-08"}]
 }
 
+> {%
+    client.test("3.28 [409 · RN-18 + RN-01] Otra reserva externa sobre las mismas noches: se rechaza y no toca la vigente", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("El apartamento ya tiene una reserva activa que solapa esas noches"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.29 [RN-18] El rechazo quedó registrado (más reciente primero) -> 200
 GET {{host}}/api/reservas-externas/rechazos
 Authorization: Bearer {{tokenAdmin}}
 
+
+> {%
+    client.test("3.29 [RN-18] El rechazo quedó registrado (más reciente primero)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(response.body.contenido[0].canalOrigen === "EXTERNO", "canalOrigen: " + response.body.contenido[0].canalOrigen);
+        client.assert(typeof response.body.contenido[0].identificadorExterno === "string", "identificadorExterno debe ser string");
+        client.assert(response.body.contenido[0].identificacionApartamento === "APT-101", "identificacionApartamento: " + response.body.contenido[0].identificacionApartamento);
+        client.assert(typeof response.body.contenido[0].fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.contenido[0].fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(typeof response.body.contenido[0].motivo === "string", "motivo debe ser string");
+    });
+%}
 ### 3.30 [409 · RN-19] Una reserva del canal externo sin identificador -> 409
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenAdmin}}
@@ -634,6 +1677,16 @@ Content-Type: application/json
   "titular": {"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"},
   "ocupantes": [{"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"}]
 }
+
+> {%
+    client.test("3.30 [409 · RN-19] Una reserva del canal externo sin identificador", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Una reserva del canal EXTERNO debe traer su identificador externo"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.31 [409 · RN-19] Un canal que no es externo no lleva identificador externo -> 409
 POST {{host}}/api/reservas
@@ -650,6 +1703,16 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"}]
 }
 
+> {%
+    client.test("3.31 [409 · RN-19] Un canal que no es externo no lleva identificador externo", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Una reserva del canal DIRECTO no lleva identificador externo"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 3.32 [400] Identificador externo de más de 60 caracteres
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenAdmin}}
@@ -665,6 +1728,16 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9602", "nombre": "Rosa Pardo", "fechaNacimiento": "1990-01-01"}]
 }
 
+> {%
+    client.test("3.32 [400] Identificador externo de más de 60 caracteres", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["identificadorExterno"] !== undefined, "falta el error del campo identificadorExterno");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 # 3.33 El cierre de folio (RN-17, CU-11), el registro de llegada (RN-10) y de salida (7.6), el no-show y el estado
 # operativo (RN-11) se ejecutan en la PARTE 5, al final de este archivo.
 
@@ -679,12 +1752,37 @@ Content-Type: application/json
 
 {}
 
+> {%
+    client.test("4.1 [400] Cuerpo vacío al crear una reserva: devuelve un error por campo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["canalOrigen"] !== undefined, "falta el error del campo canalOrigen");
+        client.assert(response.body.errores && response.body.errores["identificacionApartamento"] !== undefined, "falta el error del campo identificacionApartamento");
+        client.assert(response.body.errores && response.body.errores["ocupantes"] !== undefined, "falta el error del campo ocupantes");
+        client.assert(response.body.errores && response.body.errores["titular"] !== undefined, "falta el error del campo titular");
+        client.assert(response.body.errores && response.body.errores["fechaEntrada"] !== undefined, "falta el error del campo fechaEntrada");
+        client.assert(response.body.errores && response.body.errores["fechaSalida"] !== undefined, "falta el error del campo fechaSalida");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 4.2 [400] JSON mal formado
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {esto no es json
+
+> {%
+    client.test("4.2 [400] JSON mal formado", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene un formato inválido: revise el JSON, las fechas (AAAA-MM-DD) y los valor"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 4.3 [400] Canal de origen inexistente
 POST {{host}}/api/reservas
@@ -698,10 +1796,30 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-1", "nombre": "X", "fechaNacimiento": "1990-01-01"}]
 }
 
+> {%
+    client.test("4.3 [400] Canal de origen inexistente", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene un formato inválido: revise el JSON, las fechas (AAAA-MM-DD) y los valor"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 4.4 [400] Número de página negativo
 GET {{host}}/api/reservas?pagina=-1
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("4.4 [400] Número de página negativo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["pagina"] !== undefined, "falta el error del campo pagina");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 4.5 [400] Pago con valor cero y sin medio
 POST {{host}}/api/reservas/{{codigoB}}/folio/pagos
 Authorization: Bearer {{tokenRecepcion}}
@@ -709,10 +1827,31 @@ Content-Type: application/json
 
 {"fecha": "2026-11-02", "valor": 0}
 
+> {%
+    client.test("4.5 [400] Pago con valor cero y sin medio", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["medio"] !== undefined, "falta el error del campo medio");
+        client.assert(response.body.errores && response.body.errores["valor"] !== undefined, "falta el error del campo valor");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 4.6 [404] Reserva inexistente
 GET {{host}}/api/reservas/RES-2099-99999
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("4.6 [404] Reserva inexistente", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se encontró la reserva con código"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 4.7 [404] Apartamento inexistente al cotizar
 POST {{host}}/api/cotizaciones
 Authorization: Bearer {{tokenRecepcion}}
@@ -725,14 +1864,44 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9001", "nombre": "Ana Ramírez", "fechaNacimiento": "1990-05-12"}]
 }
 
+> {%
+    client.test("4.7 [404] Apartamento inexistente al cotizar", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se encontró el apartamento con identificación: APT-NO-EXISTE"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 4.8 [404] Folio de una reserva inexistente
 GET {{host}}/api/reservas/RES-2099-99999/folio
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("4.8 [404] Folio de una reserva inexistente", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se encontró el folio de la reserva"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 4.9 [404] Versión de la política que no existe
 GET {{host}}/api/politicas-cancelacion/9999
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("4.9 [404] Versión de la política que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se encontró la política de cancelación (versión"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 # =====================================================================================================
 # PARTE 5 · OPERACIÓN DIARIA (llegada, salida, no-show, cierre de folio y estado operativo)
 #
@@ -749,12 +1918,32 @@ Content-Type: application/json
 
 {"autor": "Recepción"}
 
+> {%
+    client.test("5.1 [409 · RN-10] Registrar la llegada antes de la fecha de entrada (reserva B es de 2028)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede registrar la llegada antes de la fecha de entrada"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 5.2 [409 · 7.6] Registrar la salida de una reserva que no está EN_CURSO y con el folio sin cerrar -> 409
 PUT {{host}}/api/reservas/{{codigoB}}/registrar-salida
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"autor": "Recepción"}
+
+> {%
+    client.test("5.2 [409 · 7.6] Registrar la salida de una reserva que no está EN_CURSO y con el folio sin cerrar", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede registrar la salida: el folio debe cerrarse primero (un folio con saldo pendie"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 5.3 [409 · hora límite] Declarar no-show antes de la hora límite del día de entrada -> 409
 PUT {{host}}/api/reservas/{{codigoB}}/declarar-no-show
@@ -763,12 +1952,32 @@ Content-Type: application/json
 
 {"autor": "Sistema"}
 
+> {%
+    client.test("5.3 [409 · hora límite] Declarar no-show antes de la hora límite del día de entrada", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede declarar no-show antes de la hora límite del día de entrada"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 5.4 [400] Operación de la reserva sin indicar el autor
 PUT {{host}}/api/reservas/{{codigoB}}/registrar-llegada
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {}
+
+> {%
+    client.test("5.4 [400] Operación de la reserva sin indicar el autor", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["autor"] !== undefined, "falta el error del campo autor");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 5.5 [409 · RN-17] Cerrar un folio con saldo pendiente SIN autorización (reserva C no ha pagado nada) -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
@@ -777,12 +1986,32 @@ Content-Type: application/json
 
 {}
 
+> {%
+    client.test("5.5 [409 · RN-17] Cerrar un folio con saldo pendiente SIN autorización (reserva C no ha pagado nada)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede cerrar un folio con saldo pendiente sin autorización registrada"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 5.6 [409 · RN-17] Autorización incompleta: falta el motivo -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
 Authorization: Bearer {{tokenAdmin}}
 Content-Type: application/json
 
 {"autorizadoPor": "Administración"}
+
+> {%
+    client.test("5.6 [409 · RN-17] Autorización incompleta: falta el motivo", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede cerrar un folio con saldo pendiente sin autorización registrada"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 5.7 CU-11 Cerrar el folio con saldo pendiente CON la autorización del administrador (queda registrada) -> 200
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
@@ -791,16 +2020,54 @@ Content-Type: application/json
 
 {"autorizadoPor": "Administración", "motivo": "El huésped pagará el saldo por transferencia"}
 
+> {%
+    client.test("5.7 CU-11 Cerrar el folio con saldo pendiente CON la autorización del administrador (queda registrada)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.codigoReserva === "string", "codigoReserva debe ser string");
+        client.assert(Array.isArray(response.body.cargos), "cargos debe ser una lista");
+        client.assert(Array.isArray(response.body.ajustes), "ajustes debe ser una lista");
+        client.assert(Array.isArray(response.body.pagos), "pagos debe ser una lista");
+        client.assert(typeof response.body.saldo === "number", "saldo debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.cerrado === true, "cerrado: " + response.body.cerrado);
+        client.assert(typeof response.body.autorizacionCierre === "string", "autorizacionCierre debe ser string");
+    });
+%}
+
 ### 5.8 El folio quedó cerrado y la autorización aparece en la respuesta -> 200
 GET {{host}}/api/reservas/{{codigoC}}/folio
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("5.8 El folio quedó cerrado y la autorización aparece en la respuesta", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.codigoReserva === "string", "codigoReserva debe ser string");
+        client.assert(Array.isArray(response.body.cargos), "cargos debe ser una lista");
+        client.assert(Array.isArray(response.body.ajustes), "ajustes debe ser una lista");
+        client.assert(Array.isArray(response.body.pagos), "pagos debe ser una lista");
+        client.assert(typeof response.body.saldo === "number", "saldo debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.cerrado === true, "cerrado: " + response.body.cerrado);
+        client.assert(typeof response.body.autorizacionCierre === "string", "autorizacionCierre debe ser string");
+    });
+%}
 ### 5.9 [409 · folio cerrado] Registrar un pago sobre un folio cerrado -> 409
 POST {{host}}/api/reservas/{{codigoC}}/folio/pagos
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"medio": "EFECTIVO", "fecha": "2026-11-02", "valor": 10000}
+
+> {%
+    client.test("5.9 [409 · folio cerrado] Registrar un pago sobre un folio cerrado", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Un folio cerrado no admite movimientos"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 5.10 [409] Cerrar un folio que ya está cerrado -> 409
 PUT {{host}}/api/reservas/{{codigoC}}/folio/cerrar
@@ -809,42 +2076,162 @@ Content-Type: application/json
 
 {"autorizadoPor": "Administración", "motivo": "Otra vez"}
 
+> {%
+    client.test("5.10 [409] Cerrar un folio que ya está cerrado", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Un folio cerrado no admite movimientos"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 5.11 [409 · RN-11] Iniciar la preparación de un apartamento que ya está PREPARADO -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/iniciar-preparacion
 Authorization: Bearer {{tokenServicio}}
 
+
+> {%
+    client.test("5.11 [409 · RN-11] Iniciar la preparación de un apartamento que ya está PREPARADO", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede pasar de PREPARADO a EN_PREPARACION"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 5.12 [409] Marcar como preparado un apartamento que no está EN_PREPARACION -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/marcar-preparado
 Authorization: Bearer {{tokenServicio}}
 
+
+> {%
+    client.test("5.12 [409] Marcar como preparado un apartamento que no está EN_PREPARACION", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede pasar de PREPARADO a PREPARADO"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 5.13 [409] Reincorporar un apartamento que no está fuera de servicio -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/reincorporar
 Authorization: Bearer {{tokenAdmin}}
 
+
+> {%
+    client.test("5.13 [409] Reincorporar un apartamento que no está fuera de servicio", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Solo se reincorpora un apartamento que está fuera de servicio"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 5.14 Declarar el apartamento fuera de servicio (decisión administrativa) -> 200 FUERA_DE_SERVICIO
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/declarar-fuera-de-servicio
 Authorization: Bearer {{tokenAdmin}}
 
+
+> {%
+    client.test("5.14 Declarar el apartamento fuera de servicio (decisión administrativa)", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.identificacion === "APT-102", "identificacion: " + response.body.identificacion);
+        client.assert(response.body.nombre === "Apartamento 102 - Terraza", "nombre: " + response.body.nombre);
+        client.assert(typeof response.body.descripcion === "string", "descripcion debe ser string");
+        client.assert(typeof response.body.dormitorios === "number", "dormitorios debe ser number");
+        client.assert(typeof response.body.capacidad === "number", "capacidad debe ser number");
+        client.assert(Array.isArray(response.body.dotacion), "dotacion debe ser una lista");
+        client.assert(Array.isArray(response.body.caracteristicas), "caracteristicas debe ser una lista");
+        client.assert(response.body.estadoOperativo === "FUERA_DE_SERVICIO", "estadoOperativo: " + response.body.estadoOperativo);
+        client.assert(response.body.activo === true, "activo: " + response.body.activo);
+    });
+%}
 ### 5.15 [409] Declararlo fuera de servicio otra vez -> 409
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/declarar-fuera-de-servicio
 Authorization: Bearer {{tokenAdmin}}
 
+
+> {%
+    client.test("5.15 [409] Declararlo fuera de servicio otra vez", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se puede pasar de FUERA_DE_SERVICIO a FUERA_DE_SERVICIO"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 5.16 Reincorporarlo al servicio -> 200 PENDIENTE_PREPARACION
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/reincorporar
 Authorization: Bearer {{tokenAdmin}}
 
+
+> {%
+    client.test("5.16 Reincorporarlo al servicio", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.identificacion === "APT-102", "identificacion: " + response.body.identificacion);
+        client.assert(response.body.nombre === "Apartamento 102 - Terraza", "nombre: " + response.body.nombre);
+        client.assert(typeof response.body.descripcion === "string", "descripcion debe ser string");
+        client.assert(typeof response.body.dormitorios === "number", "dormitorios debe ser number");
+        client.assert(typeof response.body.capacidad === "number", "capacidad debe ser number");
+        client.assert(Array.isArray(response.body.dotacion), "dotacion debe ser una lista");
+        client.assert(Array.isArray(response.body.caracteristicas), "caracteristicas debe ser una lista");
+        client.assert(response.body.estadoOperativo === "PENDIENTE_PREPARACION", "estadoOperativo: " + response.body.estadoOperativo);
+        client.assert(response.body.activo === true, "activo: " + response.body.activo);
+    });
+%}
 ### 5.17 CU-10 El personal de servicio inicia la preparación -> 200 EN_PREPARACION
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/iniciar-preparacion
 Authorization: Bearer {{tokenServicio}}
 
+
+> {%
+    client.test("5.17 CU-10 El personal de servicio inicia la preparación", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.identificacion === "APT-102", "identificacion: " + response.body.identificacion);
+        client.assert(response.body.nombre === "Apartamento 102 - Terraza", "nombre: " + response.body.nombre);
+        client.assert(typeof response.body.descripcion === "string", "descripcion debe ser string");
+        client.assert(typeof response.body.dormitorios === "number", "dormitorios debe ser number");
+        client.assert(typeof response.body.capacidad === "number", "capacidad debe ser number");
+        client.assert(Array.isArray(response.body.dotacion), "dotacion debe ser una lista");
+        client.assert(Array.isArray(response.body.caracteristicas), "caracteristicas debe ser una lista");
+        client.assert(response.body.estadoOperativo === "EN_PREPARACION", "estadoOperativo: " + response.body.estadoOperativo);
+        client.assert(response.body.activo === true, "activo: " + response.body.activo);
+    });
+%}
 ### 5.18 CU-10 ...y lo marca como preparado: queda listo para recibir un grupo -> 200 PREPARADO
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/marcar-preparado
 Authorization: Bearer {{tokenServicio}}
 
+
+> {%
+    client.test("5.18 CU-10 ...y lo marca como preparado: queda listo para recibir un grupo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.identificacion === "APT-102", "identificacion: " + response.body.identificacion);
+        client.assert(response.body.nombre === "Apartamento 102 - Terraza", "nombre: " + response.body.nombre);
+        client.assert(typeof response.body.descripcion === "string", "descripcion debe ser string");
+        client.assert(typeof response.body.dormitorios === "number", "dormitorios debe ser number");
+        client.assert(typeof response.body.capacidad === "number", "capacidad debe ser number");
+        client.assert(Array.isArray(response.body.dotacion), "dotacion debe ser una lista");
+        client.assert(Array.isArray(response.body.caracteristicas), "caracteristicas debe ser una lista");
+        client.assert(response.body.estadoOperativo === "PREPARADO", "estadoOperativo: " + response.body.estadoOperativo);
+        client.assert(response.body.activo === true, "activo: " + response.body.activo);
+    });
+%}
 ### 5.19 [404] Estado operativo de un apartamento inexistente
 PUT {{host}}/api/apartamentos/APT-NO-EXISTE/estado-operativo/iniciar-preparacion
 Authorization: Bearer {{tokenServicio}}
 
+
+> {%
+    client.test("5.19 [404] Estado operativo de un apartamento inexistente", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se encontró el apartamento con identificación: APT-NO-EXISTE"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 # =====================================================================================================
 # PARTE 6 · SEGURIDAD: 401 FRENTE A 403, ROL Y PROPIETARIO (Guía 12, sección 9, casos 3 a 14)
 #
@@ -859,11 +2246,30 @@ Content-Type: application/json
 
 {"correo": "recepcion@sga.local", "contrasena": "Recepcion2026"}
 
+> {%
+    client.test("6.3 [caso 3] Login correcto", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tipo === "Bearer", "tipo: " + response.body.tipo);
+        client.assert(typeof response.body.expiraEn === "string", "expiraEn debe ser string");
+        client.assert(Array.isArray(response.body.roles), "roles debe ser una lista");
+    });
+%}
+
 ### 6.4 [caso 4 · 401] Contraseña errada -> 401 con ErrorResponse y mensaje "Credenciales inválidas"
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
 {"correo": "recepcion@sga.local", "contrasena": "Equivocada2026"}
+
+> {%
+    client.test("6.4 [caso 4 · 401] Contraseña errada", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Credenciales inválidas"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 6.4b [401] Correo inexistente: el MISMO mensaje genérico (no revela qué correos existen)
 POST {{host}}/api/auth/login
@@ -871,41 +2277,156 @@ Content-Type: application/json
 
 {"correo": "nadie@sga.local", "contrasena": "Cualquiera2026"}
 
+> {%
+    client.test("6.4b [401] Correo inexistente: el MISMO mensaje genérico (no revela qué correos existen)", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Credenciales inválidas"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.5 [caso 5 · 400] Correo sin formato -> 400 con el campo "correo" en errores
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
 {"correo": "esto-no-es-un-correo", "contrasena": "Recepcion2026"}
 
+> {%
+    client.test("6.5 [caso 5 · 400] Correo sin formato", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["correo"] !== undefined, "falta el error del campo correo");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.6 [caso 6 · 401] Listar reservas SIN token -> 401 (encabezado WWW-Authenticate: Bearer y ErrorResponse)
 GET {{host}}/api/reservas?estado=PENDIENTE
 
+
+> {%
+    client.test("6.6 [caso 6 · 401] Listar reservas SIN token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Se requiere un token válido: inicie sesión y envíe el encabezado Authorization: Bearer <to"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.7 [caso 7 · 403] Un huésped intenta listar las reservas de todos -> 403 con ErrorResponse
 GET {{host}}/api/reservas?estado=PENDIENTE
 Authorization: Bearer {{tokenHuesped1}}
 
+
+> {%
+    client.test("6.7 [caso 7 · 403] Un huésped intenta listar las reservas de todos", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.8 [caso 8] Recepción lista las reservas pendientes -> 200. Guarda el código de la reserva de la huésped 1
 GET {{host}}/api/reservas?titular=1094000111
 Authorization: Bearer {{tokenRecepcion}}
 
-> {% client.global.set("codigoHuesped1", response.body.contenido[0].codigo); %}
+> {%
+    client.test("6.8 [caso 8] Recepción lista las reservas pendientes", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(typeof response.body.totalElementos === "number" && typeof response.body.totalPaginas === "number", "totales");
+        client.assert(response.body.contenido.length > 0, "la página no debe estar vacía");
+        client.assert(response.body.contenido[0].estado === "PENDIENTE", "estado: " + response.body.contenido[0].estado);
+        client.assert(response.body.contenido[0].canalOrigen === "PORTAL", "canalOrigen: " + response.body.contenido[0].canalOrigen);
+        client.assert(response.body.contenido[0].identificacionApartamento === "APT-201", "identificacionApartamento: " + response.body.contenido[0].identificacionApartamento);
+        client.assert(typeof response.body.contenido[0].fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.contenido[0].fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(typeof response.body.contenido[0].nombreTitular === "string", "nombreTitular debe ser string");
+        client.assert(typeof response.body.contenido[0].totalOcupantes === "number", "totalOcupantes debe ser number");
+        client.assert(typeof response.body.contenido[0].valorTotal === "number", "valorTotal debe ser number");
+    });
+    client.global.set("codigoHuesped1", response.body.contenido[0].codigo);
+%}
 
 ### 6.9 [caso 9] La huésped 1 consulta SU reserva -> 200
 GET {{host}}/api/reservas/{{codigoHuesped1}}
 Authorization: Bearer {{tokenHuesped1}}
 
+
+> {%
+    client.test("6.9 [caso 9] La huésped 1 consulta SU reserva", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.canalOrigen === "PORTAL", "canalOrigen: " + response.body.canalOrigen);
+        client.assert(response.body.identificacionApartamento === "APT-201", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(typeof response.body.fechaEntrada === "string", "fechaEntrada debe ser string");
+        client.assert(typeof response.body.fechaSalida === "string", "fechaSalida debe ser string");
+        client.assert(response.body.noches === 3, "noches: " + response.body.noches);
+        client.assert(typeof response.body.titular === "object" && response.body.titular !== null, "titular debe ser un objeto");
+        client.assert(typeof response.body.titular.documento === "string", "documento debe ser string");
+        client.assert(response.body.titular.nombre === "Titular 1094000111", "nombre: " + response.body.titular.nombre);
+        client.assert(typeof response.body.titular.fechaNacimiento === "string", "fechaNacimiento debe ser string");
+        client.assert(Array.isArray(response.body.ocupantes), "ocupantes debe ser una lista");
+        client.assert(typeof response.body.valorTotal === "number", "valorTotal debe ser number");
+        client.assert(typeof response.body.subtotalBruto === "number", "subtotalBruto debe ser number");
+        client.assert(typeof response.body.porcentajeDescuento === "number", "porcentajeDescuento debe ser number");
+        client.assert(typeof response.body.descuento === "number", "descuento debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(Array.isArray(response.body.desglose), "desglose debe ser una lista");
+        client.assert(typeof response.body.versionPolitica === "number", "versionPolitica debe ser number");
+        client.assert(Array.isArray(response.body.historial), "historial debe ser una lista");
+    });
+%}
 ### 6.9b La huésped 1 consulta el folio de SU reserva -> 200
 GET {{host}}/api/reservas/{{codigoHuesped1}}/folio
 Authorization: Bearer {{tokenHuesped1}}
 
+
+> {%
+    client.test("6.9b La huésped 1 consulta el folio de SU reserva", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(typeof response.body.codigoReserva === "string", "codigoReserva debe ser string");
+        client.assert(Array.isArray(response.body.cargos), "cargos debe ser una lista");
+        client.assert(Array.isArray(response.body.ajustes), "ajustes debe ser una lista");
+        client.assert(Array.isArray(response.body.pagos), "pagos debe ser una lista");
+        client.assert(typeof response.body.saldo === "number", "saldo debe ser number");
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.cerrado === false, "cerrado: " + response.body.cerrado);
+    });
+%}
 ### 6.10 [caso 10 · 403] El huésped 2 intenta ver la reserva de la huésped 1 (mismo rol, otro propietario) -> 403
 GET {{host}}/api/reservas/{{codigoHuesped1}}
 Authorization: Bearer {{tokenHuesped2}}
 
+
+> {%
+    client.test("6.10 [caso 10 · 403] El huésped 2 intenta ver la reserva de la huésped 1 (mismo rol, otro propietario)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.10b [403] ...ni su folio
 GET {{host}}/api/reservas/{{codigoHuesped1}}/folio
 Authorization: Bearer {{tokenHuesped2}}
 
+
+> {%
+    client.test("6.10b [403] ...ni su folio", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.10c [403] ...ni cancelarla
 PUT {{host}}/api/reservas/{{codigoHuesped1}}/cancelar
 Authorization: Bearer {{tokenHuesped2}}
@@ -913,14 +2434,44 @@ Content-Type: application/json
 
 {"motivo": "Intento de cancelar una reserva ajena", "autor": "Andres Rios"}
 
+> {%
+    client.test("6.10c [403] ...ni cancelarla", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.10d [403] Para un huésped, una reserva inexistente también es 403 (no se revela qué códigos existen)
 GET {{host}}/api/reservas/RES-2099-99999
 Authorization: Bearer {{tokenHuesped2}}
 
+
+> {%
+    client.test("6.10d [403] Para un huésped, una reserva inexistente también es 403 (no se revela qué códigos existen)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.11 [caso 11 · 404] Recepción consulta una reserva que no existe -> 404
 GET {{host}}/api/reservas/RES-2099-99999
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("6.11 [caso 11 · 404] Recepción consulta una reserva que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No se encontró la reserva con código"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.12 [caso 12 · 403] El personal de servicio intenta confirmar una reserva -> 403
 PUT {{host}}/api/reservas/{{codigoHuesped1}}/confirmar
 Authorization: Bearer {{tokenServicio}}
@@ -928,16 +2479,46 @@ Content-Type: application/json
 
 {"horaEstimadaLlegada": "16:00", "autor": "Servicio"}
 
+> {%
+    client.test("6.12 [caso 12 · 403] El personal de servicio intenta confirmar una reserva", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.12b [403] El personal de servicio no declara un apartamento FUERA_DE_SERVICIO (decisión administrativa, 7.1)
 PUT {{host}}/api/apartamentos/{{aptBloqueo}}/estado-operativo/declarar-fuera-de-servicio
 Authorization: Bearer {{tokenServicio}}
 
+
+> {%
+    client.test("6.12b [403] El personal de servicio no declara un apartamento FUERA_DE_SERVICIO (decisión administrativa, 7.1)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.12c [403] Recepción no gestiona temporadas (solo el administrador)
 POST {{host}}/api/temporadas
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {"nombre": "PRUEBA-403", "base": false, "periodos": [{"desde": "2029-01-01", "hasta": "2029-01-31"}]}
+
+> {%
+    client.test("6.12c [403] Recepción no gestiona temporadas (solo el administrador)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 6.12d [403] Recepción no autoriza el cierre de un folio con saldo pendiente: solo el administrador (CU-11)
 PUT {{host}}/api/reservas/{{codigoHuesped1}}/folio/cerrar
@@ -946,14 +2527,44 @@ Content-Type: application/json
 
 {"autorizadoPor": "Recepción", "motivo": "Intento sin ser administrador"}
 
+> {%
+    client.test("6.12d [403] Recepción no autoriza el cierre de un folio con saldo pendiente: solo el administrador (CU-11)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.13 [caso 13 · 401] Token modificado a mano (se altera la firma) -> 401
 GET {{host}}/api/reservas?estado=PENDIENTE
 Authorization: Bearer {{tokenRecepcion}}x
 
+
+> {%
+    client.test("6.13 [caso 13 · 401] Token modificado a mano (se altera la firma)", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Se requiere un token válido: inicie sesión y envíe el encabezado Authorization: Bearer <to"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.13b [401] Token SIN firma ("alg":"none") que se declara ADMINISTRADOR: el algoritmo está fijo en HS256 -> 401
 GET {{host}}/api/reservas?estado=PENDIENTE
 Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJzZ2EiLCJzdWIiOiJhdGFjYW50ZUBzZ2EubG9jYWwiLCJyb2xlcyI6WyJBRE1JTklTVFJBRE9SIl0sImV4cCI6NDEwMjQ0NDgwMH0.
 
+
+> {%
+    client.test("6.13b [401] Token SIN firma (\"alg\":\"none\") que se declara ADMINISTRADOR: el algoritmo está fijo en HS256", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Se requiere un token válido: inicie sesión y envíe el encabezado Authorization: Bearer <to"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 ### 6.14 [caso 14 · 401] Token vencido -> 401
 # El token dura 30 minutos (sga.jwt.expiracion-minutos). Para verlo vencer sin esperar: arrancar con
 #   gradlew.bat bootRun --args="--sga.jwt.expiracion-minutos=1"
@@ -962,6 +2573,12 @@ Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJzZ2EiLCJzdW
 GET {{host}}/api/reservas?estado=PENDIENTE
 Authorization: Bearer {{tokenRecepcion}}
 
+
+> {%
+    client.test("6.14 [caso 14 · 401] Token vencido", function () {
+        client.assert(response.status === 200 || response.status === 401, "código " + response.status + " (401 solo con el token vencido; ver el comentario del paso)");
+    });
+%}
 # ---------- Rol y canal (Guía 12, 7.5 punto 3) ----------
 
 ### 6.15 [403] La huésped 1 intenta reservar por el PORTAL a nombre de OTRA persona -> 403
@@ -979,6 +2596,16 @@ Content-Type: application/json
   "ocupantes": [{"documento": "1094000222", "nombre": "Andres Rios", "fechaNacimiento": "1988-09-12"}]
 }
 
+> {%
+    client.test("6.15 [403] La huésped 1 intenta reservar por el PORTAL a nombre de OTRA persona", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.16 [403] La huésped 1 intenta reservar por el canal DIRECTO (solo lo usa recepción) -> 403
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenHuesped1}}
@@ -993,6 +2620,16 @@ Content-Type: application/json
   "titular": {"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"},
   "ocupantes": [{"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"}]
 }
+
+> {%
+    client.test("6.16 [403] La huésped 1 intenta reservar por el canal DIRECTO (solo lo usa recepción)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 6.17 [403] Recepción intenta registrar una reserva por el PORTAL (el portal es del huésped) -> 403
 POST {{host}}/api/reservas
@@ -1009,20 +2646,39 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9301", "nombre": "Carlos Vélez", "fechaNacimiento": "1979-06-15"}]
 }
 
-### 6.18 La huésped 1 reserva por el PORTAL a su nombre -> 201
+> {%
+    client.test("6.17 [403] Recepción intenta registrar una reserva por el PORTAL (el portal es del huésped)", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("No tiene permiso para realizar esta operación"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 6.18 La huésped 1 reserva por el PORTAL a su nombre (20 al 23 de septiembre: el 10 al 12 ya lo ocupa la reserva externa de 3.26) -> 201
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenHuesped1}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{apt}}",
-  "fechaEntrada": "2028-09-10",
-  "fechaSalida": "2028-09-12",
+  "fechaEntrada": "2028-09-20",
+  "fechaSalida": "2028-09-23",
   "canalOrigen": "PORTAL",
   "horaEstimadaLlegada": "16:00",
   "titular": {"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"},
   "ocupantes": [{"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"}]
 }
+
+> {%
+    client.test("6.18 la huésped reserva por el PORTAL a su nombre", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.canalOrigen === "PORTAL", "canal: " + response.body.canalOrigen);
+        client.assert(response.body.titular.documento === "1094000111", "titular: " + response.body.titular.documento);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+    });
+%}
 
 # ---------- Registro público (Guía 12, 7.5 punto 2) ----------
 
@@ -1039,6 +2695,16 @@ Content-Type: application/json
   "fechaNacimiento": "1992-02-02"
 }
 
+> {%
+    client.test("6.19 [409] Registro con un correo ya registrado", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("Ya existe un usuario registrado con ese correo"), "mensaje: " + response.body.mensaje);
+        client.assert(!response.body.errores, "solo los 400 de validación llevan errores");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.20 [400] Registro con contraseña insegura (sin mayúscula ni número) y correo inválido -> 400 por campo
 POST {{host}}/api/auth/registro
 Content-Type: application/json
@@ -1052,8 +2718,673 @@ Content-Type: application/json
   "fechaNacimiento": "1992-02-02"
 }
 
+> {%
+    client.test("6.20 [400] Registro con contraseña insegura (sin mayúscula ni número) y correo inválido", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["contrasena"] !== undefined, "falta el error del campo contrasena");
+        client.assert(response.body.errores && response.body.errores["correo"] !== undefined, "falta el error del campo correo");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
 ### 6.21 [400] Registro sin los campos obligatorios -> 400 por campo
 POST {{host}}/api/auth/registro
 Content-Type: application/json
 
 {}
+
+> {%
+    client.test("6.21 [400] Registro sin los campos obligatorios", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.includes("La petición tiene datos inválidos"), "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores && response.body.errores["documento"] !== undefined, "falta el error del campo documento");
+        client.assert(response.body.errores && response.body.errores["contrasena"] !== undefined, "falta el error del campo contrasena");
+        client.assert(response.body.errores && response.body.errores["correo"] !== undefined, "falta el error del campo correo");
+        client.assert(response.body.errores && response.body.errores["fechaNacimiento"] !== undefined, "falta el error del campo fechaNacimiento");
+        client.assert(response.body.errores && response.body.errores["telefono"] !== undefined, "falta el error del campo telefono");
+        client.assert(response.body.errores && response.body.errores["nombre"] !== undefined, "falta el error del campo nombre");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+# =====================================================================================================
+# PARTE 7 · REGLAS PROPIAS (L-20) · aprobación del docente solicitada el 15-nov-2026
+#
+#   RP-01 Estancia mínima por temporada: si alguna noche cae en ALTA (3 noches) o MEDIA (2 noches), la estancia debe tener
+#         al menos ese número de noches. Aplica al cotizar, crear, modificar y buscar disponibilidad -> 409.
+#   RP-02 Descuento por estancia larga: desde 7 noches, 10 % sobre el total, aplicado una sola vez y congelado en la
+#         reserva. No rechaza: calcula distinto (se ve en el cuerpo de la cotización y de la reserva).
+#   RP-03 Adulto responsable: toda reserva incluye al menos un ocupante con 18 años o más a la fecha de entrada. Aplica al
+#         crear y al modificar -> 409. NO se valida al cotizar: la cotización calcula precio, la composición del grupo se
+#         exige al reservar (7.8).
+# Calendario de 2028: ALTA del 15-jun al 15-jul · MEDIA del 30-abr al 4-may · el resto es BASE. Tarifas de APT-101 por
+# ocupante facturable y noche: BASE 120.000 · ALTA 192.000. Todos los escenarios verifican el CUERPO.
+# =====================================================================================================
+
+### 7.1 [409 · RP-01] Cotizar UNA noche en temporada ALTA (11 al 12 de julio) -> 409
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-07-11",
+  "fechaSalida": "2028-07-12",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.1 una noche en ALTA viola la estancia mínima", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "En temporada ALTA la estancia mínima es de 3 noches", "mensaje: " + response.body.mensaje);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).indexOf("Exception") < 0,
+            "no debe devolver trazas técnicas");
+    });
+%}
+
+### 7.2 [409 · RP-01] Una estancia que cruza de BASE a ALTA con 2 noches (14 al 16 de junio): basta una noche en ALTA -> 409
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-06-14",
+  "fechaSalida": "2028-06-16",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.2 la noche del 15 de junio es ALTA y exige 3 noches", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "En temporada ALTA la estancia mínima es de 3 noches", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.3 [RP-01] Con exactamente 3 noches en ALTA la cotización funciona -> 200, 3 x 192.000 = 576.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-07-11",
+  "fechaSalida": "2028-07-14",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.3 tres noches en ALTA se cotizan a la tarifa de ALTA", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 3, "noches: " + response.body.noches);
+        client.assert(response.body.desglose.every(n => n.temporada === "ALTA"), "todas las noches deben ser ALTA");
+        client.assert(response.body.total === 576000, "total: " + response.body.total);
+        client.assert(response.body.porcentajeDescuento === 0, "no hay descuento con 3 noches");
+    });
+%}
+
+### 7.4 [409 · RP-01] Crear una reserva de UNA noche en temporada MEDIA (1 al 2 de mayo) -> 409
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-05-01",
+  "fechaSalida": "2028-05-02",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"},
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.4 una noche en MEDIA viola la estancia mínima al reservar", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "En temporada MEDIA la estancia mínima es de 2 noches", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.5 [409 · RP-03] Reserva cuyo único ocupante es un menor de 15 años (paga, pero no es adulto responsable) -> 409
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-20",
+  "fechaSalida": "2028-10-23",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"},
+  "ocupantes": [{"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"}]
+}
+
+> {%
+    client.test("7.5 un grupo sin adulto responsable no puede reservar", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "La reserva debe incluir al menos un ocupante mayor de 18 años", "mensaje: " + response.body.mensaje);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).indexOf("Exception") < 0,
+            "no debe devolver trazas técnicas");
+    });
+%}
+
+### 7.6 [409 · RP-03] Límite: 17 años y 364 días a la fecha de entrada (cumple 18 el 21-oct, entra el 20-oct) -> 409
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-20",
+  "fechaSalida": "2028-10-23",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "TI-9703", "nombre": "Casi Adulto", "fechaNacimiento": "2010-10-21"},
+  "ocupantes": [{"documento": "TI-9703", "nombre": "Casi Adulto", "fechaNacimiento": "2010-10-21"}]
+}
+
+> {%
+    client.test("7.6 a un día de cumplir 18 todavía no es adulto responsable", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "La reserva debe incluir al menos un ocupante mayor de 18 años", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.7 [RP-03] La COTIZACIÓN de ese mismo menor sí funciona: cotizar calcula precio, no valida el grupo -> 200, 3 x 120.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-20",
+  "fechaSalida": "2028-10-23",
+  "ocupantes": [{"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"}]
+}
+
+> {%
+    client.test("7.7 la cotización no exige adulto responsable", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.total === 360000, "total: " + response.body.total);
+    });
+%}
+
+### 7.8 [RP-02] Cotizar 6 noches (1 al 7 de febrero) -> 200, sin descuento: 6 x 120.000 = 720.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-07",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.8 con 6 noches no hay descuento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 6, "noches: " + response.body.noches);
+        client.assert(response.body.subtotalBruto === 720000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 0, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 0, "descuento: " + response.body.descuento);
+        client.assert(response.body.total === 720000, "total: " + response.body.total);
+    });
+%}
+
+### 7.9 [RP-02] Cotizar 7 noches (1 al 8 de febrero) -> 200: bruto 840.000, 10 %, descuento 84.000, total 756.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-08",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.9 con 7 noches se descuenta el 10 % una sola vez", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 7, "noches: " + response.body.noches);
+        client.assert(response.body.desglose.length === 7, "desglose: " + response.body.desglose.length);
+        client.assert(response.body.subtotalBruto === 840000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 10, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 84000, "descuento: " + response.body.descuento);
+        client.assert(response.body.total === response.body.subtotalBruto - response.body.descuento,
+            "total (" + response.body.total + ") debe ser bruto - descuento");
+        client.assert(response.body.total === 756000, "total: " + response.body.total);
+        const sumaNoches = response.body.desglose.reduce((suma, n) => suma + n.subtotal, 0);
+        client.assert(sumaNoches === 840000, "el desglose noche por noche suma el bruto: " + sumaNoches);
+    });
+    client.global.set("totalCotizado7", response.body.total);
+%}
+
+### 7.10 [RP-02] Crear la reserva de esas 7 noches -> 201: congela el MISMO total que la cotización
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-08",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"},
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.10 la reserva congela el descuento y el total cotizados", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.headers.valueOf("Location") !== null, "falta Location");
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.subtotalBruto === 840000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 10, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 84000, "descuento: " + response.body.descuento);
+        client.assert(String(response.body.valorTotal) === String(client.global.get("totalCotizado7")),
+            "valorTotal " + response.body.valorTotal + " debe ser igual al cotizado " + client.global.get("totalCotizado7"));
+    });
+    client.global.set("codigoRP02", response.body.codigo);
+%}
+
+### 7.11 [RP-02] Leer la reserva: el descuento sigue congelado y el folio se abre con el valor ya descontado -> 200
+GET {{host}}/api/reservas/{{codigoRP02}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.11 la reserva leída conserva subtotal, descuento y total", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.subtotalBruto === 840000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 10, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 84000, "descuento: " + response.body.descuento);
+        client.assert(response.body.valorTotal === 756000, "valorTotal: " + response.body.valorTotal);
+    });
+%}
+
+### 7.12 [RP-02] Folio de esa reserva -> 200: el cargo de alojamiento es el total con descuento
+GET {{host}}/api/reservas/{{codigoRP02}}/folio
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.12 el folio cobra el total con descuento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.cargos[0].valor === 756000, "cargo: " + response.body.cargos[0].valor);
+        client.assert(response.body.saldo === 756000, "saldo: " + response.body.saldo);
+    });
+%}
+
+### 7.13 [RP-02] Modificar a 6 noches (1 al 7 de febrero): se recalcula con los parámetros vigentes, pierde el descuento -> 200
+PUT {{host}}/api/reservas/{{codigoRP02}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-07",
+  "autor": "Recepción",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.13 con 6 noches la reserva ya no tiene descuento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 6, "noches: " + response.body.noches);
+        client.assert(response.body.porcentajeDescuento === 0, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.valorTotal === 720000, "valorTotal: " + response.body.valorTotal);
+    });
+%}
+
+### 7.14 [RP-02] El folio registra el ajuste: 720.000 - 756.000 = -36.000, sin tocar el cargo original -> 200
+GET {{host}}/api/reservas/{{codigoRP02}}/folio
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.14 el ajuste del folio es la diferencia de los totales", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.cargos[0].valor === 756000, "el cargo original no se toca: " + response.body.cargos[0].valor);
+        client.assert(response.body.ajustes[0].valor === -36000, "ajuste: " + response.body.ajustes[0].valor);
+        client.assert(response.body.saldo === 720000, "saldo: " + response.body.saldo);
+    });
+%}
+
+### 7.15 [409 · RP-01] Modificar esa reserva a 2 noches en ALTA (11 al 13 de julio) -> 409 y no cambia nada
+PUT {{host}}/api/reservas/{{codigoRP02}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-07-11",
+  "fechaSalida": "2028-07-13",
+  "autor": "Recepción",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.15 modificar tampoco puede dejar una estancia por debajo del mínimo", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "En temporada ALTA la estancia mínima es de 3 noches", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.16 [RP-02] Disponibilidad de 7 noches (20 al 27 de agosto): la tarjeta de APT-101 muestra bruto, descuento y total -> 200
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-20",
+  "fechaSalida": "2028-08-27",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.16 la tarjeta muestra el descuento por estancia larga", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const tarjeta = response.body.contenido.filter(a => a.identificacion === "APT-101")[0];
+        client.assert(tarjeta !== undefined, "APT-101 debe estar disponible");
+        client.assert(tarjeta.subtotalBruto === 840000, "subtotalBruto: " + tarjeta.subtotalBruto);
+        client.assert(tarjeta.porcentajeDescuento === 10, "porcentajeDescuento: " + tarjeta.porcentajeDescuento);
+        client.assert(tarjeta.descuento === 84000, "descuento: " + tarjeta.descuento);
+        client.assert(tarjeta.total === 756000, "total: " + tarjeta.total);
+    });
+%}
+
+### 7.17 [RP-03] Preparación: reserva con un menor como titular Y un adulto en el grupo -> 201 (un menor puede reservar si hay un adulto)
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-12-01",
+  "fechaSalida": "2028-12-04",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"},
+  "ocupantes": [
+    {"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"},
+    {"documento": "CC-9704", "nombre": "Adulta Acompañante", "fechaNacimiento": "1985-03-03"}
+  ]
+}
+
+> {%
+    client.test("7.17 un menor con un adulto en el grupo sí puede reservar", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.ocupantes.length === 2, "ocupantes: " + response.body.ocupantes.length);
+        client.assert(response.body.titular.documento === "TI-9702", "titular: " + response.body.titular.documento);
+    });
+    client.global.set("codigoRP03", response.body.codigo);
+%}
+
+### 7.18 [409 · RP-03] Modificar esa reserva quitando al adulto (queda solo el menor) -> 409
+PUT {{host}}/api/reservas/{{codigoRP03}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-12-01",
+  "fechaSalida": "2028-12-04",
+  "autor": "Recepción",
+  "ocupantes": [{"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"}]
+}
+
+> {%
+    client.test("7.18 modificar tampoco puede dejar el grupo sin adulto responsable", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "La reserva debe incluir al menos un ocupante mayor de 18 años", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.19 [RP-03] La reserva conserva sus dos ocupantes tras la modificación rechazada -> 200
+GET {{host}}/api/reservas/{{codigoRP03}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.19 el rechazo no cambió el grupo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.ocupantes.length === 2, "ocupantes: " + response.body.ocupantes.length);
+    });
+%}
+
+# =====================================================================================================
+# PARTE 8 · SOPORTE DEL FRONTEND (guías 15, 18 y 20): CORS, mis reservas, salidas previstas, búsqueda por nombre y
+#           estado operativo. Todos los escenarios verifican el CUERPO (y las cabeceras, en CORS).
+# CORS: el origen autorizado es el de la propiedad sga.cors.origenes-permitidos (por defecto http://localhost:5173).
+# =====================================================================================================
+
+### 8.1 [CORS] Preflight del navegador desde el origen del frontend, SIN token -> 200 con las cabeceras de autorización
+OPTIONS {{host}}/api/reservas
+Origin: http://localhost:5173
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: authorization,content-type
+
+> {%
+    client.test("8.1 el preflight del origen autorizado se responde sin token y declara lo permitido", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.headers.valueOf("Access-Control-Allow-Origin") === "http://localhost:5173",
+            "Allow-Origin: " + response.headers.valueOf("Access-Control-Allow-Origin"));
+        const metodos = response.headers.valueOf("Access-Control-Allow-Methods") || "";
+        client.assert(metodos.indexOf("POST") >= 0 && metodos.indexOf("PUT") >= 0 && metodos.indexOf("GET") >= 0, "métodos: " + metodos);
+        client.assert(metodos.indexOf("DELETE") < 0, "no se autoriza DELETE: la eliminación es lógica");
+        const cabeceras = (response.headers.valueOf("Access-Control-Allow-Headers") || "").toLowerCase();
+        client.assert(cabeceras.indexOf("authorization") >= 0 && cabeceras.indexOf("content-type") >= 0, "cabeceras: " + cabeceras);
+    });
+%}
+
+### 8.2 [CORS] Preflight desde un origen NO autorizado -> 403 y sin la cabecera que lo autorizaría
+OPTIONS {{host}}/api/reservas
+Origin: http://sitio-ajeno.example
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: authorization,content-type
+
+> {%
+    client.test("8.2 un origen ajeno no recibe permiso", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.headers.valueOf("Access-Control-Allow-Origin") === null, "no debe traer Allow-Origin");
+    });
+%}
+
+### 8.3 [CORS] Una respuesta real al origen del frontend expone la cabecera Location -> 200
+GET {{host}}/api/apartamentos/{{apt}}
+Origin: http://localhost:5173
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.3 la respuesta autoriza al origen y expone Location", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.headers.valueOf("Access-Control-Allow-Origin") === "http://localhost:5173", "Allow-Origin");
+        client.assert((response.headers.valueOf("Access-Control-Expose-Headers") || "").indexOf("Location") >= 0,
+            "Expose-Headers: " + response.headers.valueOf("Access-Control-Expose-Headers"));
+    });
+%}
+
+### 8.4 [GET /api/reservas/mias] La huésped 1 ve SUS reservas (por el documento de su token), de 10 en 10 -> 200
+GET {{host}}/api/reservas/mias
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("8.4 mis reservas: solo las de la huésped 1, paginadas", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(response.body.contenido.length >= 1, "debe tener al menos su reserva sembrada");
+        client.assert(response.body.contenido.every(r => r.canalOrigen === "PORTAL"), "las de la huésped 1 son del PORTAL");
+        client.assert(response.body.contenido.some(r => r.estado === "PENDIENTE"), "incluye su reserva PENDIENTE sembrada");
+        const fechas = response.body.contenido.map(r => r.creadaEn);
+        client.assert(JSON.stringify(fechas) === JSON.stringify(fechas.slice().sort().reverse()), "de la más reciente a la más antigua");
+    });
+    client.global.set("misCodigosHuesped1", response.body.contenido.map(r => r.codigo).sort().join(","));
+%}
+
+### 8.5 [GET /api/reservas?titular=] Recepción ve las mismas reservas de la huésped 1 por su documento -> 200
+GET {{host}}/api/reservas?titular=1094000111
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.5 'mis reservas' coincide con lo que recepción ve para ese documento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const codigos = response.body.contenido.map(r => r.codigo).sort().join(",");
+        client.assert(codigos === client.global.get("misCodigosHuesped1"), "mias: " + client.global.get("misCodigosHuesped1") + " / titular: " + codigos);
+    });
+%}
+
+### 8.6 [GET /api/reservas/mias] El huésped 2 no ve ninguna de las reservas de la huésped 1 -> 200
+GET {{host}}/api/reservas/mias
+Authorization: Bearer {{tokenHuesped2}}
+
+> {%
+    client.test("8.6 un huésped no ve las reservas de otro", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const mias = client.global.get("misCodigosHuesped1").split(",");
+        client.assert(response.body.contenido.every(r => mias.indexOf(r.codigo) < 0), "no debe contener reservas de la huésped 1");
+        client.assert(response.body.contenido.some(r => r.estado === "FINALIZADA"), "incluye su reserva FINALIZADA sembrada");
+    });
+%}
+
+### 8.7 [GET /api/reservas/mias?estado=] Filtro de estado: el huésped 2 no tiene ninguna PENDIENTE -> 200 con la página vacía
+GET {{host}}/api/reservas/mias?estado=PENDIENTE
+Authorization: Bearer {{tokenHuesped2}}
+
+> {%
+    client.test("8.7 el filtro de estado separa las reservas", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length === 0, "contenido: " + response.body.contenido.length);
+        client.assert(response.body.totalElementos === 0, "totalElementos: " + response.body.totalElementos);
+    });
+%}
+
+### 8.8 [403 · mias] Solo el huésped usa "mis reservas": recepción recibe 403
+GET {{host}}/api/reservas/mias
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.8 recepción no usa mis reservas", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 8.9 [401 · mias] Sin token -> 401
+GET {{host}}/api/reservas/mias
+
+> {%
+    client.test("8.9 mis reservas exige token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 8.10 [400 · mias] Un estado fuera del catálogo -> 400
+GET {{host}}/api/reservas/mias?estado=VOLANDO
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("8.10 un estado inexistente se rechaza por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 8.11 [GET /api/reservas?nombreTitular=] Búsqueda por el nombre del titular: contiene, sin importar mayúsculas -> 200
+GET {{host}}/api/reservas?nombreTitular=TITULAR%20cc-1002
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.11 el nombre se busca por texto contenido y sin distinguir mayúsculas", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length === 1, "reservas: " + response.body.contenido.length);
+        client.assert(response.body.contenido[0].nombreTitular === "Titular CC-1002", "titular: " + response.body.contenido[0].nombreTitular);
+        client.assert(response.body.contenido[0].estado === "CONFIRMADA", "estado: " + response.body.contenido[0].estado);
+    });
+    client.global.set("codigoCC1002", response.body.contenido[0].codigo);
+    client.global.set("entradaCC1002", response.body.contenido[0].fechaEntrada);
+    client.global.set("salidaCC1002", response.body.contenido[0].fechaSalida);
+%}
+
+### 8.12 [GET /api/reservas?titular=] El filtro titular sigue siendo el DOCUMENTO exacto: un nombre no encuentra nada -> 200 vacío
+GET {{host}}/api/reservas?titular=Titular%20CC-1002
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.12 titular no cambió de significado", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length === 0, "reservas: " + response.body.contenido.length);
+    });
+%}
+
+### 8.13 [GET /api/reservas?salidaDesde&salidaHasta] Salidas previstas de un día (el día de salida de la reserva de CC-1002) -> 200
+GET {{host}}/api/reservas?salidaDesde={{salidaCC1002}}&salidaHasta={{salidaCC1002}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.13 las salidas del día incluyen la reserva y solo las de ese día", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.some(r => r.codigo === client.global.get("codigoCC1002")), "debe incluir la reserva de CC-1002");
+        client.assert(response.body.contenido.every(r => r.fechaSalida === client.global.get("salidaCC1002")), "todas salen ese día");
+    });
+%}
+
+### 8.14 [GET /api/reservas?entradaDesde&entradaHasta] Llegadas previstas de un día (el día de entrada de esa reserva) -> 200
+GET {{host}}/api/reservas?entradaDesde={{entradaCC1002}}&entradaHasta={{entradaCC1002}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.14 las llegadas del día incluyen la reserva y solo las de ese día", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.some(r => r.codigo === client.global.get("codigoCC1002")), "debe incluir la reserva de CC-1002");
+        client.assert(response.body.contenido.every(r => r.fechaEntrada === client.global.get("entradaCC1002")), "todas entran ese día");
+    });
+%}
+
+### 8.15 [400 · salidaDesde] Una fecha mal escrita -> 400
+GET {{host}}/api/reservas?salidaDesde=ayer
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.15 la fecha de salida mal escrita se rechaza por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 8.16 [GET /api/apartamentos?estadoOperativo=] El personal de servicio ve los apartamentos fuera de servicio -> 200: APT-302
+GET {{host}}/api/apartamentos?estadoOperativo=FUERA_DE_SERVICIO
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("8.16 el filtro por estado operativo devuelve solo los que están en ese estado", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length >= 1, "debe haber al menos uno");
+        client.assert(response.body.contenido.every(a => a.estadoOperativo === "FUERA_DE_SERVICIO"), "todos fuera de servicio");
+        client.assert(response.body.contenido.some(a => a.identificacion === "APT-302"), "APT-302 está sembrado fuera de servicio");
+    });
+%}
+
+### 8.17 [GET /api/apartamentos?estadoOperativo=] Se combina con las características: BALCON y PREPARADO -> 200 sin el 302
+GET {{host}}/api/apartamentos?caracteristicas=BALCON&estadoOperativo=PREPARADO
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("8.17 el estado operativo se combina con las características", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.every(a => a.estadoOperativo === "PREPARADO" && a.caracteristicas.indexOf("BALCON") >= 0),
+            "todos PREPARADOS y con BALCON");
+        client.assert(response.body.contenido.every(a => a.identificacion !== "APT-302"), "APT-302 está fuera de servicio");
+    });
+%}
+
+### 8.18 [400 · estadoOperativo] Un estado fuera del catálogo -> 400
+GET {{host}}/api/apartamentos?estadoOperativo=DESCOMPUESTO
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("8.18 un estado operativo inexistente se rechaza por forma", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+    });
+%}

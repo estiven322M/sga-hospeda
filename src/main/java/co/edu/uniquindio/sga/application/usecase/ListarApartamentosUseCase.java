@@ -5,10 +5,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
+import co.edu.uniquindio.sga.domain.repository.FiltroApartamentos;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 
-/** Listado de todos los apartamentos (activos o no), de 10 en 10. Solo lectura. */
+/**
+ * Listado de apartamentos (activos o no), de 10 en 10, con filtro opcional por características (L-06, 7.5).
+ * Solo lectura: delega el filtro en el puerto, no decide ninguna regla.
+ */
 @Service
 public class ListarApartamentosUseCase {
 
@@ -19,7 +23,7 @@ public class ListarApartamentosUseCase {
     }
 
     @Transactional(readOnly = true)
-    public Pagina<Apartamento> ejecutar(SolicitudPagina pagina) {
-        return apartamentoRepository.listarTodos(pagina);
+    public Pagina<Apartamento> ejecutar(FiltroApartamentos filtro, SolicitudPagina pagina) {
+        return apartamentoRepository.listarTodos(filtro, pagina);
     }
 }

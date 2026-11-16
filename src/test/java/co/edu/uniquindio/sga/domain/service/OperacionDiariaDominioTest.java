@@ -1,5 +1,9 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -34,7 +38,7 @@ class OperacionDiariaDominioTest {
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(version), AHORA);
+                new VersionPolitica(version), AHORA, ReservaDePrueba.EDAD_ADULTO);
     }
 
     private Folio folio() {
@@ -126,7 +130,7 @@ class OperacionDiariaDominioTest {
     // ---------- Estado operativo ----------
 
     private Apartamento apartamento() {
-        Apartamento apt = new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        Apartamento apt = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
         apt.activar();
         return apt;
     }

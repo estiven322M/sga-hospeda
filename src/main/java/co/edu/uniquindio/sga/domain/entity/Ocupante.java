@@ -5,6 +5,7 @@ import java.time.Period;
 
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
+import co.edu.uniquindio.sga.domain.valueobject.EdadAdultoResponsable;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.UmbralEdadFacturable;
 
@@ -54,6 +55,14 @@ public class Ocupante {
      */
     public boolean esFacturableEn(Estancia estancia, UmbralEdadFacturable umbral) {
         return edadA(estancia.fechaEntrada()) >= umbral.anios();
+    }
+
+    /**
+     * RP-03: es adulto responsable si a la FECHA DE ENTRADA tiene la edad configurada o más. Con 17 años y 364 días
+     * todavía no lo es; el día en que cumple los 18 sí.
+     */
+    public boolean esAdultoEn(Estancia estancia, EdadAdultoResponsable edad) {
+        return edadA(estancia.fechaEntrada()) >= edad.anios();
     }
 
     /**

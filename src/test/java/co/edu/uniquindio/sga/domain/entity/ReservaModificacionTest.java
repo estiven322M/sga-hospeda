@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.entity;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.LocalDate;
@@ -31,7 +33,7 @@ class ReservaModificacionTest {
         return Reserva.crear(new CodigoReserva("RES-2026-00001"), new IdentificacionApartamento("APT-101"),
                 new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)), titular, List.of(titular),
                 CanalOrigen.PORTAL, valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1),
-                new VersionPolitica(2), AHORA);
+                new VersionPolitica(2), AHORA, ReservaDePrueba.EDAD_ADULTO);
     }
 
     private Reserva confirmada() {
@@ -45,7 +47,7 @@ class ReservaModificacionTest {
     void devuelveLaDiferenciaPositivaAlAmpliarLaEstanciaYConservaLaPolitica() {
         Reserva r = reservaDel10al12();
         Dinero diferencia = r.modificarEstancia(new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 13)),
-                valor(LocalDate.of(2026, 12, 10), 3, 100_000, 1), List.of(titular), "Juan", AHORA);
+                valor(LocalDate.of(2026, 12, 10), 3, 100_000, 1), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         assertEquals(Dinero.de(100_000), diferencia);
         assertEquals(3, r.getEstancia().noches());
@@ -58,10 +60,10 @@ class ReservaModificacionTest {
         Reserva r = Reserva.crear(new CodigoReserva("RES-2026-00002"), new IdentificacionApartamento("APT-101"),
                 new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)), titular,
                 List.of(titular, acompanante), CanalOrigen.DIRECTO,
-                valor(LocalDate.of(2026, 12, 10), 2, 100_000, 2), new VersionPolitica(2), AHORA);
+                valor(LocalDate.of(2026, 12, 10), 2, 100_000, 2), new VersionPolitica(2), AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         Dinero diferencia = r.modificarEstancia(r.getEstancia(), valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1),
-                List.of(titular), "Juan", AHORA);
+                List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         assertEquals(Dinero.de(-200_000), diferencia);
         assertEquals(List.of(titular), r.getOcupantes());
@@ -70,7 +72,7 @@ class ReservaModificacionTest {
     @Test
     void registraLaModificacionEnElHistorialSinCambiarElEstado() {
         Reserva r = confirmada();
-        r.modificarEstancia(r.getEstancia(), r.getValor(), List.of(titular), "Juan", AHORA);
+        r.modificarEstancia(r.getEstancia(), r.getValor(), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         assertEquals(EstadoReserva.CONFIRMADA, r.getEstado());
         assertEquals("MODIFICACION", r.getHistorial().get(r.getHistorial().size() - 1).accion());
@@ -82,7 +84,7 @@ class ReservaModificacionTest {
         r.registrarLlegada("Recepción", LocalDateTime.of(2026, 12, 10, 16, 0));
 
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(r.getEstancia(), r.getValor(),
-                List.of(titular), "Juan", LocalDateTime.of(2026, 12, 10, 17, 0)));
+                List.of(titular), "Juan", LocalDateTime.of(2026, 12, 10, 17, 0), ReservaDePrueba.EDAD_ADULTO));
     }
 
     @Test
@@ -91,27 +93,27 @@ class ReservaModificacionTest {
         r.cancelar("Cambio de planes", "Juan", AHORA);
 
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(r.getEstancia(), r.getValor(),
-                List.of(titular), "Juan", AHORA));
+                List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
     }
 
     @Test
     void elTitularDebeSeguirEntreLosOcupantes() {
         Reserva r = reservaDel10al12();
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(r.getEstancia(), r.getValor(),
-                List.of(acompanante), "Juan", AHORA));
+                List.of(acompanante), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
     }
 
     @Test
     void exigeOcupantesSinRepetirYDatosCompletos() {
         Reserva r = reservaDel10al12();
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(r.getEstancia(), r.getValor(),
-                List.of(), "Juan", AHORA));
+                List.of(), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(r.getEstancia(), r.getValor(),
-                List.of(titular, titular), "Juan", AHORA));
+                List.of(titular, titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(null, r.getValor(),
-                List.of(titular), "Juan", AHORA));
+                List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(r.getEstancia(), null,
-                List.of(titular), "Juan", AHORA));
+                List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
     }
 
     @Test
@@ -120,7 +122,7 @@ class ReservaModificacionTest {
         Estancia pasada = new Estancia(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 3));
 
         ReglaDominioException ex = assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(pasada,
-                valor(LocalDate.of(2026, 10, 1), 2, 100_000, 1), List.of(titular), "Juan", AHORA));
+                valor(LocalDate.of(2026, 10, 1), 2, 100_000, 1), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
 
         assertEquals("La fecha de entrada no puede ser anterior a la fecha actual", ex.getMessage());
     }
@@ -131,7 +133,7 @@ class ReservaModificacionTest {
         Estancia tresNoches = new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 13));
 
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(tresNoches,
-                valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1), List.of(titular), "Juan", AHORA));
+                valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
         assertEquals(2, r.getEstancia().noches()); // sin efectos parciales
     }
 
@@ -144,7 +146,7 @@ class ReservaModificacionTest {
         Reserva r = confirmada();
 
         Dinero diferencia = r.modificarEstancia(otroApartamento, r.getEstancia(),
-                valor(LocalDate.of(2026, 12, 10), 2, 150_000, 1), List.of(titular), "Juan", AHORA);
+                valor(LocalDate.of(2026, 12, 10), 2, 150_000, 1), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         assertEquals(otroApartamento, r.getApartamento());
         assertEquals(Dinero.de(100_000), diferencia);
@@ -159,7 +161,7 @@ class ReservaModificacionTest {
     void sinCambiarDeApartamentoElHistorialNoMencionaUnCambio() {
         Reserva r = reservaDel10al12();
 
-        r.modificarEstancia(r.getApartamento(), r.getEstancia(), r.getValor(), List.of(titular), "Juan", AHORA);
+        r.modificarEstancia(r.getApartamento(), r.getEstancia(), r.getValor(), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
         assertFalse(r.getHistorial().get(r.getHistorial().size() - 1).observacion().contains("apartamento:"));
@@ -170,7 +172,7 @@ class ReservaModificacionTest {
         Reserva r = reservaDel10al12();
 
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(null, r.getEstancia(), r.getValor(),
-                List.of(titular), "Juan", AHORA));
+                List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
         assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
     }
 
@@ -180,7 +182,7 @@ class ReservaModificacionTest {
         r.registrarLlegada("Recepción", LocalDateTime.of(2026, 12, 10, 16, 0));
 
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(otroApartamento, r.getEstancia(),
-                r.getValor(), List.of(titular), "Juan", AHORA));
+                r.getValor(), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
         assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
     }
 
@@ -190,7 +192,7 @@ class ReservaModificacionTest {
         Estancia pasada = new Estancia(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 3));
 
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(otroApartamento, pasada,
-                valor(LocalDate.of(2026, 10, 1), 2, 100_000, 1), List.of(titular), "Juan", AHORA));
+                valor(LocalDate.of(2026, 10, 1), 2, 100_000, 1), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
 
         assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
     }
@@ -202,7 +204,63 @@ class ReservaModificacionTest {
         r.cancelar("Cambio de planes", "Juan", AHORA);
 
         assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(otroApartamento, r.getEstancia(),
-                r.getValor(), List.of(titular), "Juan", AHORA));
+                r.getValor(), List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO));
         assertEquals(new IdentificacionApartamento("APT-101"), r.getApartamento());
+    }
+
+    // ---------- RP-03 (L-20): adulto responsable al modificar ----------
+
+    private final Ocupante menor = new Ocupante(new DocumentoIdentidad("TI-300"), "Menor",
+            LocalDate.of(2011, 6, 1), LocalDate.of(2026, 1, 1)); // 15 años el 10-dic-2026
+
+    private Reserva reservaConTitularMenorYUnAdulto() {
+        return Reserva.crear(new CodigoReserva("RES-2026-00003"), new IdentificacionApartamento("APT-101"),
+                new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)), menor,
+                List.of(menor, acompanante), CanalOrigen.DIRECTO,
+                valor(LocalDate.of(2026, 12, 10), 2, 100_000, 2), new VersionPolitica(2), AHORA,
+                ReservaDePrueba.EDAD_ADULTO);
+    }
+
+    @Test
+    void modificarElGrupoParaQuedarseSinAdultoSeRechazaRP03YNoCambiaNada() {
+        Reserva r = reservaConTitularMenorYUnAdulto();
+        Dinero valorAntes = r.getValor().total();
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class,
+                () -> r.modificarEstancia(r.getEstancia(), valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1),
+                        List.of(menor), "Recepción", AHORA, ReservaDePrueba.EDAD_ADULTO));
+
+        assertEquals("La reserva debe incluir al menos un ocupante mayor de 18 años", ex.getMessage());
+        assertEquals(List.of(menor, acompanante), r.getOcupantes());
+        assertEquals(valorAntes, r.getValor().total());
+        assertEquals(1, r.getHistorial().size()); // solo la creación: la modificación fallida no deja rastro
+    }
+
+    @Test
+    void modificarConservandoUnAdultoSePermiteRP03() {
+        Reserva r = reservaConTitularMenorYUnAdulto();
+
+        r.modificarEstancia(r.getEstancia(), valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1),
+                List.of(menor, acompanante), "Recepción", AHORA, ReservaDePrueba.EDAD_ADULTO);
+
+        assertEquals(List.of(menor, acompanante), r.getOcupantes());
+    }
+
+    @Test
+    void cambiarLaFechaDeEntradaPuedeQuitarleLaMayoriaDeEdadAlAdultoRP03() {
+        // el acompañante nace el 11-dic-2008: el 10-dic-2026 tiene 17 años y el 11-dic cumple 18
+        Ocupante casiAdulto = new Ocupante(new DocumentoIdentidad("CC-400"), "Casi adulto",
+                LocalDate.of(2008, 12, 11), LocalDate.of(2026, 1, 1));
+        Reserva r = Reserva.crear(new CodigoReserva("RES-2026-00004"), new IdentificacionApartamento("APT-101"),
+                new Estancia(LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 22)), casiAdulto,
+                List.of(casiAdulto), CanalOrigen.DIRECTO, valor(LocalDate.of(2026, 12, 20), 2, 100_000, 1),
+                new VersionPolitica(2), AHORA, ReservaDePrueba.EDAD_ADULTO);
+
+        // adelantar la estancia al 10-dic: cuando llega todavía es menor
+        assertThrows(ReglaDominioException.class, () -> r.modificarEstancia(
+                new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)),
+                valor(LocalDate.of(2026, 12, 10), 2, 100_000, 1), List.of(casiAdulto), "Recepción", AHORA,
+                ReservaDePrueba.EDAD_ADULTO));
+        assertEquals(LocalDate.of(2026, 12, 20), r.getEstancia().fechaEntrada());
     }
 }

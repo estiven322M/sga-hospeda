@@ -1,8 +1,11 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import java.util.Collection;
+
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 
 /**
@@ -18,9 +21,11 @@ public class RegistroApartamentoService {
         this.apartamentoRepository = apartamentoRepository;
     }
 
-    public Apartamento crear(IdentificacionApartamento identificacion, String nombre, int dormitorios,
-                             int capacidad) {
-        Apartamento apartamento = new Apartamento(identificacion, nombre, dormitorios, capacidad);
+    public Apartamento crear(IdentificacionApartamento identificacion, String nombre, String descripcion,
+                             int dormitorios, int capacidad, Collection<String> dotacion,
+                             Collection<Caracteristica> caracteristicas) {
+        Apartamento apartamento = new Apartamento(identificacion, nombre, descripcion, dormitorios, capacidad,
+                dotacion, caracteristicas);
         if (apartamentoRepository.buscarPorIdentificacion(identificacion).isPresent()) {
             throw new ReglaDominioException("Ya existe un apartamento con la identificación " + identificacion.valor());
         }

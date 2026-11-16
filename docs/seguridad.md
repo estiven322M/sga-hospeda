@@ -45,7 +45,7 @@ usuarios.
 | Endpoint | HUESPED | RECEPCIONISTA | ADMINISTRADOR | PERSONAL_SERVICIO |
 |---|:-:|:-:|:-:|:-:|
 | `POST /api/auth/login`, `POST /api/auth/registro` | público | público | público | público |
-| `GET /api/apartamentos`, `GET /api/apartamentos/{id}` | ✔ | ✔ | ✔ | ✔ |
+| `GET /api/apartamentos` (con filtros `caracteristicas` y `estadoOperativo`), `GET /api/apartamentos/{id}`, `GET /api/caracteristicas` | ✔ | ✔ | ✔ | ✔ |
 | `POST /api/apartamentos`, `PUT /api/apartamentos/{id}`, `PUT .../activar`, `PUT .../baja` | ✘ | ✘ | ✔ | ✘ |
 | `PUT .../estado-operativo/iniciar-preparacion`, `.../marcar-preparado` | ✘ | ✘ | ✔ | ✔ |
 | `PUT .../estado-operativo/declarar-fuera-de-servicio`, `.../reincorporar` | ✘ | ✘ | ✔ | ✘ |
@@ -56,7 +56,8 @@ usuarios.
 | `GET /api/politicas-cancelacion/vigente`, `GET .../{version}` | ✔ | ✔ | ✔ | ✘ |
 | `POST /api/cotizaciones`, `POST /api/disponibilidad` | ✔ | ✔ | ✔ | ✘ |
 | `POST /api/reservas` | ✔ PORTAL, a su nombre | ✔ DIRECTO | ✔ DIRECTO o EXTERNO | ✘ |
-| `GET /api/reservas` (listado con filtros) | ✘ | ✔ | ✔ | ✘ |
+| `GET /api/reservas` (listado con filtros: fechas de entrada y de salida, estado, apartamento, canal, `titular` por documento y `nombreTitular` por texto) | ✘ | ✔ | ✔ | ✘ |
+| `GET /api/reservas/mias` (las del propio huésped, por el claim `documento`) | ✔ | ✘ | ✘ | ✘ |
 | `GET /api/reservas/{codigo}` | **T** | ✔ | ✔ | ✘ |
 | `PUT /api/reservas/{codigo}/cancelar` | **T** | ✔ | ✔ | ✘ |
 | `PUT .../modificar`, `.../confirmar`, `.../registrar-llegada`, `.../registrar-salida`, `.../declarar-no-show` | ✘ | ✔ | ✔ | ✘ |
@@ -64,6 +65,25 @@ usuarios.
 | `POST /api/reservas/{codigo}/folio/pagos` | ✘ | ✔ | ✔ | ✘ |
 | `PUT /api/reservas/{codigo}/folio/cerrar` | ✘ | ✔ sin autorización | ✔ | ✘ |
 | `GET /api/reservas-externas/rechazos` | ✘ | ✘ | ✔ | ✘ |
+
+## 3.1 CORS (para el frontend, Guía 15 4.2)
+
+El navegador solo deja que una página servida desde otro origen (el servidor de Vite, `http://localhost:5173`) lea las respuestas de la API si la
+API lo autoriza. `SecurityConfig` registra una `CorsConfigurationSource` para `/api/**` y la activa con `.cors(...)` ANTES de la autenticación, porque el
+preflight `OPTIONS` del navegador no lleva token.
+
+| Aspecto | Decisión | Por qué |
+|---|---|---|
+| Orígenes | solo los de la propiedad `sga.cors.origenes-permitidos` (separados por comas; por defecto `http://localhost:5173`) | nunca `*`: el token viaja en un encabezado y no se debe autorizar a cualquier sitio |
+| Métodos | GET, POST, PUT y OPTIONS | no hay DELETE: la eliminación es lógica |
+| Encabezados que envía el cliente | `Authorization` y `Content-Type` | el JWT y el cuerpo JSON |
+| Encabezado que lee el cliente | `Location` | la URL de lo recién creado (201) |
+| Credenciales | no | el token no va en una cookie |
+| Origen no autorizado | 403 en el preflight, sin `Access-Control-Allow-Origin` | el navegador bloquea la lectura |
+
+Un detalle que costó encontrar: la configuración se inyecta por **parámetro del método** `securityFilterChain` con `@Qualifier`, no por constructor. Si
+`SecurityConfig` la recibe por constructor, Spring trata el bean definido en su propia clase como autorreferencia y toma en su lugar el de Spring MVC, que no
+tiene configuración CORS: el preflight responde 200 pero sin cabeceras. `CorsIntegracionTest` lo comprueba con la cadena de seguridad real.
 
 ## 4. Decisión: rol y canal (actividad 7.5, punto 3)
 

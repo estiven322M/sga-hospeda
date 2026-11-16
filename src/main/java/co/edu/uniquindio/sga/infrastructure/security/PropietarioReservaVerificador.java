@@ -47,12 +47,12 @@ public class PropietarioReservaVerificador {
     }
 
     /** Lectura del claim documento del JWT, compartida por los verificadores de acceso. */
-    static final class DocumentoAutenticado {
+    public static final class DocumentoAutenticado {
 
         private DocumentoAutenticado() {
         }
 
-        static String de(Authentication authentication) {
+        public static String de(Authentication authentication) {
             if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
                 return null;
             }

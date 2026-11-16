@@ -17,6 +17,7 @@ Optional<Apartamento> buscarPorIdentificacion(IdentificacionApartamento identifi
 List<Apartamento> listarActivos();                                  // todos los activos, sin paginar (CU-02)
 Pagina<Apartamento> listarActivos(SolicitudPagina pagina);
 Pagina<Apartamento> listarTodos(SolicitudPagina pagina);            // activos o no, ordenados por identificación
+Pagina<Apartamento> listarTodos(FiltroApartamentos filtro, SolicitudPagina pagina); // solo los que tienen TODAS las características del filtro (L-06) y, si se pide, el estadoOperativo
 
 // ReservaRepository
 List<Reserva> buscarActivasPorApartamento(IdentificacionApartamento apartamento); // PENDIENTE, CONFIRMADA y EN_CURSO
@@ -60,7 +61,7 @@ CodigoReserva generar(LocalDate fecha);                             // formato R
 
 | Puerto / método | Lo que debe cumplir |
 |---|---|
-| `ReservaRepository.buscar` | Filtros **opcionales** (campo nulo = no filtrar): `entradaDesde`/`entradaHasta` sobre la **fecha de entrada** (ambos extremos inclusive), `estado`, `apartamento`, `canal` y `titular` (documento). Orden **de la reserva más reciente a la más antigua** (`creadaEn` descendente). `Pagina.numero` parte de 0; el tamaño es `SolicitudPagina.TAMANIO` (10); `totalElementos` es el total sin paginar. |
+| `ReservaRepository.buscar` | Filtros **opcionales** (campo nulo = no filtrar): `entradaDesde`/`entradaHasta` sobre la **fecha de entrada** y `salidaDesde`/`salidaHasta` sobre la **fecha de salida** (ambos extremos inclusive; con desde = hasta, las llegadas o salidas previstas de un día, 7.6), `estado`, `apartamento`, `canal`, `titular` (documento EXACTO) y `nombreTitular` (texto que el nombre del titular CONTIENE, sin distinguir mayúsculas; los `%` y `_` del texto se toman literalmente; une con el ocupante cuyo documento es el del titular, sin duplicar filas). Orden **de la reserva más reciente a la más antigua** (`creadaEn` descendente). `Pagina.numero` parte de 0; el tamaño es `SolicitudPagina.TAMANIO` (10); `totalElementos` es el total sin paginar. |
 | `ReservaRepository.buscarPorCanalEIdentificadorExterno` | Devuelve la reserva ya creada para ese canal e identificador (RN-19). La base de datos lo respalda con una restricción única `(canal_origen, identificador_externo)`; los NULL de los canales sin identificador no chocan. |
 | `RechazoReservaExternaRepository` | Solo **inserta** y **lista** (10 por página, del más reciente al más antiguo): el rechazo (RN-18) es una constancia inmutable. Debe guardarse **aunque la petición termine en 409**: el caso de uso no revierte la transacción por `ReglaDominioException`. |
 | `ReservaRepository.buscarPendientesCreadasAntesDe` | Solo estado **PENDIENTE** y `creadaEn` **estrictamente anterior** al límite (una creada justo en el límite no entra). Lo consulta el proceso programado del vencimiento automático (RN-21) cada 5 minutos. No necesita orden ni paginación. |
@@ -80,7 +81,8 @@ El dominio no tiene setters ni constructor vacío. Para restaurar entidades:
 | Entidad | Cómo reconstruirla |
 |---|---|
 | `Reserva` | `Reserva.reconstruir(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, valor, politica, creadaEn, estado, horaEstimadaLlegada, historial, identificadorExterno)`. El identificador es obligatorio si el canal es EXTERNO y debe ser nulo en los demás (RN-19). Restaura el **estado, la fecha de creación y el historial** tal como se guardaron. No valida RN-04 (no exige fecha futura). Una reserva en CONFIRMADA, EN_CURSO, FINALIZADA o NO_SHOW **debe** traer `horaEstimadaLlegada` (RN-09). |
-| `Apartamento` | `Apartamento.reconstruir(identificacion, nombre, dormitorios, capacidad, estadoOperativo, activo)`. **No uses `new Apartamento(...)` para restaurar**: ese constructor deja el apartamento *inactivo* (7.4). |
+| `Reserva` (descuento) | **Columna `porcentaje_descuento`** (entero, no nulo) en la tabla `reserva` (RP-02). Es el porcentaje con el que se congeló el valor; el descuento en pesos no se guarda porque se deriva del desglose (`reserva_cargo_noche`) y del porcentaje: `ValorCongelado(detalle, porcentaje)`. Una reserva sin descuento guarda 0. El mapper pasa `reserva.getValor().porcentajeDescuento()` al guardar y reconstruye `new ValorCongelado(desglose, porcentaje)` al leer. |
+| `Apartamento` | `Apartamento.reconstruir(identificacion, nombre, descripcion, dormitorios, capacidad, dotacion, caracteristicas, estadoOperativo, activo)` (L-06). **No uses `new Apartamento(...)` para restaurar**: ese constructor deja el apartamento *inactivo* (7.4). La dotación se restaura **en el mismo orden** en que se guardó y las características como conjunto. |
 | `Folio` | Reproduce sus movimientos: `new Folio(reserva, cargoAlojamiento)` (el primer cargo), luego `registrarCargo`, `registrarAjuste` y `registrarPago` en el orden guardado y, si estaba cerrado, `cerrar(autorizacion)`. |
 | `Ocupante` | `new Ocupante(documento, nombre, fechaNacimiento, fechaActual)`; para restaurar pasa la fecha de hoy (`LocalDate.now(...)`) como `fechaActual`. |
 | `Bloqueo`, `Temporada`, `PoliticaCancelacion` | Sus constructores públicos. |
@@ -96,6 +98,11 @@ Para que la colección `docs/http/sga.http` funcione de punta a punta, los datos
 - La **temporada base** y al menos otras dos (sin solapes entre sí), registradas **antes** de las tarifas.
 - **Todos los apartamentos** con tarifa en **todas** las temporadas, y **activos**. Incluidos `APT-101` y `APT-102`
   (con capacidad entre 2 y 10 personas), o ajustar las variables `@apt` y `@aptBloqueo` al inicio de `sga.http`.
+- **Estancias sembradas de al menos 3 noches y cada reserva con un adulto** (L-20): RP-01 exige 3 noches en ALTA, y el
+  sembrado usa fechas relativas a hoy, así que cualquier estancia más corta podría impedir el arranque según el día
+  (`SembradorReservasPrueba.NOCHES`; lo comprueban `SembradoEnJunioTest` y `SembradoEnDiciembreTest` con un reloj fijo).
+- Cada apartamento con **descripción, dotación y al menos una característica diferenciadora** (L-06), de modo que los
+  filtros por característica de `sga.http` (1.8 a 1.14) devuelvan conjuntos distintos y verificables.
 - Una **política de cancelación** (mínimo dos tramos, uno de antelación 0) con `vigenteDesde` anterior a hoy.
 - **Reservas en todos los estados** (PENDIENTE, CONFIRMADA, EN_CURSO, FINALIZADA, CANCELADA, NO_SHOW) y **una por cada canal**
   (PORTAL, DIRECTO, EXTERNO). Cada reserva con su **folio**; las CANCELADA y NO_SHOW con el reverso aplicado

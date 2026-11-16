@@ -1,16 +1,21 @@
 # SGA — Sistema de Gestión de Alojamiento (Hospeda)
 
-Proyecto final de Programación Avanzada, Universidad del Quindío. Backend en Spring Boot con arquitectura hexagonal. Estamos en la **Entrega 2: codificación del backend**.
+Proyecto final de Programación Avanzada, Universidad del Quindío. Backend en Spring Boot con arquitectura hexagonal. El backend de la **Entrega 2 está completo y corregido** (observaciones del profesor atendidas); lo que sigue es la **Entrega 3: el frontend** (ver la sección "Siguiente").
+
+**Equipo: dos integrantes, Jhon Mendez y Miguel Angel Villegas.** Los dos deben contribuir de forma verificable en cada entrega.
 
 ## Stack
 - Java 25, Spring Boot 4.1.1, Gradle (usar siempre `./gradlew`; en Windows `gradlew.bat`)
 - H2 en memoria, Spring Data JPA, Bean Validation, MapStruct, springdoc-openapi (Swagger UI)
 - Pruebas: JUnit 5 + Mockito. `./gradlew test` debe quedar en verde antes de cada commit.
 
-## Alcance de esta entrega
-- **Seguridad con JWT (Guía 12) incorporada.** Antes el profe indicó entregar el backend sin JWT; con la Guía 12 se agregan Spring Security 7 + servidor de recursos OAuth2 (HS256), login, registro público de huéspedes y autorización por rol y por propietario del recurso. Todo endpoint exige token salvo `/api/auth/login`, `/api/auth/registro`, `/error`, Swagger y la consola H2.
-- Alcance del corte 2: alojamiento y apartamentos, bloqueos, temporadas, tarifas y política de cancelación, disponibilidad, cotización y reservas. Operación diaria, folio y canal externo pueden avanzar pero no son exigidos.
-- Los 11 casos de uso documentados en la Entrega 1: CU-01 Cotizar estancia, CU-02 Consultar disponibilidad, CU-03 Crear reserva, CU-04 Modificar reserva, CU-05 Cancelar reserva, CU-06 Registrar llegada, CU-07 Registrar salida, CU-08 Registrar pago en folio, CU-09 Registrar bloqueo, CU-10 Preparar apartamento, CU-11 Autorizar cierre de folio con saldo pendiente.
+## Alcance de esta entrega (Entrega 2, backend, ya implementado)
+- **Seguridad con JWT (Guía 12):** Spring Security 7 + servidor de recursos OAuth2 (HS256), login, registro público de huéspedes y autorización por rol y por propietario del recurso. Todo endpoint exige token salvo `/api/auth/login`, `/api/auth/registro`, `/error`, Swagger y la consola H2.
+- **Los 11 casos de uso** de la Entrega 1 (CU-01 a CU-11) están implementados y expuestos por la API, además de la operación diaria (llegada, salida, no-show, estado operativo), el folio y el canal externo (reservas EXTERNO, rechazos por conflicto) y el vencimiento automático de reservas pendientes.
+- **L-06:** descripción, dotación y características de cada apartamento (enum cerrado `Caracteristica`) y su filtro (deben tenerse TODAS) en la búsqueda de disponibilidad y en el listado de apartamentos. `GET /api/caracteristicas` publica el catálogo.
+- **L-20, reglas propias** (aprobación del docente solicitada el 15-nov-2026): RP-01 estancia mínima por temporada (ALTA 3 noches, MEDIA 2), RP-02 descuento por estancia larga (10 % desde 7 noches, una sola vez y congelado en la reserva) y RP-03 adulto responsable (al menos un ocupante de 18 años o más al reservar y al modificar; NO se valida al cotizar). Parámetros en `application.properties`.
+- **Soporte del frontend:** CORS (propiedad `sga.cors.origenes-permitidos`, por defecto `http://localhost:5173`), `GET /api/reservas/mias` (solo HUESPED, por el claim `documento`), filtros `salidaDesde`, `salidaHasta` y `nombreTitular` en `GET /api/reservas`, y filtro `estadoOperativo` en `GET /api/apartamentos`.
+- Falta por decidir fuera del backend actual (pendientes aceptados): L-01/L-02 (no hay entidad Alojamiento), L-16 mascotas, L-17 servicios adicionales, L-19 reportes, L-21 caso de uso de IA y L-23 funcionalidad opcional; L-18 medios de pago es texto libre. Ver la matriz de trazabilidad.
 
 ## Seguridad (Guía 12)
 - El usuario NO es del dominio (3.6): `UsuarioEntity` y `RolUsuario` viven en `infrastructure`; `LoginRequest`, `RegistroUsuarioRequest`, `TokenResponse` en `application/dto`; el puerto `SecurityService` en `application/security`. El puente con el negocio es el **documento**: claim `documento` del JWT = documento del titular.
@@ -54,7 +59,7 @@ infrastructure/
 13. **Paginación de 10 por página** en todos los listados. Reservas ordenadas de la más reciente a la más antigua.
 14. **Dinero:** `BigDecimal`/tipo exacto, COP sin decimales, nunca `float`/`double`. Redondeo al final de cada cargo.
 15. **Fechas:** estancia `[entrada, salida)`; zona horaria de Colombia.
-16. **Lenguaje ubicuo obligatorio** (apartamento, estancia, titular, ocupante facturable, folio, cargo, pago, saldo, bloqueo, canal...). No usar room, booking, user, request.
+16. **Lenguaje ubicuo obligatorio** (apartamento, estancia, titular, ocupante facturable, folio, cargo, pago, saldo, bloqueo, canal, estancia mínima, descuento por estancia larga, adulto responsable...). No usar room, booking, user, request.
 
 ## Documentación exigida
 - `docs/api/openapi.yaml` coherente con lo implementado (un endpoint en Swagger que no esté en el yaml, o al revés, cuenta como incoherencia). Esquema `bearerAuth` global, login y registro con `security: []`, y 401/403 en cada endpoint protegido.
@@ -66,15 +71,24 @@ infrastructure/
 El repo del profe (https://github.com/JhanCarlosMC/PR-AV-20262) es solo **guía**: se lee para copiar el *patrón* (casos de uso, DTOs, controller, mapper, handler de excepciones, persistencia JPA, `openapi.yaml`). No se copia su dominio: nuestro dominio es el de nuestra Entrega 1 y tiene nombres distintos (por ejemplo `CotizadorEstancia`). Las guías están en `Guias/` de ese repo.
 
 ## Estado actual (ya existe en este repo)
-- Dominio: 18 objetos de valor, entidades `Reserva`, `Apartamento`, `Folio`, `Bloqueo`, `Ocupante`, servicios `DisponibilidadApartamentoService` y `CotizadorEstancia`, excepción `ReglaDominioException`, y sus pruebas unitarias.
-- Puertos presentes: `ReservaRepository`, `BloqueoRepository`, `TarifarioRepository`, `ConfiguracionAlojamiento`.
-- **Faltan:** puertos `ApartamentoRepository` y `FolioRepository`; todo `application` y `infrastructure`; parámetros de la Ficha en `application.properties`; dependencias MapStruct y springdoc; `openapi.yaml`; colección de pruebas.
+- **Dominio** (`domain/`): agregados `Reserva`, `Apartamento`, `Folio`, entidades `Bloqueo`, `Ocupante`, `Temporada`, `PoliticaCancelacion`, `RechazoReservaExterna`; objetos de valor (entre otros `Dinero`, `Estancia`, `ValorCongelado`, `Caracteristica`, `EstanciaMinimaPorTemporada`, `PoliticaDescuentoEstanciaLarga`, `EdadAdultoResponsable`); servicios de dominio (`CotizadorEstancia`, `DisponibilidadApartamentoService`, `ConfirmacionReservaService`, `RetencionCancelacionService`, `RecepcionReservaExternaService`...); puertos en `domain/repository`.
+- **Aplicación** (`application/`): un caso de uso por operación (`` + ``), DTOs `record` y excepciones de recurso no encontrado.
+- **Infraestructura** (`infrastructure/`): controllers REST con MapStruct y ``, `` con un único `ErrorResponse`, persistencia JPA (H2, entidades separadas del dominio, ``/``, mappers, adaptadores), seguridad JWT y CORS, y la carga de datos de prueba.
+- **Documentación:** `docs/api/openapi.yaml` (verificado en cada build por `OpenApiCoherenciaTest`), `docs/matriz-trazabilidad.md`, `docs/diagrama-clases-dominio.md`, `docs/contrato-persistencia.md`, `docs/seguridad.md` y la colección `docs/http/sga.http` con su evidencia en `docs/http/resultado-corrida.md`.
+- **Pruebas:** unitarias del dominio y de los casos de uso, de persistencia, de controllers, de seguridad y de integración con `` + MockMvc (login real y base H2 propia por clase) que verifican el CUERPO de las respuestas: `ReglasPropiasIntegracionTest`, `SoporteFrontendIntegracionTest` y los recorridos `Recorrido*IntegracionTest` (reloj movido por la prueba con `RelojMutable`).
+- Toda respuesta 409 cumple la aserción común: `status` 409, `mensaje` con el texto de la regla, `errores` nulo y sin trazas técnicas.
+
+## Siguiente: Entrega 3, frontend React en la carpeta `frontend/`
+- El frontend vive en `frontend/` (React + Vite, servidor en `http://localhost:5173`; la API en `http://localhost:8080`). Se sigue la ruta de las guías 14 a 21 (configuración, formularios con React Hook Form + Zod, maquetación, rutas protegidas e interceptores, listados con paginación y notificaciones, búsqueda y estado compartido).
+- Lo que el backend ya ofrece al frontend: CORS para `http://localhost:5173`, login con JWT (el token trae `sub`, `roles` y `documento`), `GET /api/reservas/mias`, filtros de reservas por nombre del titular y por salidas previstas, filtro de apartamentos por estado operativo, el catálogo `GET /api/caracteristicas` y la cabecera `Location` expuesta tras cada 201.
+- El token va en `Authorization: Bearer` (no en cookie). Un 401 lleva al login; un 403 muestra "sin permiso"; un 409 muestra el `mensaje` de la regla; un 400 trae `errores` por campo.
+- La referencia de las guías está en `../documentos-apoyo-proyecto/React`. No se cambia el contrato de la API sin actualizar `openapi.yaml` en el mismo commit.
 
 ## Cómo trabajar
 - Una capa a la vez, en este orden: dependencias/config → puertos y casos de uso → persistencia → API → documentación.
 - Antes de crear algo, leer el código existente y respetar sus nombres.
 - Cada regla del dominio lleva prueba unitaria, incluyendo el caso en que se viola.
-- No hacer commit directo en `main`: rama `feature/<tema>`, commits pequeños y Pull Request. Los tres integrantes deben contribuir de forma verificable.
+- No hacer commit directo en `main`: rama `feature/<tema>`, commits pequeños y Pull Request. Los dos integrantes (Jhon Mendez y Miguel Angel Villegas) deben contribuir de forma verificable, con commits repartidos a lo largo de la entrega y no concentrados el día del cierre.
 - No versionar secretos ni archivos `.env`.
 - Cualquier cambio en un endpoint se refleja en `openapi.yaml` en el mismo commit.
 - Explicar brevemente cada pieza creada: el equipo debe poder sustentarla.

@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.entity;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.LocalDate;
@@ -26,7 +28,7 @@ class ReservaCicloDeVidaTest {
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(1), CREADA);
+                new VersionPolitica(1), CREADA, ReservaDePrueba.EDAD_ADULTO);
     }
 
     private Reserva confirmada() {

@@ -3,8 +3,12 @@ package co.edu.uniquindio.sga.infrastructure.config;
 import java.time.Clock;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -26,7 +30,10 @@ import co.edu.uniquindio.sga.domain.service.RegistroSalidaService;
 import co.edu.uniquindio.sga.domain.service.RegistroTarifaService;
 import co.edu.uniquindio.sga.domain.service.RegistroBloqueoService;
 import co.edu.uniquindio.sga.domain.service.RetencionCancelacionService;
+import co.edu.uniquindio.sga.domain.valueobject.EdadAdultoResponsable;
+import co.edu.uniquindio.sga.domain.valueobject.EstanciaMinimaPorTemporada;
 import co.edu.uniquindio.sga.domain.valueobject.PlazoConfirmacion;
+import co.edu.uniquindio.sga.domain.valueobject.PoliticaDescuentoEstanciaLarga;
 import co.edu.uniquindio.sga.domain.valueobject.TiempoPreparacion;
 import co.edu.uniquindio.sga.domain.valueobject.UmbralEdadFacturable;
 
@@ -54,11 +61,24 @@ public class DomainServiceConfig {
             @Value("${sga.alojamiento.plazo-confirmacion-horas}") int plazoConfirmacionHoras,
             @Value("${sga.alojamiento.umbral-edad-facturable-anios}") int umbralEdadAnios,
             @Value("${sga.alojamiento.hora-limite-no-show}") String horaLimiteNoShow,
-            @Value("${sga.alojamiento.anticipo-porcentaje}") int anticipoPorcentaje) {
+            @Value("${sga.alojamiento.anticipo-porcentaje}") int anticipoPorcentaje,
+            // L-20: reglas propias
+            @Value("${sga.alojamiento.descuento-estancia-larga-noches}") int nochesDescuentoEstanciaLarga,
+            @Value("${sga.alojamiento.descuento-estancia-larga-porcentaje}") int porcentajeDescuentoEstanciaLarga,
+            @Value("${sga.alojamiento.edad-adulto-responsable-anios}") int edadAdultoResponsableAnios,
+            Environment entorno) {
+        // RP-01: sga.alojamiento.estancia-minima.<TEMPORADA>=<noches>; el nombre de la temporada es un dato (L-08)
+        Map<String, Integer> estanciaMinima = Binder.get(entorno)
+                .bind("sga.alojamiento.estancia-minima", Bindable.mapOf(String.class, Integer.class))
+                .orElse(Map.of());
+        // falla al arrancar, y no en la primera cotización, si el descuento está mal configurado
+        new PoliticaDescuentoEstanciaLarga(nochesDescuentoEstanciaLarga, porcentajeDescuentoEstanciaLarga);
         return new ConfiguracionPropiedades(
                 ZoneId.of(zona), LocalTime.parse(horaEntrada), LocalTime.parse(horaSalida),
                 new TiempoPreparacion(tiempoPreparacionHoras), new PlazoConfirmacion(plazoConfirmacionHoras),
-                new UmbralEdadFacturable(umbralEdadAnios), LocalTime.parse(horaLimiteNoShow), anticipoPorcentaje);
+                new UmbralEdadFacturable(umbralEdadAnios), LocalTime.parse(horaLimiteNoShow), anticipoPorcentaje,
+                new EstanciaMinimaPorTemporada(estanciaMinima).minimos(), nochesDescuentoEstanciaLarga,
+                porcentajeDescuentoEstanciaLarga, new EdadAdultoResponsable(edadAdultoResponsableAnios).anios());
     }
 
     @Bean
@@ -126,6 +146,8 @@ public class DomainServiceConfig {
             ZoneId zonaHoraria, LocalTime horaEntrada, LocalTime horaSalida,
             TiempoPreparacion tiempoPreparacion, PlazoConfirmacion plazoConfirmacion,
             UmbralEdadFacturable umbralEdadFacturable, LocalTime horaLimiteNoShow,
-            int anticipoPorcentaje) implements ConfiguracionAlojamiento {
+            int anticipoPorcentaje, Map<String, Integer> estanciaMinimaPorTemporada,
+            int nochesDescuentoEstanciaLarga, int porcentajeDescuentoEstanciaLarga,
+            int edadAdultoResponsableAnios) implements ConfiguracionAlojamiento {
     }
 }

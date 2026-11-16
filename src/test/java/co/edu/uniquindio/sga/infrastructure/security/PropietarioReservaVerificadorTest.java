@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.security;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -62,7 +64,7 @@ class PropietarioReservaVerificadorTest {
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(1), LocalDateTime.of(2026, 11, 2, 10, 0));
+                new VersionPolitica(1), LocalDateTime.of(2026, 11, 2, 10, 0), ReservaDePrueba.EDAD_ADULTO);
     }
 
     @Test

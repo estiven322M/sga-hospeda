@@ -1,5 +1,9 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,11 +66,11 @@ class OperacionDiariaUseCasesTest {
                 titular, List.of(titular), CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(2), creada);
+                new VersionPolitica(2), creada, ReservaDePrueba.EDAD_ADULTO);
         reserva.indicarHoraEstimadaLlegada(LocalTime.of(16, 0), "Juan", creada);
         reserva.confirmar("Juan", creada);
         folio = new Folio(codigo, new Cargo("Alojamiento", Dinero.de(200_000)));
-        apartamento = new Apartamento(apt, "Vista", 2, 4);
+        apartamento = ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4);
         apartamento.activar();
         lenient().when(reservaRepository.buscarPorCodigo(codigo)).thenReturn(Optional.of(reserva));
         lenient().when(folioRepository.buscarPorReserva(codigo)).thenReturn(Optional.of(folio));

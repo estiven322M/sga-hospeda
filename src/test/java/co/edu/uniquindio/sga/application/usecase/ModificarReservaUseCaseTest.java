@@ -1,5 +1,10 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,12 +46,13 @@ class ModificarReservaUseCaseTest {
     @Mock private ApartamentoRepository apartamentoRepository;
     @Mock private DisponibilidadApartamentoService disponibilidad;
     @Mock private CotizadorEstancia cotizador;
+    @Mock private ConfiguracionAlojamiento configuracion;
     @InjectMocks private ModificarReservaUseCase useCase;
 
     private final LocalDateTime ahora = LocalDateTime.of(2026, 11, 2, 10, 0);
     private final CodigoReserva codigo = new CodigoReserva("RES-2026-00001");
     private final IdentificacionApartamento apt = new IdentificacionApartamento("APT-101");
-    private final Apartamento apartamento = new Apartamento(apt, "Vista", 2, 4);
+    private final Apartamento apartamento = ApartamentoDePrueba.nuevo(apt, "Vista", 2, 4);
     private final Ocupante titular = new Ocupante(new DocumentoIdentidad("CC-100"), "Juan",
             LocalDate.of(1990, 1, 1), LocalDate.of(2026, 1, 1));
     private final Estancia tresNoches = new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 13));
@@ -60,9 +66,10 @@ class ModificarReservaUseCaseTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(configuracion.edadAdultoResponsableAnios()).thenReturn(18); // RP-03
         reserva = Reserva.crear(codigo, apt, new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)),
                 titular, List.of(titular), CanalOrigen.PORTAL, valor(2, 100_000), new VersionPolitica(2),
-                LocalDateTime.of(2026, 10, 30, 9, 0));
+                LocalDateTime.of(2026, 10, 30, 9, 0), ReservaDePrueba.EDAD_ADULTO);
         folio = new Folio(codigo, new Cargo("Alojamiento", Dinero.de(200_000)));
         lenient().when(reservaRepository.buscarPorCodigo(codigo)).thenReturn(Optional.of(reserva));
         lenient().when(folioRepository.buscarPorReserva(codigo)).thenReturn(Optional.of(folio));
@@ -171,7 +178,7 @@ class ModificarReservaUseCaseTest {
     // --- RN-14: cambio de apartamento ---
 
     private final IdentificacionApartamento aptNuevo = new IdentificacionApartamento("APT-202");
-    private final Apartamento destino = new Apartamento(aptNuevo, "Terraza", 2, 4);
+    private final Apartamento destino = ApartamentoDePrueba.nuevo(aptNuevo, "Terraza", 2, 4);
 
     @Test
     void alCambiarDeApartamentoRevalidaYCotizaContraElNuevoYGuardaLaReserva() {
@@ -221,6 +228,29 @@ class ModificarReservaUseCaseTest {
 
         assertEquals(apt, reserva.getApartamento());
         verifyNoInteractions(cotizador);
+        verify(reservaRepository, never()).guardar(any());
+        verify(folioRepository, never()).guardar(any());
+    }
+
+    // ---------- RP-03 (L-20): adulto responsable al modificar ----------
+
+    @Test
+    void unaModificacionQueDejaElGrupoSinAdultoSeRechazaRP03YNoGuardaNada() {
+        Ocupante menor = new Ocupante(new DocumentoIdentidad("TI-200"), "Menor",
+                LocalDate.of(2011, 6, 1), LocalDate.of(2026, 1, 1)); // 15 años el 10-dic-2026
+        Reserva conMenorComoTitular = Reserva.crear(codigo, apt,
+                new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)), menor, List.of(menor, titular),
+                CanalOrigen.DIRECTO, valor(2, 100_000), new VersionPolitica(2),
+                LocalDateTime.of(2026, 10, 30, 9, 0), ReservaDePrueba.EDAD_ADULTO);
+        when(reservaRepository.buscarPorCodigo(codigo)).thenReturn(Optional.of(conMenorComoTitular));
+        Estancia mismasNoches = new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12));
+        when(cotizador.cotizar(apt, mismasNoches, List.of(menor))).thenReturn(valor(2, 100_000));
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(codigo, mismasNoches, List.of(menor), "Recepción", ahora));
+
+        assertEquals("La reserva debe incluir al menos un ocupante mayor de 18 años", ex.getMessage());
+        assertEquals(List.of(menor, titular), conMenorComoTitular.getOcupantes()); // el grupo no cambió
         verify(reservaRepository, never()).guardar(any());
         verify(folioRepository, never()).guardar(any());
     }

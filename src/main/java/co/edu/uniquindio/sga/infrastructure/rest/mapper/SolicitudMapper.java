@@ -1,6 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.rest.mapper;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 import org.mapstruct.Mapper;
@@ -16,11 +17,14 @@ import co.edu.uniquindio.sga.domain.valueobject.TramoRetencion;
 import co.edu.uniquindio.sga.domain.valueobject.VersionPolitica;
 import co.edu.uniquindio.sga.domain.valueobject.Pago;
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
+import co.edu.uniquindio.sga.domain.repository.FiltroApartamentos;
 import co.edu.uniquindio.sga.domain.repository.FiltroReservas;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
+import co.edu.uniquindio.sga.domain.valueobject.EstadoOperativo;
 import co.edu.uniquindio.sga.domain.valueobject.EstadoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
@@ -79,6 +83,10 @@ public interface SolicitudMapper {
         return new Pago(request.medio(), request.fecha(), Dinero.de(request.valor()));
     }
 
+    default DocumentoIdentidad aDocumento(String documento) {
+        return new DocumentoIdentidad(documento);
+    }
+
     default IdentificacionApartamento aApartamento(String identificacion) {
         return new IdentificacionApartamento(identificacion);
     }
@@ -97,12 +105,34 @@ public interface SolicitudMapper {
         return pesos == null ? null : Dinero.de(pesos);
     }
 
+    /** Sin características (null o vacío) significa "sin filtro"; con varias, el apartamento debe tener todas (L-06). */
+    default FiltroApartamentos aFiltroApartamentos(Collection<Caracteristica> caracteristicas) {
+        return FiltroApartamentos.de(caracteristicas);
+    }
+
+    /** Características (todas deben cumplirse) y estado operativo opcional del apartamento (L-06, 7.5). */
+    default FiltroApartamentos aFiltroApartamentos(Collection<Caracteristica> caracteristicas,
+                                                   EstadoOperativo estadoOperativo) {
+        return FiltroApartamentos.de(caracteristicas, estadoOperativo);
+    }
+
     /** Texto vacío o ausente significa "sin filtro" en cada criterio. */
     default FiltroReservas aFiltro(LocalDate entradaDesde, LocalDate entradaHasta, EstadoReserva estado,
                                    String apartamento, CanalOrigen canal, String titular) {
-        return new FiltroReservas(entradaDesde, entradaHasta, estado,
+        return aFiltro(entradaDesde, entradaHasta, null, null, estado, apartamento, canal, titular, null);
+    }
+
+    /**
+     * Filtro completo de reservas (7.5, 7.6). {@code titular} sigue siendo el documento exacto; {@code nombreTitular} es
+     * un texto que el nombre del titular contiene. Texto vacío o ausente significa "sin filtro".
+     */
+    default FiltroReservas aFiltro(LocalDate entradaDesde, LocalDate entradaHasta, LocalDate salidaDesde,
+                                   LocalDate salidaHasta, EstadoReserva estado, String apartamento, CanalOrigen canal,
+                                   String titular, String nombreTitular) {
+        return new FiltroReservas(entradaDesde, entradaHasta, salidaDesde, salidaHasta, estado,
                 apartamento == null || apartamento.isBlank() ? null : new IdentificacionApartamento(apartamento),
                 canal,
-                titular == null || titular.isBlank() ? null : new DocumentoIdentidad(titular));
+                titular == null || titular.isBlank() ? null : new DocumentoIdentidad(titular),
+                nombreTitular);
     }
 }

@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
 import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
@@ -49,10 +51,21 @@ public final class ReservasDePrueba {
                 new Estancia(entrada, entrada.plusDays(noches)), titular,
                 List.of(titular, ocupante(documentoTitular + "9", "Acompañante")), canal,
                 canal.exigeIdentificadorExterno() ? new IdentificadorExterno("EXT-" + codigo) : null,
-                valor(entrada, noches), new VersionPolitica(1), creadaEn);
+                valor(entrada, noches), new VersionPolitica(1), creadaEn, ReservaDePrueba.EDAD_ADULTO);
     }
 
     public static Reserva reserva(String codigo, String apartamento, LocalDate entrada) {
         return reserva(codigo, apartamento, entrada, 2, "100", CanalOrigen.PORTAL, AHORA);
+    }
+
+    /** RP-02: reserva de {@code noches} noches cuyo valor se congeló con el porcentaje de descuento indicado. */
+    public static Reserva reservaConDescuento(String codigo, String apartamento, LocalDate entrada, int noches,
+                                              int porcentajeDescuento) {
+        Ocupante titular = ocupante("100", "Titular 100");
+        ValorCongelado sinDescuento = valor(entrada, noches);
+        return Reserva.crear(new CodigoReserva(codigo), new IdentificacionApartamento(apartamento),
+                new Estancia(entrada, entrada.plusDays(noches)), titular, List.of(titular), CanalOrigen.PORTAL,
+                new ValorCongelado(sinDescuento.detalle(), porcentajeDescuento), new VersionPolitica(1), AHORA,
+                ReservaDePrueba.EDAD_ADULTO);
     }
 }

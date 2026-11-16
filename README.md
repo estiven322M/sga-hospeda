@@ -14,9 +14,8 @@ Sistema de gestión integral para el alojamiento turístico **Hospeda**, ubicado
 ---
 
 ## 2. Integrantes del equipo
-* **Karen Dahiana Martínez** — karen.martinezh@uqvirtual.edu.co
-* **Miguel Villegas** — miguela.villegasv@uqvirtual.edu.co
-* **Jhon Stivenson Méndez** — jhons.mendeza@uqvirtual.edu.co
+* **Miguel Angel Villegas** — miguela.villegasv@uqvirtual.edu.co
+* **Jhon Mendez** — jhons.mendeza@uqvirtual.edu.co
 
 ---
 
@@ -48,7 +47,9 @@ Para compilar y ejecutar este backend se requiere:
 - **Contrato de la API:** `docs/api/openapi.yaml` (coincide con los endpoints implementados).
 - **Consola H2:** http://localhost:8080/h2-console, URL `jdbc:h2:mem:sgadb`, usuario `sa`, sin contraseña.
 - **Datos de prueba:** se cargan solos al iniciar (apartamentos de ejemplo, temporadas BASE, MEDIA y ALTA, una política de cancelación, reservas en todos los estados y una por canal). Se desactivan con `sga.datos-prueba.habilitado=false` en `application.properties`. Los valores de la Ficha del Alojamiento están en `CatalogoDatosPrueba` y se ajustan en esa única clase.
-- **Colección de pruebas:** `docs/http/sga.http` (cliente HTTP de IntelliJ, entorno `local`). Se ejecuta **una sola vez, de arriba hacia abajo, con la aplicación recién arrancada**; si se repite en la misma sesión, las reservas de 2028 ya existen y varias solicitudes darán 409.
+- **CORS (para el frontend):** la API acepta peticiones del navegador desde los orígenes de la propiedad `sga.cors.origenes-permitidos` de `application.properties` (por defecto `http://localhost:5173`, el servidor de Vite; varios, separados por comas). Métodos GET, POST, PUT y OPTIONS; encabezados `Authorization` y `Content-Type`; `Location` expuesta. Un origen no autorizado recibe 403 en el preflight.
+- **Endpoints para el frontend:** `GET /api/reservas/mias` (solo HUESPED: sus reservas por el claim `documento` del token, de 10 en 10, con filtro `estado`); `GET /api/reservas` admite además `salidaDesde`, `salidaHasta` (llegadas y salidas previstas del día) y `nombreTitular` (contiene, sin distinguir mayúsculas; `titular` sigue siendo el documento exacto); `GET /api/apartamentos` admite `caracteristicas` (deben tenerse todas) y `estadoOperativo`; `GET /api/caracteristicas` publica el catálogo.
+- **Colección de pruebas:** `docs/http/sga.http` (cliente HTTP de IntelliJ, entorno `local`). Se ejecuta **una sola vez, de arriba hacia abajo, con la aplicación recién arrancada**; si se repite en la misma sesión, las reservas de 2028 ya existen y varias solicitudes darán 409. Todos sus pasos llevan `client.test` sobre el cuerpo; para ejecutarla sin IntelliJ: `node docs/http/ejecutar-coleccion.js docs/http/sga.http http://localhost:8080`. El resultado de la última corrida está en `docs/http/resultado-corrida.md`.
 
 ---
 
@@ -57,7 +58,8 @@ Para compilar y ejecutar este backend se requiere:
 - `docs/matriz-trazabilidad.md`: regla de negocio, su implementación, su prueba y el endpoint que la expone.
 - `docs/diagrama-clases-dominio.md`: diagrama de clases del dominio.
 - `docs/contrato-persistencia.md`: contrato entre la capa de aplicación y la persistencia.
-- `docs/seguridad.md`: seguridad con JWT, matriz de roles por endpoint y decisiones (Guía 12).
+- `docs/seguridad.md`: seguridad con JWT, CORS, matriz de roles por endpoint y decisiones (Guía 12).
+- `docs/http/resultado-corrida.md`: evidencia de la ejecución completa de `sga.http` con aserciones de cuerpo.
 
 ---
 

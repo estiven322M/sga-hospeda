@@ -2,6 +2,7 @@ package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
+import co.edu.uniquindio.sga.domain.repository.FiltroApartamentos;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
@@ -56,8 +57,15 @@ public class ApartamentoJpaRepository implements ApartamentoRepository {
     @Override
     @Transactional(readOnly = true)
     public Pagina<Apartamento> listarTodos(SolicitudPagina pagina) {
+        return listarTodos(FiltroApartamentos.SIN_FILTRO, pagina);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Pagina<Apartamento> listarTodos(FiltroApartamentos filtro, SolicitudPagina pagina) {
         return PaginacionJpa.aDominio(
-                datos.findAll(PaginacionJpa.solicitud(pagina, POR_IDENTIFICACION)),
+                datos.findAll(ApartamentoEspecificaciones.segun(filtro),
+                        PaginacionJpa.solicitud(pagina, POR_IDENTIFICACION)),
                 pagina, mapper::aDominio);
     }
 }

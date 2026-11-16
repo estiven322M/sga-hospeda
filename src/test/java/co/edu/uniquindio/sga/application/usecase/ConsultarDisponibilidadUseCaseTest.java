@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -8,6 +10,7 @@ import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
@@ -39,7 +42,7 @@ class ConsultarDisponibilidadUseCaseTest {
             LocalDate.of(1990, 1, 1), LocalDate.of(2026, 11, 2)));
 
     private Apartamento apt(String id, int capacidad) {
-        return new Apartamento(new IdentificacionApartamento(id), "Apto " + id, 1, capacidad);
+        return ApartamentoDePrueba.nuevo(new IdentificacionApartamento(id), "Apto " + id, 1, capacidad);
     }
 
     private ValorCongelado cotizacion(long porNoche) {
@@ -59,7 +62,7 @@ class ConsultarDisponibilidadUseCaseTest {
         when(cotizador.cotizar(barato.getIdentificacion(), estancia, ocupantes)).thenReturn(cotizacion(100_000));
 
         Pagina<ApartamentoDisponible> pagina =
-                useCase.ejecutar(estancia, ocupantes, null, null, null, SolicitudPagina.primera());
+                useCase.ejecutar(estancia, ocupantes, null, null, null, null, SolicitudPagina.primera());
 
         assertEquals(List.of(barato, caro),
                 pagina.contenido().stream().map(ApartamentoDisponible::apartamento).toList());
@@ -73,7 +76,7 @@ class ConsultarDisponibilidadUseCaseTest {
         when(cotizador.cotizar(grande.getIdentificacion(), estancia, ocupantes)).thenReturn(cotizacion(100_000));
 
         Pagina<ApartamentoDisponible> pagina =
-                useCase.ejecutar(estancia, ocupantes, 4, null, null, SolicitudPagina.primera());
+                useCase.ejecutar(estancia, ocupantes, 4, null, null, null, SolicitudPagina.primera());
 
         assertEquals(1, pagina.totalElementos());
         assertEquals(grande, pagina.contenido().get(0).apartamento());
@@ -89,7 +92,7 @@ class ConsultarDisponibilidadUseCaseTest {
         when(cotizador.cotizar(c.getIdentificacion(), estancia, ocupantes)).thenReturn(cotizacion(200_000));  // 400.000
 
         Pagina<ApartamentoDisponible> pagina = useCase.ejecutar(estancia, ocupantes, null,
-                Dinero.de(150_000), Dinero.de(400_000), SolicitudPagina.primera());
+                Dinero.de(150_000), Dinero.de(400_000), null, SolicitudPagina.primera());
 
         assertEquals(List.of(b, c),
                 pagina.contenido().stream().map(ApartamentoDisponible::apartamento).toList());
@@ -103,9 +106,9 @@ class ConsultarDisponibilidadUseCaseTest {
         when(cotizador.cotizar(any(), eq(estancia), eq(ocupantes))).thenReturn(cotizacion(100_000));
 
         Pagina<ApartamentoDisponible> primera =
-                useCase.ejecutar(estancia, ocupantes, null, null, null, new SolicitudPagina(0));
+                useCase.ejecutar(estancia, ocupantes, null, null, null, null, new SolicitudPagina(0));
         Pagina<ApartamentoDisponible> segunda =
-                useCase.ejecutar(estancia, ocupantes, null, null, null, new SolicitudPagina(1));
+                useCase.ejecutar(estancia, ocupantes, null, null, null, null, new SolicitudPagina(1));
 
         assertEquals(10, primera.contenido().size());
         assertEquals(2, segunda.contenido().size());
@@ -120,7 +123,7 @@ class ConsultarDisponibilidadUseCaseTest {
                 .verificarDisponible(a, estancia, 1, null);
 
         Pagina<ApartamentoDisponible> pagina =
-                useCase.ejecutar(estancia, ocupantes, null, null, null, SolicitudPagina.primera());
+                useCase.ejecutar(estancia, ocupantes, null, null, null, null, SolicitudPagina.primera());
 
         assertTrue(pagina.contenido().isEmpty());
         verifyNoInteractions(cotizador);
@@ -134,6 +137,52 @@ class ConsultarDisponibilidadUseCaseTest {
                 .thenThrow(new ReglaDominioException("La reserva debe tener al menos un ocupante facturable"));
 
         assertThrows(ReglaDominioException.class,
-                () -> useCase.ejecutar(estancia, ocupantes, null, null, null, SolicitudPagina.primera()));
+                () -> useCase.ejecutar(estancia, ocupantes, null, null, null, null, SolicitudPagina.primera()));
+    }
+
+    // ---------- L-06: filtro por características ----------
+
+    @Test
+    void filtraPorCaracteristicasExigiendoQueElApartamentoTengaTodasLasPedidasL06() {
+        Apartamento conTodas = ApartamentoDePrueba.conCaracteristicas(new IdentificacionApartamento("APT-1"), "A", 4,
+                Caracteristica.TERRAZA, Caracteristica.PARQUEADERO, Caracteristica.JACUZZI);
+        Apartamento soloUna = ApartamentoDePrueba.conCaracteristicas(new IdentificacionApartamento("APT-2"), "B", 4,
+                Caracteristica.TERRAZA);
+        Apartamento ninguna = apt("APT-3", 4);
+        when(apartamentoRepository.listarActivos()).thenReturn(List.of(conTodas, soloUna, ninguna));
+        when(cotizador.cotizar(conTodas.getIdentificacion(), estancia, ocupantes)).thenReturn(cotizacion(100_000));
+
+        Pagina<ApartamentoDisponible> pagina = useCase.ejecutar(estancia, ocupantes, null, null, null,
+                Set.of(Caracteristica.TERRAZA, Caracteristica.PARQUEADERO), SolicitudPagina.primera());
+
+        assertEquals(List.of(conTodas), pagina.contenido().stream().map(ApartamentoDisponible::apartamento).toList());
+        // los que no cumplen el filtro ni se consultan en disponibilidad ni se cotizan
+        verify(disponibilidad, never()).verificarDisponible(eq(soloUna), any(), anyInt(), any());
+        verify(disponibilidad, never()).verificarDisponible(eq(ninguna), any(), anyInt(), any());
+    }
+
+    @Test
+    void sinNingunApartamentoConLasCaracteristicasPedidasLaPaginaVaciaNoCotizaL06() {
+        Apartamento a = ApartamentoDePrueba.conCaracteristicas(new IdentificacionApartamento("APT-1"), "A", 4,
+                Caracteristica.BALCON);
+        when(apartamentoRepository.listarActivos()).thenReturn(List.of(a));
+
+        Pagina<ApartamentoDisponible> pagina = useCase.ejecutar(estancia, ocupantes, null, null, null,
+                Set.of(Caracteristica.JACUZZI), SolicitudPagina.primera());
+
+        assertTrue(pagina.contenido().isEmpty());
+        verifyNoInteractions(cotizador);
+    }
+
+    @Test
+    void unFiltroDeCaracteristicasVacioONuloNoExcluyeNingunApartamentoL06() {
+        Apartamento a = apt("APT-1", 4);
+        when(apartamentoRepository.listarActivos()).thenReturn(List.of(a));
+        when(cotizador.cotizar(a.getIdentificacion(), estancia, ocupantes)).thenReturn(cotizacion(100_000));
+
+        assertEquals(1, useCase.ejecutar(estancia, ocupantes, null, null, null, Set.of(),
+                SolicitudPagina.primera()).totalElementos());
+        assertEquals(1, useCase.ejecutar(estancia, ocupantes, null, null, null, null,
+                SolicitudPagina.primera()).totalElementos());
     }
 }

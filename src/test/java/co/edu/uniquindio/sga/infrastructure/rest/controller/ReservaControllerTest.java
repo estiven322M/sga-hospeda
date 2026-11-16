@@ -1,5 +1,9 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
@@ -39,6 +43,7 @@ import co.edu.uniquindio.sga.application.usecase.ConfirmarReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.ConsultarReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.CrearReservaUseCase;
 import co.edu.uniquindio.sga.application.usecase.DeclararNoShowUseCase;
+import co.edu.uniquindio.sga.application.usecase.ListarMisReservasUseCase;
 import co.edu.uniquindio.sga.application.usecase.ListarReservasUseCase;
 import co.edu.uniquindio.sga.application.usecase.RegistrarLlegadaUseCase;
 import co.edu.uniquindio.sga.application.usecase.RegistrarSalidaUseCase;
@@ -61,6 +66,7 @@ class ReservaControllerTest {
     @Mock private CrearReservaUseCase crear;
     @Mock private ConsultarReservaUseCase consultar;
     @Mock private ListarReservasUseCase listar;
+    @Mock private ListarMisReservasUseCase listarMias;
     @Mock private ModificarReservaUseCase modificar;
     @Mock private CancelarReservaUseCase cancelar;
     @Mock private ConfirmarReservaUseCase confirmar;
@@ -84,7 +90,7 @@ class ReservaControllerTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.standaloneSetup(new ReservaController(crear, consultar, listar, modificar, cancelar,
+        mvc = MockMvcBuilders.standaloneSetup(new ReservaController(crear, consultar, listar, listarMias, modificar, cancelar,
                         confirmar, llegada, salida, noShow, new ReservaMapperImpl(), new SolicitudMapperImpl(), reloj))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
@@ -95,7 +101,7 @@ class ReservaControllerTest {
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(2), LocalDateTime.of(2026, 11, 2, 10, 0));
+                new VersionPolitica(2), LocalDateTime.of(2026, 11, 2, 10, 0), ReservaDePrueba.EDAD_ADULTO);
     }
 
     @Test
@@ -424,5 +430,90 @@ class ReservaControllerTest {
                         .content(CREAR.replace("\"PORTAL\"", "\"EXTERNO\",\"identificadorExterno\":\"BKG-1\"")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.mensaje").value("El mensaje ya fue recibido"));
+    }
+
+    // ---------- GET /api/reservas/mias y filtros 7.6 ----------
+
+    private static org.springframework.security.core.Authentication huespedConDocumento(String documento) {
+        org.springframework.security.oauth2.jwt.Jwt.Builder jwt = org.springframework.security.oauth2.jwt.Jwt
+                .withTokenValue("token").header("alg", "HS256").subject("huesped@sga.local");
+        if (documento != null) {
+            jwt.claim("documento", documento);
+        }
+        return new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt.build());
+    }
+
+    @Test
+    void miasUsaElDocumentoDelTokenNuncaUnParametroDeLaPeticion() throws Exception {
+        when(listarMias.ejecutar(new co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad("1094000111"), null,
+                new SolicitudPagina(0))).thenReturn(new Pagina<>(List.of(reserva()), 0, 1));
+
+        // aunque la petición intente pasar otro titular, se usa el del token
+        mvc.perform(get("/api/reservas/mias").param("titular", "OTRO-DOC").principal(huespedConDocumento("1094000111")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tamanio").value(10))
+                .andExpect(jsonPath("$.contenido[0].codigo").value("RES-2026-00001"));
+        verify(listarMias).ejecutar(new co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad("1094000111"), null,
+                new SolicitudPagina(0));
+    }
+
+    @Test
+    void miasPasaElFiltroDeEstadoYLaPagina() throws Exception {
+        when(listarMias.ejecutar(new co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad("1094000111"),
+                EstadoReserva.CANCELADA, new SolicitudPagina(2))).thenReturn(new Pagina<>(List.of(), 2, 25));
+
+        mvc.perform(get("/api/reservas/mias").param("estado", "CANCELADA").param("pagina", "2")
+                        .principal(huespedConDocumento("1094000111")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pagina").value(2))
+                .andExpect(jsonPath("$.totalElementos").value(25));
+    }
+
+    @Test
+    void miasConUnTokenSinDocumentoResponde403YNoConsultaNada() throws Exception {
+        mvc.perform(get("/api/reservas/mias").principal(huespedConDocumento(null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+        verifyNoInteractions(listarMias);
+    }
+
+    @Test
+    void miasConUnEstadoInvalidoOUnaPaginaNegativaResponde400() throws Exception {
+        mvc.perform(get("/api/reservas/mias").param("estado", "VOLANDO").principal(huespedConDocumento("1")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/reservas/mias").param("pagina", "-1").principal(huespedConDocumento("1")))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(listarMias);
+    }
+
+    @Test
+    void listarPasaLasSalidasPrevistasYElNombreDelTitularAlFiltro() throws Exception {
+        co.edu.uniquindio.sga.domain.repository.FiltroReservas esperado =
+                new co.edu.uniquindio.sga.domain.repository.FiltroReservas(null, null,
+                        LocalDate.of(2028, 3, 5), LocalDate.of(2028, 3, 6), null, null, null, null, "perez");
+        when(listar.ejecutar(esperado, new SolicitudPagina(0))).thenReturn(new Pagina<>(List.of(reserva()), 0, 1));
+
+        mvc.perform(get("/api/reservas").param("salidaDesde", "2028-03-05").param("salidaHasta", "2028-03-06")
+                        .param("nombreTitular", "  perez "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElementos").value(1));
+        verify(listar).ejecutar(esperado, new SolicitudPagina(0));
+    }
+
+    @Test
+    void elFiltroTitularConservaSuSignificadoDeDocumento() throws Exception {
+        co.edu.uniquindio.sga.domain.repository.FiltroReservas esperado =
+                new co.edu.uniquindio.sga.domain.repository.FiltroReservas(null, null, null, null, null, null, null,
+                        new co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad("CC-9001"), null);
+        when(listar.ejecutar(esperado, new SolicitudPagina(0))).thenReturn(new Pagina<>(List.of(), 0, 0));
+
+        mvc.perform(get("/api/reservas").param("titular", "CC-9001")).andExpect(status().isOk());
+        verify(listar).ejecutar(esperado, new SolicitudPagina(0));
+    }
+
+    @Test
+    void unaFechaDeSalidaMalEscritaResponde400() throws Exception {
+        mvc.perform(get("/api/reservas").param("salidaDesde", "ayer")).andExpect(status().isBadRequest());
+        verifyNoInteractions(listar);
     }
 }

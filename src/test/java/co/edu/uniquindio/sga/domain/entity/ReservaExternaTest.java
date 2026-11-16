@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.entity;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,7 +31,7 @@ class ReservaExternaTest {
 
     private Reserva crear(CanalOrigen canal, IdentificadorExterno identificador) {
         return Reserva.crear(new CodigoReserva("RES-2026-00001"), apt, estancia, titular, List.of(titular), canal,
-                identificador, valor, new VersionPolitica(1), AHORA);
+                identificador, valor, new VersionPolitica(1), AHORA, ReservaDePrueba.EDAD_ADULTO);
     }
 
     // ---------- IdentificadorExterno ----------
@@ -91,7 +93,7 @@ class ReservaExternaTest {
     void modificarLaReservaNoCambiaSuIdentificadorExterno() {
         Reserva r = crear(CanalOrigen.EXTERNO, mensaje);
 
-        r.modificarEstancia(estancia, valor, List.of(titular), "Juan", AHORA);
+        r.modificarEstancia(estancia, valor, List.of(titular), "Juan", AHORA, ReservaDePrueba.EDAD_ADULTO);
 
         assertEquals(mensaje, r.getIdentificadorExterno());
     }

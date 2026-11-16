@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.entity;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import co.edu.uniquindio.sga.domain.exception.ReglaDominioException;
 import co.edu.uniquindio.sga.domain.valueobject.*;
 import org.junit.jupiter.api.Test;
@@ -38,7 +40,7 @@ public class ReservaTest {
                 CanalOrigen.PORTAL,
                 valorBase(),
                 new VersionPolitica(1),
-                LocalDateTime.of(2026, 1, 1, 10, 0)
+                LocalDateTime.of(2026, 1, 1, 10, 0), ReservaDePrueba.EDAD_ADULTO
         );
     }
 
@@ -89,4 +91,81 @@ public class ReservaTest {
         });
     }
 
+    // ---------- RP-03 (L-20): adulto responsable al crear ----------
+
+    private Reserva crearConGrupo(Ocupante titular, List<Ocupante> ocupantes, EdadAdultoResponsable edad) {
+        return Reserva.crear(new CodigoReserva("RES-2026-00009"), new IdentificacionApartamento("APT-301"),
+                new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)), titular, ocupantes,
+                CanalOrigen.DIRECTO, valorBase(), new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0), edad);
+    }
+
+    private Ocupante nacidoEl(String documento, LocalDate nacimiento) {
+        return new Ocupante(new DocumentoIdentidad(documento), "Persona " + documento, nacimiento,
+                LocalDate.of(2026, 1, 1));
+    }
+
+    private static final String MENSAJE_RP03 = "La reserva debe incluir al menos un ocupante mayor de 18 años";
+
+    @Test
+    void unaReservaSoloConMenoresSeRechazaRP03() {
+        Ocupante menor = nacidoEl("TI-1", LocalDate.of(2011, 6, 1)); // 15 años
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class,
+                () -> crearConGrupo(menor, List.of(menor), ReservaDePrueba.EDAD_ADULTO));
+
+        assertEquals(MENSAJE_RP03, ex.getMessage());
+    }
+
+    @Test
+    void conDiecisieteAniosYTrescientosSesentaYCuatroDiasLaReservaSeRechazaRP03() {
+        Ocupante casiAdulto = nacidoEl("TI-2", LocalDate.of(2008, 12, 11)); // cumple 18 un día después de la entrada
+
+        assertThrows(ReglaDominioException.class,
+                () -> crearConGrupo(casiAdulto, List.of(casiAdulto), ReservaDePrueba.EDAD_ADULTO));
+    }
+
+    @Test
+    void conExactamenteDieciochoAniosALaEntradaLaReservaSePermiteRP03() {
+        Ocupante recienAdulto = nacidoEl("CC-3", LocalDate.of(2008, 12, 10));
+
+        Reserva reserva = crearConGrupo(recienAdulto, List.of(recienAdulto), ReservaDePrueba.EDAD_ADULTO);
+
+        assertEquals(EstadoReserva.PENDIENTE, reserva.getEstado());
+    }
+
+    @Test
+    void unTitularMenorPuedeReservarSiAlguienDelGrupoEsAdultoRP03() {
+        Ocupante menor = nacidoEl("TI-4", LocalDate.of(2011, 6, 1));
+        Ocupante adulto = nacidoEl("CC-5", LocalDate.of(1985, 3, 3));
+
+        Reserva reserva = crearConGrupo(menor, List.of(menor, adulto), ReservaDePrueba.EDAD_ADULTO);
+
+        assertEquals(menor, reserva.getTitular());
+    }
+
+    @Test
+    void basta_un_solo_adulto_entre_varios_menores_RP03() {
+        Ocupante titular = nacidoEl("CC-6", LocalDate.of(1990, 1, 1));
+        Ocupante hijo1 = nacidoEl("TI-7", LocalDate.of(2014, 1, 1));
+        Ocupante hijo2 = nacidoEl("TI-8", LocalDate.of(2016, 1, 1));
+
+        assertEquals(3, crearConGrupo(titular, List.of(titular, hijo1, hijo2), ReservaDePrueba.EDAD_ADULTO)
+                .getOcupantes().size());
+    }
+
+    @Test
+    void laEdadDelAdultoResponsableEsUnParametroDeLaCreacionRP03() {
+        Ocupante veinte = nacidoEl("CC-9", LocalDate.of(2006, 6, 1));
+
+        assertEquals(EstadoReserva.PENDIENTE,
+                crearConGrupo(veinte, List.of(veinte), new EdadAdultoResponsable(18)).getEstado());
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class,
+                () -> crearConGrupo(veinte, List.of(veinte), new EdadAdultoResponsable(21)));
+        assertEquals("La reserva debe incluir al menos un ocupante mayor de 21 años", ex.getMessage());
+    }
+
+    @Test
+    void crearSinConocerLaEdadDelAdultoResponsableSeRechazaRP03() {
+        assertThrows(ReglaDominioException.class, () -> crearConGrupo(titular(), List.of(titular()), null));
+    }
 }

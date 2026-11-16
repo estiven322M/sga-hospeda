@@ -1,17 +1,20 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import java.util.Collection;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
 import co.edu.uniquindio.sga.domain.service.RegistroApartamentoService;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 
 /**
  * Crear apartamento. Orquesta: RegistroApartamentoService valida que la identificación sea única (L-04) y
- * el constructor de Apartamento valida nombre, dormitorios y capacidad. El apartamento nace inactivo (7.4):
- * hasta que no se active con tarifas completas no aparece como vendible.
+ * el constructor de Apartamento valida nombre, descripción, dormitorios, capacidad, dotación y características
+ * (L-06). El apartamento nace inactivo (7.4): hasta que no se active con tarifas completas no aparece como vendible.
  */
 @Service
 public class CrearApartamentoUseCase {
@@ -26,8 +29,10 @@ public class CrearApartamentoUseCase {
     }
 
     @Transactional
-    public Apartamento ejecutar(IdentificacionApartamento identificacion, String nombre, int dormitorios,
-                                int capacidad) {
-        return apartamentoRepository.guardar(registroService.crear(identificacion, nombre, dormitorios, capacidad));
+    public Apartamento ejecutar(IdentificacionApartamento identificacion, String nombre, String descripcion,
+                                int dormitorios, int capacidad, Collection<String> dotacion,
+                                Collection<Caracteristica> caracteristicas) {
+        return apartamentoRepository.guardar(registroService.crear(identificacion, nombre, descripcion, dormitorios,
+                capacidad, dotacion, caracteristicas));
     }
 }

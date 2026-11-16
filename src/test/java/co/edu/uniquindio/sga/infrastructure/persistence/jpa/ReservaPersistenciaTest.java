@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
+import co.edu.uniquindio.sga.domain.valueobject.Dinero;
+import static co.edu.uniquindio.sga.infrastructure.persistence.jpa.ReservasDePrueba.reservaConDescuento;
 import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.repository.FiltroReservas;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
@@ -195,5 +197,133 @@ class ReservaPersistenciaTest {
         // Página + conteo + una carga por lote para cada una de las tres colecciones
         assertTrue(estadisticas.getPrepareStatementCount() <= 5,
                 "Consultas ejecutadas: " + estadisticas.getPrepareStatementCount());
+    }
+
+    // ---------- RP-02 (L-20): el descuento queda congelado en la base de datos ----------
+
+    @Test
+    void el_porcentaje_de_descuento_se_guarda_y_se_lee_de_la_base_de_datos_rp02() {
+        Reserva original = repositorio.guardar(reservaConDescuento(codigo(1).valor(), "APT-101", ENTRADA, 7, 10));
+        sincronizarYLimpiar();
+
+        Reserva leida = repositorio.buscarPorCodigo(codigo(1)).orElseThrow();
+
+        assertEquals(10, leida.getValor().porcentajeDescuento());
+        assertEquals(original.getValor().bruto(), leida.getValor().bruto());
+        assertEquals(Dinero.de(140_000), leida.getValor().descuento()); // bruto: 7 noches x 100.000 x 2 facturables = 1.400.000; el 10 % es 140.000
+        assertEquals(original.getValor().total(), leida.getValor().total());
+    }
+
+    @Test
+    void una_reserva_sin_descuento_se_lee_con_cero_por_ciento_rp02() {
+        repositorio.guardar(reserva(codigo(1).valor(), "APT-101", ENTRADA));
+        sincronizarYLimpiar();
+
+        Reserva leida = repositorio.buscarPorCodigo(codigo(1)).orElseThrow();
+
+        assertEquals(0, leida.getValor().porcentajeDescuento());
+        assertEquals(Dinero.CERO, leida.getValor().descuento());
+    }
+
+    // ---------- 7.5, 7.6: salidas previstas y nombre del titular ----------
+
+    private static FiltroReservas filtroNombre(String texto) {
+        return new FiltroReservas(null, null, null, null, null, null, null, null, texto);
+    }
+
+    private List<String> codigos(FiltroReservas filtro) {
+        return repositorio.buscar(filtro, SolicitudPagina.primera()).contenido().stream()
+                .map(r -> r.getCodigo().valor()).toList();
+    }
+
+    @Test
+    void el_nombre_del_titular_se_busca_por_texto_contenido_sin_importar_mayusculas() {
+        guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);            // Titular 100
+        guardar(2, "APT-102", ENTRADA, "200", CanalOrigen.PORTAL, 1);            // Titular 200
+        sincronizarYLimpiar();
+
+        assertEquals(List.of(codigo(1).valor()), codigos(filtroNombre("TITULAR 1")));
+        assertEquals(List.of(codigo(2).valor()), codigos(filtroNombre("itular 20")));
+        assertEquals(2, codigos(filtroNombre("titular")).size());
+        assertTrue(codigos(filtroNombre("nadie")).isEmpty());
+    }
+
+    @Test
+    void el_filtro_por_nombre_busca_solo_el_nombre_del_titular_y_no_el_de_los_acompanantes() {
+        guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0); // acompañante: "Acompañante"
+        sincronizarYLimpiar();
+
+        assertTrue(codigos(filtroNombre("acompa")).isEmpty());
+    }
+
+    @Test
+    void los_comodines_de_like_escritos_por_el_usuario_se_toman_literalmente() {
+        guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);
+        sincronizarYLimpiar();
+
+        assertTrue(codigos(filtroNombre("%")).isEmpty());
+        assertTrue(codigos(filtroNombre("_")).isEmpty());
+        assertTrue(codigos(filtroNombre("Titular _00")).isEmpty()); // _ no es "cualquier carácter"
+    }
+
+    @Test
+    void el_filtro_por_nombre_no_duplica_reservas_con_varios_ocupantes_ni_rompe_la_paginacion() {
+        guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);
+        sincronizarYLimpiar();
+
+        var pagina = repositorio.buscar(filtroNombre("titular"), SolicitudPagina.primera());
+
+        assertEquals(1, pagina.totalElementos());
+        assertEquals(1, pagina.contenido().size());
+    }
+
+    @Test
+    void las_salidas_previstas_se_filtran_por_la_fecha_de_salida_con_extremos_inclusivos() {
+        guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);                    // sale ENTRADA + 2
+        guardar(2, "APT-102", ENTRADA.plusDays(5), "200", CanalOrigen.PORTAL, 1);        // sale ENTRADA + 7
+        sincronizarYLimpiar();
+        LocalDate salida1 = ENTRADA.plusDays(2);
+        LocalDate salida2 = ENTRADA.plusDays(7);
+
+        // el día exacto de salida (desde = hasta)
+        assertEquals(List.of(codigo(1).valor()), codigos(new FiltroReservas(null, null, salida1, salida1,
+                null, null, null, null, null)));
+        // un día antes o después no la incluye
+        assertTrue(codigos(new FiltroReservas(null, null, salida1.plusDays(1), salida1.plusDays(1),
+                null, null, null, null, null)).isEmpty());
+        // solo desde, solo hasta y un rango que las contiene
+        assertEquals(List.of(codigo(2).valor()), codigos(new FiltroReservas(null, null, salida1.plusDays(1), null,
+                null, null, null, null, null)));
+        assertEquals(List.of(codigo(1).valor()), codigos(new FiltroReservas(null, null, null, salida1.plusDays(1),
+                null, null, null, null, null)));
+        assertEquals(2, codigos(new FiltroReservas(null, null, salida1, salida2, null, null, null, null, null)).size());
+    }
+
+    @Test
+    void la_salida_no_se_confunde_con_la_entrada() {
+        guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);
+        sincronizarYLimpiar();
+
+        // el día de ENTRADA no es día de salida
+        assertTrue(codigos(new FiltroReservas(null, null, ENTRADA, ENTRADA, null, null, null, null, null)).isEmpty());
+        assertEquals(List.of(codigo(1).valor()),
+                codigos(new FiltroReservas(ENTRADA, ENTRADA, null, null, null, null, null, null, null)));
+    }
+
+    @Test
+    void el_nombre_se_combina_con_el_estado_y_con_el_documento_exacto_del_titular() {
+        Reserva cancelada = guardar(1, "APT-101", ENTRADA, "100", CanalOrigen.PORTAL, 0);
+        cancelada.cancelar("Cambio de planes", "Titular 100", AHORA.plusHours(1));
+        repositorio.guardar(cancelada);
+        guardar(2, "APT-102", ENTRADA, "200", CanalOrigen.PORTAL, 1);
+        sincronizarYLimpiar();
+
+        assertEquals(List.of(codigo(1).valor()), codigos(new FiltroReservas(null, null, null, null,
+                EstadoReserva.CANCELADA, null, null, null, "titular")));
+        assertEquals(List.of(codigo(2).valor()), codigos(new FiltroReservas(null, null, null, null,
+                null, null, null, new DocumentoIdentidad("200"), "TITULAR")));
+        // el documento sigue siendo exacto: un fragmento no encuentra nada
+        assertTrue(codigos(new FiltroReservas(null, null, null, null, null, null, null,
+                new DocumentoIdentidad("20"), null)).isEmpty());
     }
 }

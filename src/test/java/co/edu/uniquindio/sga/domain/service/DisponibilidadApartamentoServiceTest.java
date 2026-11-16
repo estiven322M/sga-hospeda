@@ -1,5 +1,9 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
+import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
+
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.entity.Bloqueo;
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
@@ -32,14 +36,14 @@ public class DisponibilidadApartamentoServiceTest {
 
     // -- Métodos auxiliares --
     private Apartamento apartamentoBase() {
-        Apartamento apt = new Apartamento(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
+        Apartamento apt = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-101"), "Vista", 2, 4);
         apt.activar(); // los apartamentos nuevos nacen inactivos (7.4)
         return apt;
     }
 
     @Test
     void noDebeVenderUnApartamentoInactivo() {
-        Apartamento inactivo = new Apartamento(new IdentificacionApartamento("APT-102"), "Patio", 1, 2);
+        Apartamento inactivo = ApartamentoDePrueba.nuevo(new IdentificacionApartamento("APT-102"), "Patio", 1, 2);
         Estancia estancia = new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12));
 
         ReglaDominioException ex = assertThrows(ReglaDominioException.class, () ->
@@ -85,7 +89,7 @@ public class DisponibilidadApartamentoServiceTest {
                 new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)),
                 titular(), List.of(titular()), CanalOrigen.PORTAL,
                 valorValido(), // <-- Reemplazamos la lista vacía por un valor válido
-                new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0)
+                new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0), ReservaDePrueba.EDAD_ADULTO
         );
 
         when(reservaRepoMock.buscarActivasPorApartamento(apt.getIdentificacion()))
@@ -108,7 +112,7 @@ public class DisponibilidadApartamentoServiceTest {
                 new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)),
                 titular(), List.of(titular()), CanalOrigen.PORTAL,
                 valorValido(), // <-- Reemplazamos la lista vacía por un valor válido
-                new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0)
+                new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0), ReservaDePrueba.EDAD_ADULTO
         );
 
         when(reservaRepoMock.buscarActivasPorApartamento(apt.getIdentificacion()))
@@ -162,7 +166,7 @@ public class DisponibilidadApartamentoServiceTest {
                 new CodigoReserva("RES-2026-00001"), apt.getIdentificacion(),
                 new Estancia(LocalDate.of(2026, 12, 10), LocalDate.of(2026, 12, 12)),
                 titular(), List.of(titular()), CanalOrigen.PORTAL,
-                valorValido(), new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0));
+                valorValido(), new VersionPolitica(1), LocalDateTime.of(2026, 1, 1, 10, 0), ReservaDePrueba.EDAD_ADULTO);
     }
 
     @Test

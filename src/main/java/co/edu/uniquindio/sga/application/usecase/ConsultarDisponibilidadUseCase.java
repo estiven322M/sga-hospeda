@@ -2,6 +2,7 @@ package co.edu.uniquindio.sga.application.usecase;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import co.edu.uniquindio.sga.domain.repository.Pagina;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
 import co.edu.uniquindio.sga.domain.service.CotizadorEstancia;
 import co.edu.uniquindio.sga.domain.service.DisponibilidadApartamentoService;
+import co.edu.uniquindio.sga.domain.valueobject.Caracteristica;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 
@@ -21,7 +23,8 @@ import co.edu.uniquindio.sga.domain.valueobject.Estancia;
  * CU-02 Consultar disponibilidad. Para cada apartamento activo le pregunta al dominio si puede alojar
  * al grupo en la estancia (RN-01, RN-02, RN-07, RN-20) y lo cotiza (RN-05, RN-06). No decide ninguna
  * regla: un apartamento que el dominio rechaza simplemente no aparece en el resultado.
- * Filtros opcionales: capacidad mínima y rango de precio del total de la estancia. Pagina de a 10.
+ * Filtros opcionales: capacidad mínima, rango de precio del total de la estancia y características (L-06: el
+ * apartamento debe tenerlas TODAS; lo decide Apartamento.tieneTodas). Pagina de a 10.
  */
 @Service
 public class ConsultarDisponibilidadUseCase {
@@ -42,13 +45,16 @@ public class ConsultarDisponibilidadUseCase {
      * @param capacidadMinima filtro opcional (null = sin filtro)
      * @param precioMinimo    filtro opcional sobre el total de la estancia (null = sin filtro)
      * @param precioMaximo    filtro opcional sobre el total de la estancia (null = sin filtro)
+     * @param caracteristicas filtro opcional (null o vacío = sin filtro); el apartamento debe tener todas
      */
     @Transactional(readOnly = true)
     public Pagina<ApartamentoDisponible> ejecutar(Estancia estancia, List<Ocupante> ocupantes,
                                                   Integer capacidadMinima, Dinero precioMinimo,
-                                                  Dinero precioMaximo, SolicitudPagina pagina) {
+                                                  Dinero precioMaximo, Set<Caracteristica> caracteristicas,
+                                                  SolicitudPagina pagina) {
         List<ApartamentoDisponible> disponibles = apartamentoRepository.listarActivos().stream()
                 .filter(a -> capacidadMinima == null || a.getCapacidad() >= capacidadMinima)
+                .filter(a -> a.tieneTodas(caracteristicas))
                 .filter(a -> estaDisponible(a, estancia, ocupantes.size()))
                 .map(a -> new ApartamentoDisponible(a,
                         cotizador.cotizar(a.getIdentificacion(), estancia, ocupantes)))
