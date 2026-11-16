@@ -32,7 +32,7 @@ import jakarta.servlet.Filter;
  * apartamentos nuevos en la base de datos, descarta el contexto al terminar para no alterar las pruebas que cuentan
  * los apartamentos sembrados.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:equipamiento")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ApartamentoEquipamientoIntegracionTest {
 

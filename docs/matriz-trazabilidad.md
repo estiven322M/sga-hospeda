@@ -23,7 +23,7 @@ Paquetes: `domain/entity|valueobject|service` (reglas), `application/usecase` (o
 | RN-02 | Ocupantes no exceden la capacidad | `Apartamento.admite`, `DisponibilidadApartamentoService` | CU-02, CU-03, CU-04 | igual que RN-01 | `DisponibilidadApartamentoServiceTest.noDebeAdmitirMasOcupantesQueLaCapacidadRN02`; `ApartamentoTest.admiteOcupantesEnElLimiteExactoDeLaCapacidad` | 3.2 | Implementada |
 | RN-03 | La salida es posterior a la entrada | `Estancia` (constructor) | todos los que reciben fechas | `POST /api/cotizaciones`, `POST /api/reservas`, `POST /api/disponibilidad`, `PUT .../modificar`, `POST .../bloqueos` | `EstanciaTest.debeTenerAlMenosUnaNocheRN03`; `ConsultasYBloqueosControllerTest.cotizarConFechasInvalidasParaElNegocioResponde409` | 3.3 | Implementada |
 | RN-04 | No se reserva hacia el pasado | `Reserva.crear`, `Reserva.modificarEstancia` | CU-03, CU-04 | `POST /api/reservas`, `PUT .../modificar` | `CrearReservaUseCaseTest.noPermiteReservarHaciaElPasadoRN04YNoAbreFolio`; `ReservaModificacionTest.laNuevaFechaDeEntradaNoPuedeSerPasadaRN04` | 3.4 | Implementada |
-| RN-05 | Valor = suma noche por noche de la tarifa de su temporada x ocupantes facturables; redondeo al final de cada cargo | `CotizadorEstancia`, `CargoNoche.subtotal`, `Dinero` (HALF_UP) | CU-01, CU-02, CU-03, CU-04 | `POST /api/cotizaciones` | `CotizadorEstanciaTest.debeLiquidarNochePorNocheRN05`; `CotizadorEstanciaReglasTest.cadaNocheTomaLaTarifaDeSuTemporadaRN05`, `.laNocheDeLaFechaDeSalidaNoSeCobraRN05`, `.rechazaCotizarSiFaltaLaTarifaDeUnaNoche` | 2.1 | Implementada |
+| RN-05 | Valor = suma noche por noche de la tarifa de su temporada x ocupantes facturables, **menos el descuento por estancia larga de RP-02** (aplicado una sola vez sobre el total); redondeo al final de cada cargo y del descuento | `CotizadorEstancia`, `CargoNoche.subtotal`, `ValorCongelado` (`bruto`, `descuento`, `total`), `Dinero` (HALF_UP) | CU-01, CU-02, CU-03, CU-04 | `POST /api/cotizaciones` | `CotizadorEstanciaTest.debeLiquidarNochePorNocheRN05`; `CotizadorEstanciaReglasTest.cadaNocheTomaLaTarifaDeSuTemporadaRN05`, `.laNocheDeLaFechaDeSalidaNoSeCobraRN05`, `.rechazaCotizarSiFaltaLaTarifaDeUnaNoche`; `ValorCongeladoTest` (bruto, descuento y total; redondeo al final) | 2.1, 7.8, 7.9 | Implementada (el descuento es RP-02, ver sección 2.1) |
 | RN-06 | Facturable si a la fecha de entrada alcanza el umbral; los no facturables cuentan para la capacidad | `Ocupante.esFacturableEn`, `CotizadorEstancia` | CU-01, CU-02, CU-03, CU-04 | `POST /api/cotizaciones` | `OcupanteTest.debeSerFacturableSiAlcanzaElUmbralALaFechaDeEntradaRN06`, `.noDebeSerFacturableSiAunNoAlcanzaElUmbralALaFechaDeEntradaRN06`; `CotizadorEstanciaReglasTest.soloLosOcupantesFacturablesGeneranCargoRN06`, `.unNinoQueNoAlcanzaElUmbralNoCuentaPeroSiCuentaParaLaCapacidadRN06`, `.rechazaUnGrupoSinNingunOcupanteFacturableRN06` | 2.1, 3.5 | Implementada |
 | RN-07 | Con bloqueo vigente en una noche no se vende | `Bloqueo.afecta`, `DisponibilidadApartamentoService` | CU-02, CU-03, CU-04, CU-09 | `POST /api/reservas`, `POST /api/disponibilidad` | `DisponibilidadApartamentoServiceTest.noDebePermitirVenderNochesConBloqueoVigenteRN07`, `.unBloqueoQueEmpiezaElDiaDeSalidaNoAfectaLaEstanciaRN07` | 3.14 | Implementada |
 | RN-08 | Solo transiciones de estado permitidas | `EstadoReserva.puedeTransicionarA`, `Reserva` (métodos de negocio) | confirmar, CU-04, CU-05 | `PUT .../confirmar`, `PUT .../cancelar`, `PUT .../modificar` | `EstadoReservaTest.soloSePermitenLasTransicionesDeLaSeccion8RN08`, `.losEstadosTerminalesNoTransicionanANingunLado`, `.unaReservaEnCursoNoPuedeCancelarseNiVolverAConfirmadaRN08`; `ReservaCicloDeVidaTest.laSalidaSoloEsPosibleDesdeEnCursoRN08`, `.unaReservaFinalizadaNoAdmiteNingunaOperacionRN08`; `CancelarReservaUseCaseTest.noPermiteCancelarUnaReservaYaCanceladaRN08YNoTocaElFolio`; `ConfirmacionReservaServiceTest.rechazaConfirmarUnaReservaQueNoEstaPendienteSinPedirAnticipoRN08` | 3.8, 3.9, 5.1 | Implementada (incluye llegada, salida y no-show: `ReservaCicloDeVidaTest`) |
@@ -71,10 +71,49 @@ solo ofrece los endpoints para gestionarlas. Los **parámetros** viven en `appli
 | L-17 | Servicios adicionales y su cargo | `Folio.registrarCargo` existe | **ninguno** | - | Pendiente (sin caso de uso ni endpoint) |
 | L-18 | Medios de pago (mínimo 2) | `Pago.medio` es texto libre; no hay lista configurada | `POST .../folio/pagos` | `ConfirmarYPagarUseCaseTest.admiteVariosPagosConMediosDistintos` | Parcial: no se valida contra una lista de medios aceptados |
 | L-19 | Reportes adicionales | - | - | - | Pendiente |
-| L-20 | Tres reglas propias aprobadas por el docente | - | - | - | **Pendiente: el equipo debe definirlas y obtener la aprobación del docente** |
+| L-20 | Tres reglas propias aprobadas por el docente | RP-01 `EstanciaMinimaPorTemporada` + `CotizadorEstancia`; RP-02 `PoliticaDescuentoEstanciaLarga` + `ValorCongelado`; RP-03 `EdadAdultoResponsable` + `Ocupante.esAdultoEn` + `Reserva`. Detalle en la sección 2.1 | `POST /api/cotizaciones`, `POST /api/reservas`, `PUT /api/reservas/{codigo}/modificar`, `POST /api/disponibilidad` | Sección 2.1 | **Implementada - aprobación del docente solicitada el 15-nov-2026** |
 | L-21 | Caso de uso del modelo de IA (no bloqueante) | - | - | - | Pendiente |
 | L-22 | Integración externa | `RecepcionReservaExternaService`, `RechazoReservaExterna` | `POST /api/reservas`, `GET /api/reservas-externas/rechazos` | 3.26 a 3.32 | Implementada (ver RN-18, RN-19) |
 | L-23 | Funcionalidad opcional elegida | - | - | - | Pendiente |
+
+---
+
+## 2.1 Reglas propias (L-20)
+
+Tres reglas adicionales, coherentes con el alojamiento y con consecuencia verificable (10.1): dos rechazan (409) y una calcula
+distinto. **Aprobación del docente solicitada el 15-nov-2026**; este documento queda como "Implementada - aprobación del
+docente solicitada el 15-nov-2026" hasta que llegue su respuesta. Los parámetros viven en `application.properties` (regla 10).
+
+| Parámetro | Propiedad | Valor |
+|---|---|---|
+| RP-01: noches mínimas de ALTA y de MEDIA | `sga.alojamiento.estancia-minima.ALTA` / `.MEDIA` | 3 / 2 |
+| RP-02: desde cuántas noches se descuenta y cuánto | `sga.alojamiento.descuento-estancia-larga-noches` / `-porcentaje` | 7 / 10 % |
+| RP-03: edad del adulto responsable | `sga.alojamiento.edad-adulto-responsable-anios` | 18 |
+
+La clave de RP-01 es el nombre de la temporada (un dato, L-08): se pueden agregar mínimos para otras temporadas sin tocar el código.
+
+| Regla | Artefacto | Razón | Endpoint y código | Pruebas (evidencia) | Estado |
+|---|---|---|---|---|---|
+| **RP-01** Estancia mínima por temporada: si alguna noche cae en una temporada con mínimo, la estancia debe tener al menos ese número de noches | Objeto de valor `EstanciaMinimaPorTemporada` (mapa temporada → noches, con `verificar`), evaluado en el servicio de dominio `CotizadorEstancia` | Ningún agregado la evalúa solo: necesita la temporada de cada noche, que viene del tarifario. El cotizador ya la conoce en cada `CargoNoche`; el objeto de valor guarda el dato y su comportamiento. Como cotizar es el paso común, aplica sola al cotizar, crear, modificar y buscar | `POST /api/cotizaciones`, `POST /api/reservas`, `PUT /api/reservas/{codigo}/modificar` y `POST /api/disponibilidad` -> **409** `En temporada ALTA la estancia mínima es de 3 noches` | `EstanciaMinimaPorTemporadaTest` (13: límites 2/3 en ALTA y 1/2 en MEDIA, cruce BASE→ALTA, mayor mínimo, configuración inválida); `CotizadorEstanciaReglasTest` (`altaConDosNochesSeRechazaRP01`, `altaConTresNochesSeCotizaRP01`, `mediaExigeDosNochesRP01`, `unaEstanciaQueCruzaDeBaseAAltaConDosNochesSeRechazaPorLaNocheEnAltaRP01`, `sinEstanciasMinimasConfiguradas...`); `DomainServiceConfigTest`; `ReglasPropiasIntegracionTest.rp01_*` (9, sobre el cuerpo: `$.status`=409, `$.mensaje` exacto, sin trazas); `SembradoEnJunioTest` y `SembradoEnDiciembreTest`. HTTP 7.1 a 7.4, 7.15 | Implementada |
+| **RP-02** Descuento por estancia larga: desde 7 noches, 10 % sobre el total, una sola vez y con redondeo al final | Objeto de valor `PoliticaDescuentoEstanciaLarga` (decide el porcentaje) y `ValorCongelado` ampliado con `porcentajeDescuento`, `bruto()`, `descuento()`, `total()` | El descuento es parte del valor que se congela (RN-22): vive donde nace y se protege el valor. El cotizador solo le pasa el porcentaje. El constructor anterior de `ValorCongelado` se conserva y equivale a 0 % | `POST /api/cotizaciones`, `POST /api/disponibilidad` y `POST /api/reservas` exponen `subtotalBruto`, `porcentajeDescuento`, `descuento` y `total` (la reserva: `valorTotal`, que es el neto). **No rechaza**: calcula distinto, por eso no tiene 409 | `ValorCongeladoTest` (12: 6 contra 7 noches, el redondeo 35.003,5 → 35.004, una sola vez y no noche a noche, límites 0 y 100 %); `PoliticaDescuentoEstanciaLargaTest` (6); `CotizadorEstanciaReglasTest` (`conSeisNochesNoHayDescuentoRP02`, `conSieteNochesSeDescuentaElDiezPorCientoRP02`, `elDescuentoSeAplicaUnaSolaVezSobreElTotalRP02`); `ReservaPersistenciaTest.el_porcentaje_de_descuento_se_guarda_y_se_lee_de_la_base_de_datos_rp02`; `ReglasPropiasIntegracionTest.rp02_*` (6: la reserva congela el mismo total que la cotización, el folio y el ajuste al modificar). HTTP 7.8 a 7.14, 7.16 | Implementada |
+| **RP-03** Adulto responsable: toda reserva incluye al menos un ocupante con 18 años o más a la fecha de entrada | Objeto de valor `EdadAdultoResponsable`, `Ocupante.esAdultoEn` y la invariante en el agregado `Reserva` (`crear` y `modificarEstancia`) | Es una invariante del grupo de ocupantes, que el agregado posee. La edad llega como parámetro, igual que `ahora` (RN-04) y el umbral facturable (RN-06). Es distinta de L-09: un ocupante de 12 a 17 años paga, pero no responde por el grupo | `POST /api/reservas` y `PUT /api/reservas/{codigo}/modificar` -> **409** `La reserva debe incluir al menos un ocupante mayor de 18 años` | `EdadAdultoResponsableTest`; `OcupanteTest` (17 años y 364 días no es adulto, exactamente 18 sí); `ReservaTest` (7 de creación); `ReservaModificacionTest` (3 de modificación, y no deja rastro); `CrearReservaUseCaseTest` y `ModificarReservaUseCaseTest` (no guardan nada); `ReglasPropiasIntegracionTest.rp03_*` (5). HTTP 7.5 a 7.7, 7.17 a 7.19 | Implementada |
+
+**Decisiones de diseño que conviene poder sustentar**
+- **RP-03 no se valida al cotizar.** La cotización calcula un precio y no crea nada; la composición del grupo se exige donde se
+  compromete la reserva (al crear y al modificar). Así un cliente puede explorar precios con un grupo provisional sin que el
+  sistema lo rechace, y la regla se aplica una sola vez, en el agregado que protege el grupo. El paso 7.7 de `sga.http` y
+  `rp03_laCotizacionNoValidaLaComposicionDelGrupoSoloElPrecio` lo demuestran.
+- **El descuento se recalcula al modificar con los parámetros vigentes**, igual que las tarifas (7.5); la política de cancelación
+  congelada no cambia. Pasar de 7 a 6 noches pierde el descuento y el ajuste del folio es la diferencia entre los totales
+  (`rp02_alModificar...`).
+- **Una búsqueda de disponibilidad que viola RP-01 responde 409**, no una lista vacía: el mínimo depende de la temporada y no
+  del apartamento, así que ninguno podría alojar esa estancia, y el mensaje le dice al cliente qué ajustar.
+- **Orden de validación:** disponibilidad (RN-01, RN-02, RN-07, RN-20) → cotización (RN-06 y RP-01) → `Reserva.crear` (RP-03,
+  RN-04, titular). Por eso 3.14 y 3.23 de `sga.http` usan 3 noches: el 409 que prueban es el del bloqueo (RN-07).
+- **Datos sembrados:** todas las estancias de `SembradorReservasPrueba` duran 3 noches (el mayor mínimo) y cada reserva incluye
+  adultos, para que el arranque no dependa del día. `SembradoEnJunioTest` (5 de junio) y `SembradoEnDiciembreTest` (10 de
+  diciembre) arrancan la aplicación con un reloj fijo en temporada ALTA; con estancias de 2 noches el contexto no levanta.
+- `Reserva.reconstruir` no valida RP-03: restaurar una reserva guardada no es una operación de negocio (igual que RN-04).
 
 ---
 
@@ -108,9 +147,12 @@ solo ofrece los endpoints para gestionarlas. Los **parámetros** viven en `appli
 
 Con la persistencia integrada ya se ejecutó lo siguiente:
 - `SgaApplicationTests.contextLoads` y toda la suite (`./gradlew test`) pasan.
-- La colección `docs/http/sga.http` se corrió completa contra la aplicación en marcha: **82 de 82 solicitudes** dieron el código
-  esperado. Se comparó solo el código HTTP, no el contenido de cada respuesta. Los escenarios agregados para L-06 (1.2, 1.7 a
-  1.15, 3.15a a 3.16f) sí verifican el cuerpo con `client.test`; los demás pasan a verificarse así en la corrección B3.
+- La colección `docs/http/sga.http` se corrió completa contra la aplicación en marcha, ejecutando cada solicitud y sus bloques
+  `client.test`: **150 solicitudes**, todas con el código que anuncia su título salvo 6.14 (token vencido, que es manual: exige
+  arrancar con la expiración en 1 minuto), y **39 `client.test` en verde**. Esa corrida encontró y corrigió un defecto previo del
+  paso 6.18, que anunciaba 201 pero reservaba las mismas noches que la reserva externa de 3.26 (409 por RN-01). Los escenarios agregados para L-06 (1.2, 1.7 a
+  1.15, 3.15a a 3.16f, 3.14, 3.23, 6.18 y toda la PARTE 7 de L-20) sí verifican el cuerpo con `client.test`; los demás pasan a
+  verificarse así en la corrección B3.
 
 Sigue pendiente:
 - Comparar Swagger UI (`/swagger-ui.html`) con `docs/api/openapi.yaml`. Las **operaciones** (método y ruta) y la presencia de

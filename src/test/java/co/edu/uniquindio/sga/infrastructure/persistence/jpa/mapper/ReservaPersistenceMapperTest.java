@@ -66,7 +66,8 @@ class ReservaPersistenceMapperTest {
         ReservaEntity corrupta = new ReservaEntity(valida.getCodigo(), valida.getApartamentoId(),
                 valida.getEstancia(), "999", valida.getCanalOrigen(), valida.getEstado(),
                 valida.getHoraEstimadaLlegada(), valida.getVersionPolitica(), valida.getCreadaEn(),
-                valida.getOcupantes(), valida.getHistorial(), valida.getDesglose(), valida.getIdentificadorExterno());
+                valida.getOcupantes(), valida.getHistorial(), valida.getDesglose(), valida.getIdentificadorExterno(),
+                valida.getPorcentajeDescuento());
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> mapper.aDominio(corrupta));
 

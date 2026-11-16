@@ -36,7 +36,8 @@ public class ReservaPersistenceMapper {
                 reserva.getOcupantes().stream().map(ocupantes::aEmbeddable).toList(),
                 reserva.getHistorial().stream().map(ReservaPersistenceMapper::aEmbeddable).toList(),
                 reserva.getValor().detalle().stream().map(ReservaPersistenceMapper::aEmbeddable).toList(),
-                reserva.getIdentificadorExterno() == null ? null : reserva.getIdentificadorExterno().valor());
+                reserva.getIdentificadorExterno() == null ? null : reserva.getIdentificadorExterno().valor(),
+                reserva.getValor().porcentajeDescuento());
     }
 
     public Reserva aDominio(ReservaEntity entidad) {
@@ -61,7 +62,8 @@ public class ReservaPersistenceMapper {
     }
 
     private static ValorCongelado valorDe(ReservaEntity entidad) {
-        return new ValorCongelado(entidad.getDesglose().stream().map(ReservaPersistenceMapper::aDominio).toList());
+        return new ValorCongelado(entidad.getDesglose().stream().map(ReservaPersistenceMapper::aDominio).toList(),
+                entidad.getPorcentajeDescuento());
     }
 
     private static EventoReservaEmbeddable aEmbeddable(EventoReserva evento) {

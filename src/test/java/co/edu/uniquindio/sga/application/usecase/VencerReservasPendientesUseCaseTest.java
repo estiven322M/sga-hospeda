@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,7 +55,7 @@ class VencerReservasPendientesUseCaseTest {
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(1), creadaEn);
+                new VersionPolitica(1), creadaEn, ReservaDePrueba.EDAD_ADULTO);
     }
 
     private Folio folioDe(Reserva r) {

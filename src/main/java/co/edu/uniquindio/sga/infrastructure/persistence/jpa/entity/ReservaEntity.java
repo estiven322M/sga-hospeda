@@ -74,6 +74,10 @@ public class ReservaEntity {
     @Column(name = "creada_en", nullable = false)
     private LocalDateTime creadaEn;
 
+    /** RP-02: porcentaje de descuento por estancia larga con el que se congeló el valor (0 = sin descuento). */
+    @Column(name = "porcentaje_descuento", nullable = false)
+    private int porcentajeDescuento;
+
     @ElementCollection
     @CollectionTable(name = "reserva_ocupante", joinColumns = @JoinColumn(name = "reserva_codigo"))
     @OrderColumn(name = "orden")
@@ -99,8 +103,9 @@ public class ReservaEntity {
                          CanalOrigen canalOrigen, EstadoReserva estado, LocalTime horaEstimadaLlegada,
                          int versionPolitica, LocalDateTime creadaEn, List<OcupanteEmbeddable> ocupantes,
                          List<EventoReservaEmbeddable> historial, List<CargoNocheEmbeddable> desglose,
-                         String identificadorExterno) {
+                         String identificadorExterno, int porcentajeDescuento) {
         this.codigo = codigo;
+        this.porcentajeDescuento = porcentajeDescuento;
         this.apartamentoId = apartamentoId;
         this.estancia = estancia;
         this.titularDocumento = titularDocumento;
@@ -125,6 +130,7 @@ public class ReservaEntity {
     public LocalTime getHoraEstimadaLlegada() { return horaEstimadaLlegada; }
     public int getVersionPolitica() { return versionPolitica; }
     public LocalDateTime getCreadaEn() { return creadaEn; }
+    public int getPorcentajeDescuento() { return porcentajeDescuento; }
     public List<OcupanteEmbeddable> getOcupantes() { return List.copyOf(ocupantes); }
     public List<EventoReservaEmbeddable> getHistorial() { return List.copyOf(historial); }
     public List<CargoNocheEmbeddable> getDesglose() { return List.copyOf(desglose); }

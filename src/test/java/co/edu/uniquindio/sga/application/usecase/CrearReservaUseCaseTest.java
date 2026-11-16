@@ -1,5 +1,6 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
 import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,6 +50,7 @@ class CrearReservaUseCaseTest {
     @Mock private CotizadorEstancia cotizador;
     @Mock private RecepcionReservaExternaService recepcionExterna;
     @Mock private RechazoReservaExternaRepository rechazoRepository;
+    @Mock private ConfiguracionAlojamiento configuracion;
     @InjectMocks private CrearReservaUseCase useCase;
 
     private final LocalDateTime ahora = LocalDateTime.of(2026, 11, 2, 10, 0);
@@ -67,6 +69,7 @@ class CrearReservaUseCaseTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(configuracion.edadAdultoResponsableAnios()).thenReturn(18); // RP-03
         lenient().when(apartamentoRepository.buscarPorIdentificacion(apt)).thenReturn(Optional.of(apartamento));
         lenient().when(cotizador.cotizar(apt, estancia, ocupantes)).thenReturn(valor);
         lenient().when(politicaRepository.vigenteEn(ahora.toLocalDate())).thenReturn(Optional.of(politica));
@@ -242,5 +245,42 @@ class CrearReservaUseCaseTest {
                 () -> useCase.ejecutar(apt, estancia, titular, ocupantes, CanalOrigen.EXTERNO, mensaje, null, ahora));
 
         verifyNoInteractions(rechazoRepository);
+    }
+
+    // ---------- RP-03 (L-20): adulto responsable ----------
+
+    private final Ocupante menor15 = new Ocupante(new DocumentoIdentidad("TI-200"), "Menor",
+            LocalDate.of(2011, 6, 1), LocalDate.of(2026, 11, 2)); // 15 años el 10-dic-2026 (paga, pero no es adulto)
+
+    @Test
+    void unGrupoSinAdultoResponsableSeRechazaRP03YNoGuardaNadaNiAbreElFolio() {
+        List<Ocupante> soloMenor = List.of(menor15);
+        when(cotizador.cotizar(apt, estancia, soloMenor)).thenReturn(valor);
+
+        ReglaDominioException ex = assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(apt, estancia, menor15, soloMenor, CanalOrigen.DIRECTO, null, ahora));
+
+        assertEquals("La reserva debe incluir al menos un ocupante mayor de 18 años", ex.getMessage());
+        verify(reservaRepository, never()).guardar(any());
+        verify(folioRepository, never()).guardar(any());
+    }
+
+    @Test
+    void unMenorConUnAdultoEnElGrupoSiPuedeReservarRP03() {
+        List<Ocupante> grupo = List.of(menor15, titular);
+        when(cotizador.cotizar(apt, estancia, grupo)).thenReturn(valor);
+
+        Reserva reserva = useCase.ejecutar(apt, estancia, menor15, grupo, CanalOrigen.DIRECTO, null, ahora);
+
+        assertEquals(EstadoReserva.PENDIENTE, reserva.getEstado());
+    }
+
+    @Test
+    void laEdadDelAdultoSaleDeLaConfiguracionNoDelCodigoRP03() {
+        when(configuracion.edadAdultoResponsableAnios()).thenReturn(40); // el titular de prueba tiene 36 años
+
+        assertThrows(ReglaDominioException.class,
+                () -> useCase.ejecutar(apt, estancia, titular, ocupantes, CanalOrigen.PORTAL, null, ahora));
+        verify(reservaRepository, never()).guardar(any());
     }
 }

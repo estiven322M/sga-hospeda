@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.persistence.jpa;
 
+import co.edu.uniquindio.sga.domain.valueobject.Dinero;
+import static co.edu.uniquindio.sga.infrastructure.persistence.jpa.ReservasDePrueba.reservaConDescuento;
 import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.repository.FiltroReservas;
 import co.edu.uniquindio.sga.domain.repository.Pagina;
@@ -195,5 +197,31 @@ class ReservaPersistenciaTest {
         // Página + conteo + una carga por lote para cada una de las tres colecciones
         assertTrue(estadisticas.getPrepareStatementCount() <= 5,
                 "Consultas ejecutadas: " + estadisticas.getPrepareStatementCount());
+    }
+
+    // ---------- RP-02 (L-20): el descuento queda congelado en la base de datos ----------
+
+    @Test
+    void el_porcentaje_de_descuento_se_guarda_y_se_lee_de_la_base_de_datos_rp02() {
+        Reserva original = repositorio.guardar(reservaConDescuento(codigo(1).valor(), "APT-101", ENTRADA, 7, 10));
+        sincronizarYLimpiar();
+
+        Reserva leida = repositorio.buscarPorCodigo(codigo(1)).orElseThrow();
+
+        assertEquals(10, leida.getValor().porcentajeDescuento());
+        assertEquals(original.getValor().bruto(), leida.getValor().bruto());
+        assertEquals(Dinero.de(140_000), leida.getValor().descuento()); // bruto: 7 noches x 100.000 x 2 facturables = 1.400.000; el 10 % es 140.000
+        assertEquals(original.getValor().total(), leida.getValor().total());
+    }
+
+    @Test
+    void una_reserva_sin_descuento_se_lee_con_cero_por_ciento_rp02() {
+        repositorio.guardar(reserva(codigo(1).valor(), "APT-101", ENTRADA));
+        sincronizarYLimpiar();
+
+        Reserva leida = repositorio.buscarPorCodigo(codigo(1)).orElseThrow();
+
+        assertEquals(0, leida.getValor().porcentajeDescuento());
+        assertEquals(Dinero.CERO, leida.getValor().descuento());
     }
 }

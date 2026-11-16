@@ -14,6 +14,7 @@ import co.edu.uniquindio.sga.domain.entity.Folio;
 import co.edu.uniquindio.sga.domain.entity.Ocupante;
 import co.edu.uniquindio.sga.domain.entity.Reserva;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
+import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
 import co.edu.uniquindio.sga.domain.repository.FolioRepository;
 import co.edu.uniquindio.sga.domain.repository.ReservaRepository;
 import co.edu.uniquindio.sga.domain.service.CotizadorEstancia;
@@ -21,6 +22,7 @@ import co.edu.uniquindio.sga.domain.service.DisponibilidadApartamentoService;
 import co.edu.uniquindio.sga.domain.valueobject.Ajuste;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
+import co.edu.uniquindio.sga.domain.valueobject.EdadAdultoResponsable;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 import co.edu.uniquindio.sga.domain.valueobject.ValorCongelado;
@@ -44,16 +46,18 @@ public class ModificarReservaUseCase {
     private final ApartamentoRepository apartamentoRepository;
     private final DisponibilidadApartamentoService disponibilidadService;
     private final CotizadorEstancia cotizador;
+    private final ConfiguracionAlojamiento configuracion;
 
     public ModificarReservaUseCase(ReservaRepository reservaRepository, FolioRepository folioRepository,
                                    ApartamentoRepository apartamentoRepository,
                                    DisponibilidadApartamentoService disponibilidadService,
-                                   CotizadorEstancia cotizador) {
+                                   CotizadorEstancia cotizador, ConfiguracionAlojamiento configuracion) {
         this.reservaRepository = reservaRepository;
         this.folioRepository = folioRepository;
         this.apartamentoRepository = apartamentoRepository;
         this.disponibilidadService = disponibilidadService;
         this.cotizador = cotizador;
+        this.configuracion = configuracion;
     }
 
     /** Modificación sin cambio de apartamento. */
@@ -77,7 +81,8 @@ public class ModificarReservaUseCase {
         disponibilidadService.verificarDisponible(apartamento, nuevaEstancia, nuevosOcupantes.size(), codigo);
         ValorCongelado nuevoValor = cotizador.cotizar(destino, nuevaEstancia, nuevosOcupantes);
 
-        Dinero diferencia = reserva.modificarEstancia(destino, nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora);
+        Dinero diferencia = reserva.modificarEstancia(destino, nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora,
+                new EdadAdultoResponsable(configuracion.edadAdultoResponsableAnios()));
         if (!diferencia.esCero()) {
             folio.registrarAjuste(new Ajuste(CONCEPTO_AJUSTE, diferencia));
         }

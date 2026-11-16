@@ -63,15 +63,17 @@ public class Reserva {
     public static Reserva crear(CodigoReserva codigo, IdentificacionApartamento apartamento,
                                 Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
                                 CanalOrigen canalOrigen, ValorCongelado valor,
-                                VersionPolitica politica, LocalDateTime ahora) {
-        return crear(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, null, valor, politica, ahora);
+                                VersionPolitica politica, LocalDateTime ahora, EdadAdultoResponsable edadAdulto) {
+        return crear(codigo, apartamento, estancia, titular, ocupantes, canalOrigen, null, valor, politica, ahora,
+                edadAdulto);
     }
 
     /** RN-19: las reservas de canales externos nacen con el identificador del canal; las demás, sin él. */
     public static Reserva crear(CodigoReserva codigo, IdentificacionApartamento apartamento,
                                 Estancia estancia, Ocupante titular, List<Ocupante> ocupantes,
                                 CanalOrigen canalOrigen, IdentificadorExterno identificadorExterno,
-                                ValorCongelado valor, VersionPolitica politica, LocalDateTime ahora) {
+                                ValorCongelado valor, VersionPolitica politica, LocalDateTime ahora,
+                                EdadAdultoResponsable edadAdulto) {
 
         if (codigo == null) throw new ReglaDominioException("La reserva debe tener un código");
         if (apartamento == null) throw new ReglaDominioException("La reserva debe indicar el apartamento");
@@ -92,6 +94,9 @@ public class Reserva {
             throw new ReglaDominioException("No se puede repetir un ocupante en la reserva");
         }
         
+        // RP-03: toda reserva incluye al menos un adulto responsable a la fecha de entrada
+        verificarAdultoResponsable(estancia, ocupantes, edadAdulto);
+
         // RN-04: no se crean reservas hacia el pasado
         if (estancia.fechaEntrada().isBefore(ahora.toLocalDate())) {
             throw new ReglaDominioException("La fecha de entrada no puede ser anterior a la fecha actual");
@@ -255,8 +260,9 @@ public class Reserva {
      * (PENDIENTE o CONFIRMADA) y repitiendo las invariantes de la creación. La política congelada no cambia.
      * Devuelve la diferencia de valor (positiva o negativa) para registrarla como ajuste en el folio.
      */
-    public Dinero modificarEstancia(Estancia nuevaEstancia, ValorCongelado nuevoValor, List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
-        return modificarEstancia(this.apartamento, nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora);
+    public Dinero modificarEstancia(Estancia nuevaEstancia, ValorCongelado nuevoValor, List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora,
+                                    EdadAdultoResponsable edadAdulto) {
+        return modificarEstancia(this.apartamento, nuevaEstancia, nuevoValor, nuevosOcupantes, autor, ahora, edadAdulto);
     }
 
     /**
@@ -265,7 +271,8 @@ public class Reserva {
      * destino; la política congelada se conserva. El cambio queda registrado en el historial.
      */
     public Dinero modificarEstancia(IdentificacionApartamento nuevoApartamento, Estancia nuevaEstancia, ValorCongelado nuevoValor,
-                                    List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora) {
+                                    List<Ocupante> nuevosOcupantes, String autor, LocalDateTime ahora,
+                                    EdadAdultoResponsable edadAdulto) {
         verificarQueNoEsteTerminada();
         if (nuevoApartamento == null) throw new ReglaDominioException("La reserva debe indicar el apartamento");
         if (this.estado == EstadoReserva.EN_CURSO) {
@@ -282,6 +289,8 @@ public class Reserva {
         if (nuevosOcupantes.stream().distinct().count() != nuevosOcupantes.size()) {
             throw new ReglaDominioException("No se puede repetir un ocupante en la reserva");
         }
+        // RP-03 se revalida al modificar: el nuevo grupo también debe incluir un adulto responsable
+        verificarAdultoResponsable(nuevaEstancia, nuevosOcupantes, edadAdulto);
         // RN-04 se revalida al modificar (RN-14)
         if (nuevaEstancia.fechaEntrada().isBefore(ahora.toLocalDate())) {
             throw new ReglaDominioException("La fecha de entrada no puede ser anterior a la fecha actual");
@@ -309,6 +318,21 @@ public class Reserva {
     }
 
     // --- UTILIDADES PRIVADAS ---
+
+    /**
+     * RP-03 (L-20): al menos un ocupante con la edad del adulto responsable o más a la fecha de entrada. Se evalúa al
+     * crear y al modificar; no al restaurar una reserva guardada (reconstruir no es una operación de negocio).
+     */
+    private static void verificarAdultoResponsable(Estancia estancia, List<Ocupante> ocupantes,
+                                                   EdadAdultoResponsable edadAdulto) {
+        if (edadAdulto == null) {
+            throw new ReglaDominioException("La reserva debe conocer la edad del adulto responsable");
+        }
+        if (ocupantes.stream().noneMatch(o -> o.esAdultoEn(estancia, edadAdulto))) {
+            throw new ReglaDominioException(
+                    "La reserva debe incluir al menos un ocupante mayor de " + edadAdulto.anios() + " años");
+        }
+    }
 
     /** RN-19: solo los canales externos llevan identificador, y lo llevan siempre. */
     private static void verificarIdentificadorExterno(CanalOrigen canal, IdentificadorExterno identificador) {

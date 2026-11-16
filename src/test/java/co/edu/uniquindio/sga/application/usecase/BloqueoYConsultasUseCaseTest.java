@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.application.usecase;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import co.edu.uniquindio.sga.testsupport.ApartamentoDePrueba;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,7 +48,7 @@ class BloqueoYConsultasUseCaseTest {
                 titular, List.of(titular), CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(1), LocalDateTime.of(2026, 11, 2, 10, 0));
+                new VersionPolitica(1), LocalDateTime.of(2026, 11, 2, 10, 0), ReservaDePrueba.EDAD_ADULTO);
     }
 
     // ---------- CU-09 Registrar bloqueo ----------

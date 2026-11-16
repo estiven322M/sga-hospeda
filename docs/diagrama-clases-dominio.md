@@ -23,6 +23,16 @@ El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencia
 - `Reserva.modificarEstancia`: ahora rechaza reservas en curso, exige al titular entre los ocupantes y revalida RN-04.
   Sobrecarga que además recibe el apartamento destino (RN-14): `apartamento` deja de ser `final` y el cambio queda en el historial.
 - `TiempoPreparacion.permiteEntradaElMismoDia(salida, entrada)`: compara con la ventana salida-entrada (RN-20).
+- L-20 (reglas propias, corrección de la Entrega 2):
+  - **RP-01 Estancia mínima por temporada:** objeto de valor `EstanciaMinimaPorTemporada` (mapa temporada → noches), evaluado en
+    `CotizadorEstancia` porque este conoce la temporada de cada noche.
+  - **RP-02 Descuento por estancia larga:** objeto de valor `PoliticaDescuentoEstanciaLarga` (decide el porcentaje) y
+    `ValorCongelado` ampliado con `porcentajeDescuento`, `bruto()`, `descuento()` y `total()` (= bruto - descuento). El
+    constructor de un solo argumento se conserva y equivale a 0 %.
+  - **RP-03 Adulto responsable:** objeto de valor `EdadAdultoResponsable`, `Ocupante.esAdultoEn` y la invariante en
+    `Reserva.crear` y `Reserva.modificarEstancia`, que ahora reciben la edad como parámetro (como ya reciben `ahora`).
+  - `ConfiguracionAlojamiento` gana `estanciaMinimaPorTemporada()`, `nochesDescuentoEstanciaLarga()`,
+    `porcentajeDescuentoEstanciaLarga()` y `edadAdultoResponsableAnios()`.
 - Puertos nuevos o ampliados en `domain/repository`: paginación (`Pagina`, `SolicitudPagina`), `FiltroReservas`,
   `FiltroApartamentos` (L-06), `GeneradorCodigoReserva`, `TemporadaRepository`, `PoliticaCancelacionRepository`.
 
@@ -145,6 +155,7 @@ classDiagram
         -String nombre
         +edadA(LocalDate) int
         +esFacturableEn(Estancia, UmbralEdadFacturable) boolean
+        +esAdultoEn(Estancia, EdadAdultoResponsable) boolean «nuevo L-20 RP-03»
     }
 
     class Estancia {
@@ -157,7 +168,26 @@ classDiagram
     class ValorCongelado {
         <<record>>
         +List~CargoNoche~ detalle
-        +total() Dinero
+        +int porcentajeDescuento «nuevo L-20 RP-02»
+        +bruto() Dinero «nuevo»
+        +descuento() Dinero «nuevo»
+        +total() Dinero «cambio: bruto - descuento»
+    }
+    class EstanciaMinimaPorTemporada {
+        <<record «nuevo L-20 RP-01»>>
+        +Map~String,Integer~ minimos
+        +minimoDe(String) int
+        +verificar(List~CargoNoche~)
+    }
+    class PoliticaDescuentoEstanciaLarga {
+        <<record «nuevo L-20 RP-02»>>
+        +int nochesDesde
+        +int porcentaje
+        +porcentajePara(int) int
+    }
+    class EdadAdultoResponsable {
+        <<record «nuevo L-20 RP-03»>>
+        +int anios
     }
     class CargoNoche {
         <<record>>
@@ -268,6 +298,7 @@ classDiagram
     }
     class CotizadorEstancia {
         RN-05 RN-06
+        RP-01 RP-02 «L-20»
     }
     class RetencionCancelacionService {
         <<nuevo>>
@@ -327,6 +358,9 @@ classDiagram
     DisponibilidadApartamentoService ..> ConfiguracionAlojamiento
     CotizadorEstancia ..> TarifarioRepository
     CotizadorEstancia ..> ConfiguracionAlojamiento
+    CotizadorEstancia ..> EstanciaMinimaPorTemporada
+    CotizadorEstancia ..> PoliticaDescuentoEstanciaLarga
+    Reserva ..> EdadAdultoResponsable : RP-03
     RetencionCancelacionService ..> ConfiguracionAlojamiento
     ConfirmacionReservaService ..> ConfiguracionAlojamiento
     RegistroBloqueoService ..> ReservaRepository

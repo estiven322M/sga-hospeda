@@ -621,19 +621,31 @@ Content-Type: application/json
 
 {"fechaInicio": "2028-07-10", "fechaFin": "2028-07-13", "motivo": "Mantenimiento de la cocina"}
 
-### 3.14 [409 · RN-07] Reservar noches con bloqueo vigente -> 409
+### 3.14 [409 · RN-07] Reservar noches con bloqueo vigente (10 al 13 de julio: 3 noches en ALTA, así que cumple RP-01) -> 409 por el bloqueo
+# Con 3 noches la estancia cumple la estancia mínima de ALTA (RP-01): el único motivo del 409 es el bloqueo (RN-07).
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{aptBloqueo}}",
-  "fechaEntrada": "2028-07-11",
-  "fechaSalida": "2028-07-12",
+  "fechaEntrada": "2028-07-10",
+  "fechaSalida": "2028-07-13",
   "canalOrigen": "DIRECTO",
   "titular": {"documento": "CC-9500", "nombre": "Elena Mora", "fechaNacimiento": "1991-11-11"},
   "ocupantes": [{"documento": "CC-9500", "nombre": "Elena Mora", "fechaNacimiento": "1991-11-11"}]
 }
+
+> {%
+    client.test("3.14 el 409 es por el bloqueo vigente (RN-07), no por la estancia mínima (RP-01)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El apartamento tiene un bloqueo vigente en las fechas solicitadas: Mantenimiento de la cocina",
+            "mensaje: " + response.body.mensaje);
+        client.assert(response.body.mensaje.indexOf("estancia mínima") < 0, "no debe ser la regla RP-01");
+        client.assert(response.body.trace === undefined, "no debe devolver trazas técnicas");
+    });
+%}
 
 ### 3.15a Crear el apartamento (nace inactivo) -> 201 la primera vez; si ya existe de una corrida anterior, 409 por L-04
 POST {{host}}/api/apartamentos
@@ -833,18 +845,27 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
 
-### 3.23 [409 · RN-14 + RN-07] Cambiar de apartamento hacia noches con bloqueo vigente -> 409
+### 3.23 [409 · RN-14 + RN-07] Cambiar de apartamento hacia noches con bloqueo vigente (10 al 13 de julio, 3 noches) -> 409 por el bloqueo
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
 Authorization: Bearer {{tokenRecepcion}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{aptBloqueo}}",
-  "fechaEntrada": "2028-07-11",
-  "fechaSalida": "2028-07-12",
+  "fechaEntrada": "2028-07-10",
+  "fechaSalida": "2028-07-13",
   "autor": "Carlos Vega",
   "ocupantes": [{"documento": "CC-9400", "nombre": "Carlos Vega", "fechaNacimiento": "1979-07-07"}]
 }
+
+> {%
+    client.test("3.23 el 409 es por el bloqueo vigente (RN-07), no por la estancia mínima (RP-01)", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "El apartamento tiene un bloqueo vigente en las fechas solicitadas: Mantenimiento de la cocina",
+            "mensaje: " + response.body.mensaje);
+        client.assert(response.body.mensaje.indexOf("estancia mínima") < 0, "no debe ser la regla RP-01");
+    });
+%}
 
 ### 3.24 [404 · RN-14] Cambiar de apartamento hacia uno que no existe -> 404
 PUT {{host}}/api/reservas/{{codigoC}}/modificar
@@ -1297,20 +1318,29 @@ Content-Type: application/json
   "ocupantes": [{"documento": "CC-9301", "nombre": "Carlos Vélez", "fechaNacimiento": "1979-06-15"}]
 }
 
-### 6.18 La huésped 1 reserva por el PORTAL a su nombre -> 201
+### 6.18 La huésped 1 reserva por el PORTAL a su nombre (20 al 23 de septiembre: el 10 al 12 ya lo ocupa la reserva externa de 3.26) -> 201
 POST {{host}}/api/reservas
 Authorization: Bearer {{tokenHuesped1}}
 Content-Type: application/json
 
 {
   "identificacionApartamento": "{{apt}}",
-  "fechaEntrada": "2028-09-10",
-  "fechaSalida": "2028-09-12",
+  "fechaEntrada": "2028-09-20",
+  "fechaSalida": "2028-09-23",
   "canalOrigen": "PORTAL",
   "horaEstimadaLlegada": "16:00",
   "titular": {"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"},
   "ocupantes": [{"documento": "1094000111", "nombre": "Laura Gomez", "fechaNacimiento": "1995-01-30"}]
 }
+
+> {%
+    client.test("6.18 la huésped reserva por el PORTAL a su nombre", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.canalOrigen === "PORTAL", "canal: " + response.body.canalOrigen);
+        client.assert(response.body.titular.documento === "1094000111", "titular: " + response.body.titular.documento);
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+    });
+%}
 
 # ---------- Registro público (Guía 12, 7.5 punto 2) ----------
 
@@ -1345,3 +1375,404 @@ POST {{host}}/api/auth/registro
 Content-Type: application/json
 
 {}
+
+# =====================================================================================================
+# PARTE 7 · REGLAS PROPIAS (L-20) · aprobación del docente solicitada el 15-nov-2026
+#
+#   RP-01 Estancia mínima por temporada: si alguna noche cae en ALTA (3 noches) o MEDIA (2 noches), la estancia debe tener
+#         al menos ese número de noches. Aplica al cotizar, crear, modificar y buscar disponibilidad -> 409.
+#   RP-02 Descuento por estancia larga: desde 7 noches, 10 % sobre el total, aplicado una sola vez y congelado en la
+#         reserva. No rechaza: calcula distinto (se ve en el cuerpo de la cotización y de la reserva).
+#   RP-03 Adulto responsable: toda reserva incluye al menos un ocupante con 18 años o más a la fecha de entrada. Aplica al
+#         crear y al modificar -> 409. NO se valida al cotizar: la cotización calcula precio, la composición del grupo se
+#         exige al reservar (7.8).
+# Calendario de 2028: ALTA del 15-jun al 15-jul · MEDIA del 30-abr al 4-may · el resto es BASE. Tarifas de APT-101 por
+# ocupante facturable y noche: BASE 120.000 · ALTA 192.000. Todos los escenarios verifican el CUERPO.
+# =====================================================================================================
+
+### 7.1 [409 · RP-01] Cotizar UNA noche en temporada ALTA (11 al 12 de julio) -> 409
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-07-11",
+  "fechaSalida": "2028-07-12",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.1 una noche en ALTA viola la estancia mínima", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "En temporada ALTA la estancia mínima es de 3 noches", "mensaje: " + response.body.mensaje);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).indexOf("Exception") < 0,
+            "no debe devolver trazas técnicas");
+    });
+%}
+
+### 7.2 [409 · RP-01] Una estancia que cruza de BASE a ALTA con 2 noches (14 al 16 de junio): basta una noche en ALTA -> 409
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-06-14",
+  "fechaSalida": "2028-06-16",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.2 la noche del 15 de junio es ALTA y exige 3 noches", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "En temporada ALTA la estancia mínima es de 3 noches", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.3 [RP-01] Con exactamente 3 noches en ALTA la cotización funciona -> 200, 3 x 192.000 = 576.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-07-11",
+  "fechaSalida": "2028-07-14",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.3 tres noches en ALTA se cotizan a la tarifa de ALTA", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 3, "noches: " + response.body.noches);
+        client.assert(response.body.desglose.every(n => n.temporada === "ALTA"), "todas las noches deben ser ALTA");
+        client.assert(response.body.total === 576000, "total: " + response.body.total);
+        client.assert(response.body.porcentajeDescuento === 0, "no hay descuento con 3 noches");
+    });
+%}
+
+### 7.4 [409 · RP-01] Crear una reserva de UNA noche en temporada MEDIA (1 al 2 de mayo) -> 409
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-05-01",
+  "fechaSalida": "2028-05-02",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"},
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.4 una noche en MEDIA viola la estancia mínima al reservar", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "En temporada MEDIA la estancia mínima es de 2 noches", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.5 [409 · RP-03] Reserva cuyo único ocupante es un menor de 15 años (paga, pero no es adulto responsable) -> 409
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-20",
+  "fechaSalida": "2028-10-23",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"},
+  "ocupantes": [{"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"}]
+}
+
+> {%
+    client.test("7.5 un grupo sin adulto responsable no puede reservar", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "La reserva debe incluir al menos un ocupante mayor de 18 años", "mensaje: " + response.body.mensaje);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).indexOf("Exception") < 0,
+            "no debe devolver trazas técnicas");
+    });
+%}
+
+### 7.6 [409 · RP-03] Límite: 17 años y 364 días a la fecha de entrada (cumple 18 el 21-oct, entra el 20-oct) -> 409
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-20",
+  "fechaSalida": "2028-10-23",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "TI-9703", "nombre": "Casi Adulto", "fechaNacimiento": "2010-10-21"},
+  "ocupantes": [{"documento": "TI-9703", "nombre": "Casi Adulto", "fechaNacimiento": "2010-10-21"}]
+}
+
+> {%
+    client.test("7.6 a un día de cumplir 18 todavía no es adulto responsable", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "La reserva debe incluir al menos un ocupante mayor de 18 años", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.7 [RP-03] La COTIZACIÓN de ese mismo menor sí funciona: cotizar calcula precio, no valida el grupo -> 200, 3 x 120.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-10-20",
+  "fechaSalida": "2028-10-23",
+  "ocupantes": [{"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"}]
+}
+
+> {%
+    client.test("7.7 la cotización no exige adulto responsable", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.total === 360000, "total: " + response.body.total);
+    });
+%}
+
+### 7.8 [RP-02] Cotizar 6 noches (1 al 7 de febrero) -> 200, sin descuento: 6 x 120.000 = 720.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-07",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.8 con 6 noches no hay descuento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 6, "noches: " + response.body.noches);
+        client.assert(response.body.subtotalBruto === 720000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 0, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 0, "descuento: " + response.body.descuento);
+        client.assert(response.body.total === 720000, "total: " + response.body.total);
+    });
+%}
+
+### 7.9 [RP-02] Cotizar 7 noches (1 al 8 de febrero) -> 200: bruto 840.000, 10 %, descuento 84.000, total 756.000
+POST {{host}}/api/cotizaciones
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-08",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.9 con 7 noches se descuenta el 10 % una sola vez", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 7, "noches: " + response.body.noches);
+        client.assert(response.body.desglose.length === 7, "desglose: " + response.body.desglose.length);
+        client.assert(response.body.subtotalBruto === 840000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 10, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 84000, "descuento: " + response.body.descuento);
+        client.assert(response.body.total === response.body.subtotalBruto - response.body.descuento,
+            "total (" + response.body.total + ") debe ser bruto - descuento");
+        client.assert(response.body.total === 756000, "total: " + response.body.total);
+        const sumaNoches = response.body.desglose.reduce((suma, n) => suma + n.subtotal, 0);
+        client.assert(sumaNoches === 840000, "el desglose noche por noche suma el bruto: " + sumaNoches);
+    });
+    client.global.set("totalCotizado7", response.body.total);
+%}
+
+### 7.10 [RP-02] Crear la reserva de esas 7 noches -> 201: congela el MISMO total que la cotización
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-08",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"},
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.10 la reserva congela el descuento y el total cotizados", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.headers.valueOf("Location") !== null, "falta Location");
+        client.assert(response.body.estado === "PENDIENTE", "estado: " + response.body.estado);
+        client.assert(response.body.subtotalBruto === 840000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 10, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 84000, "descuento: " + response.body.descuento);
+        client.assert(String(response.body.valorTotal) === String(client.global.get("totalCotizado7")),
+            "valorTotal " + response.body.valorTotal + " debe ser igual al cotizado " + client.global.get("totalCotizado7"));
+    });
+    client.global.set("codigoRP02", response.body.codigo);
+%}
+
+### 7.11 [RP-02] Leer la reserva: el descuento sigue congelado y el folio se abre con el valor ya descontado -> 200
+GET {{host}}/api/reservas/{{codigoRP02}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.11 la reserva leída conserva subtotal, descuento y total", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.subtotalBruto === 840000, "subtotalBruto: " + response.body.subtotalBruto);
+        client.assert(response.body.porcentajeDescuento === 10, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.descuento === 84000, "descuento: " + response.body.descuento);
+        client.assert(response.body.valorTotal === 756000, "valorTotal: " + response.body.valorTotal);
+    });
+%}
+
+### 7.12 [RP-02] Folio de esa reserva -> 200: el cargo de alojamiento es el total con descuento
+GET {{host}}/api/reservas/{{codigoRP02}}/folio
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.12 el folio cobra el total con descuento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.cargos[0].valor === 756000, "cargo: " + response.body.cargos[0].valor);
+        client.assert(response.body.saldo === 756000, "saldo: " + response.body.saldo);
+    });
+%}
+
+### 7.13 [RP-02] Modificar a 6 noches (1 al 7 de febrero): se recalcula con los parámetros vigentes, pierde el descuento -> 200
+PUT {{host}}/api/reservas/{{codigoRP02}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-02-01",
+  "fechaSalida": "2028-02-07",
+  "autor": "Recepción",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.13 con 6 noches la reserva ya no tiene descuento", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.noches === 6, "noches: " + response.body.noches);
+        client.assert(response.body.porcentajeDescuento === 0, "porcentajeDescuento: " + response.body.porcentajeDescuento);
+        client.assert(response.body.valorTotal === 720000, "valorTotal: " + response.body.valorTotal);
+    });
+%}
+
+### 7.14 [RP-02] El folio registra el ajuste: 720.000 - 756.000 = -36.000, sin tocar el cargo original -> 200
+GET {{host}}/api/reservas/{{codigoRP02}}/folio
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.14 el ajuste del folio es la diferencia de los totales", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.cargos[0].valor === 756000, "el cargo original no se toca: " + response.body.cargos[0].valor);
+        client.assert(response.body.ajustes[0].valor === -36000, "ajuste: " + response.body.ajustes[0].valor);
+        client.assert(response.body.saldo === 720000, "saldo: " + response.body.saldo);
+    });
+%}
+
+### 7.15 [409 · RP-01] Modificar esa reserva a 2 noches en ALTA (11 al 13 de julio) -> 409 y no cambia nada
+PUT {{host}}/api/reservas/{{codigoRP02}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-07-11",
+  "fechaSalida": "2028-07-13",
+  "autor": "Recepción",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.15 modificar tampoco puede dejar una estancia por debajo del mínimo", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.mensaje === "En temporada ALTA la estancia mínima es de 3 noches", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.16 [RP-02] Disponibilidad de 7 noches (20 al 27 de agosto): la tarjeta de APT-101 muestra bruto, descuento y total -> 200
+POST {{host}}/api/disponibilidad
+Authorization: Bearer {{tokenHuesped1}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-08-20",
+  "fechaSalida": "2028-08-27",
+  "ocupantes": [{"documento": "CC-9701", "nombre": "Adulto Uno", "fechaNacimiento": "1990-01-01"}]
+}
+
+> {%
+    client.test("7.16 la tarjeta muestra el descuento por estancia larga", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const tarjeta = response.body.contenido.filter(a => a.identificacion === "APT-101")[0];
+        client.assert(tarjeta !== undefined, "APT-101 debe estar disponible");
+        client.assert(tarjeta.subtotalBruto === 840000, "subtotalBruto: " + tarjeta.subtotalBruto);
+        client.assert(tarjeta.porcentajeDescuento === 10, "porcentajeDescuento: " + tarjeta.porcentajeDescuento);
+        client.assert(tarjeta.descuento === 84000, "descuento: " + tarjeta.descuento);
+        client.assert(tarjeta.total === 756000, "total: " + tarjeta.total);
+    });
+%}
+
+### 7.17 [RP-03] Preparación: reserva con un menor como titular Y un adulto en el grupo -> 201 (un menor puede reservar si hay un adulto)
+POST {{host}}/api/reservas
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "identificacionApartamento": "{{apt}}",
+  "fechaEntrada": "2028-12-01",
+  "fechaSalida": "2028-12-04",
+  "canalOrigen": "DIRECTO",
+  "titular": {"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"},
+  "ocupantes": [
+    {"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"},
+    {"documento": "CC-9704", "nombre": "Adulta Acompañante", "fechaNacimiento": "1985-03-03"}
+  ]
+}
+
+> {%
+    client.test("7.17 un menor con un adulto en el grupo sí puede reservar", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.ocupantes.length === 2, "ocupantes: " + response.body.ocupantes.length);
+        client.assert(response.body.titular.documento === "TI-9702", "titular: " + response.body.titular.documento);
+    });
+    client.global.set("codigoRP03", response.body.codigo);
+%}
+
+### 7.18 [409 · RP-03] Modificar esa reserva quitando al adulto (queda solo el menor) -> 409
+PUT {{host}}/api/reservas/{{codigoRP03}}/modificar
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{
+  "fechaEntrada": "2028-12-01",
+  "fechaSalida": "2028-12-04",
+  "autor": "Recepción",
+  "ocupantes": [{"documento": "TI-9702", "nombre": "Menor Quince", "fechaNacimiento": "2013-06-01"}]
+}
+
+> {%
+    client.test("7.18 modificar tampoco puede dejar el grupo sin adulto responsable", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "La reserva debe incluir al menos un ocupante mayor de 18 años", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 7.19 [RP-03] La reserva conserva sus dos ocupantes tras la modificación rechazada -> 200
+GET {{host}}/api/reservas/{{codigoRP03}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("7.19 el rechazo no cambió el grupo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.ocupantes.length === 2, "ocupantes: " + response.body.ocupantes.length);
+    });
+%}

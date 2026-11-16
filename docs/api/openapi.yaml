@@ -836,6 +836,15 @@ paths:
         Calcula el valor noche por noche con la tarifa de la temporada de cada noche, multiplicada por el número
         de ocupantes facturables (RN-05, RN-06). No crea ningún recurso, por eso responde 200.
         Se usa POST porque la composición del grupo (con fechas de nacimiento) viaja en el cuerpo.
+
+        **Reglas propias (L-20).**
+        - **RP-01 Estancia mínima por temporada:** si alguna noche cae en una temporada con mínimo (ALTA = 3 noches, MEDIA = 2),
+          la estancia debe tener al menos ese número de noches; si no, responde **409** con el mensaje
+          `En temporada ALTA la estancia mínima es de 3 noches`. Basta una noche en la temporada para exigir su mínimo.
+        - **RP-02 Descuento por estancia larga:** desde 7 noches se descuenta el 10 % del total, una sola vez y con redondeo
+          al final. No rechaza: la respuesta trae `subtotalBruto`, `porcentajeDescuento`, `descuento` y `total` (= bruto - descuento).
+        - **RP-03 Adulto responsable no se valida al cotizar:** la cotización calcula el precio; la composición del grupo
+          se exige al reservar (`POST /api/reservas`) y al modificar.
         Mapea a: `CotizarEstanciaUseCase`
       operationId: cotizarEstancia
       requestBody:
@@ -886,6 +895,11 @@ paths:
         cotización, ordenados por precio. Filtros opcionales: capacidad mínima, rango de precio del total y
         características (L-06: el apartamento debe tener **todas** las pedidas).
         Es una consulta, por eso responde 200. Se usa POST porque la composición del grupo viaja en el cuerpo.
+
+        Cada tarjeta trae la cotización con las reglas propias (L-20): `subtotalBruto`, `porcentajeDescuento` (RP-02, desde
+        7 noches), `descuento` y `total`. Si la estancia consultada no cumple la estancia mínima de su temporada (RP-01,
+        por ejemplo una noche en ALTA), responde **409** con `En temporada ALTA la estancia mínima es de 3 noches`: el mínimo
+        depende de la temporada, no del apartamento, así que ninguno podría alojar esa estancia.
         Mapea a: `ConsultarDisponibilidadUseCase`
       operationId: consultarDisponibilidad
       parameters:
@@ -939,6 +953,15 @@ paths:
         dos veces no crea dos reservas y la segunda recepción responde 409. Si una reserva externa viola una regla
         (por ejemplo, solapa una reserva vigente) se rechaza con 409, no sobrescribe nada y queda registrada (RN-18);
         el registro se consulta en `GET /api/reservas-externas/rechazos`.
+
+        **Reglas propias (L-20).** Respuestas **409**:
+        - **RP-01:** la estancia no alcanza la estancia mínima de alguna de sus temporadas
+          (`En temporada ALTA la estancia mínima es de 3 noches`).
+        - **RP-03:** el grupo no incluye ningún ocupante con 18 años o más a la fecha de entrada
+          (`La reserva debe incluir al menos un ocupante mayor de 18 años`). Un ocupante de 12 a 17 años paga pero no cuenta
+          como adulto responsable; el titular puede ser menor si otro ocupante es adulto.
+        - **RP-02** no rechaza: desde 7 noches la reserva congela el descuento (`porcentajeDescuento`, `descuento`) y su
+          `valorTotal` ya viene con él; el folio se abre con ese valor.
         Mapea a: `CrearReservaUseCase`
       operationId: crearReserva
       requestBody:
@@ -1113,6 +1136,12 @@ paths:
         (RN-14), recalcula el valor con las tarifas vigentes y registra la diferencia como ajuste en el folio, positivo
         o negativo. La política congelada no se recalcula. Si se envía `identificacionApartamento`, la reserva se pasa a ese
         apartamento: se revalida disponibilidad, capacidad y bloqueos contra él y se recotiza con sus tarifas (RN-14). Si se omite, conserva el actual.
+
+        **Reglas propias (L-20).** Respuestas **409** si el resultado de la modificación viola:
+        - **RP-01:** la nueva estancia queda por debajo de la estancia mínima de alguna de sus temporadas.
+        - **RP-03:** el nuevo grupo no incluye ningún ocupante con 18 años o más a la nueva fecha de entrada.
+        - **RP-02** recalcula el descuento con los parámetros vigentes (no con los de la creación): si la estancia pasa de 6 a 7
+          noches gana el descuento y si pasa de 7 a 6 lo pierde; el ajuste del folio es la diferencia entre los totales.
         Mapea a: `ModificarReservaUseCase`
       operationId: modificarReserva
       parameters:
@@ -2247,11 +2276,27 @@ components:
           type: integer
         desglose:
           type: array
+          description: Noche por noche, siempre ANTES del descuento (RN-05)
           items:
             $ref: '#/components/schemas/CargoNocheResponse'
+        subtotalBruto:
+          type: integer
+          format: int64
+          description: Suma noche por noche, antes del descuento (pesos COP)
+        porcentajeDescuento:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Descuento por estancia larga (RP-02); 0 si la estancia es corta
+          example: 10
+        descuento:
+          type: integer
+          format: int64
+          description: Porcentaje sobre el bruto, aplicado una sola vez y redondeado al final (pesos COP)
         total:
           type: integer
           format: int64
+          description: Subtotal bruto menos descuento (pesos COP)
         moneda:
           type: string
           example: COP
@@ -2272,9 +2317,23 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Caracteristica'
+        subtotalBruto:
+          type: integer
+          format: int64
+          description: Suma noche por noche, antes del descuento (pesos COP)
+        porcentajeDescuento:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Descuento por estancia larga (RP-02); 0 si la estancia es corta
+        descuento:
+          type: integer
+          format: int64
+          description: Pesos COP
         total:
           type: integer
           format: int64
+          description: Subtotal bruto menos descuento (pesos COP)
         moneda:
           type: string
           example: COP
@@ -2335,7 +2394,20 @@ components:
         valorTotal:
           type: integer
           format: int64
-          description: Valor congelado, en pesos COP
+          description: Valor congelado, en pesos COP. Es el total NETO (subtotalBruto menos descuento), lo que se cobra y se anticipa.
+        subtotalBruto:
+          type: integer
+          format: int64
+          description: Suma noche por noche, antes del descuento (pesos COP)
+        porcentajeDescuento:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Descuento por estancia larga con el que se creó o se modificó la reserva (RP-02)
+        descuento:
+          type: integer
+          format: int64
+          description: Pesos COP, congelado en la reserva
         moneda:
           type: string
           example: COP

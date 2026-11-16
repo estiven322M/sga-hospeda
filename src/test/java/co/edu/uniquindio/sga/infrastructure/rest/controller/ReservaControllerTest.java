@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.infrastructure.rest.controller;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
@@ -95,7 +97,7 @@ class ReservaControllerTest {
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(100_000), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(100_000), 1))),
-                new VersionPolitica(2), LocalDateTime.of(2026, 11, 2, 10, 0));
+                new VersionPolitica(2), LocalDateTime.of(2026, 11, 2, 10, 0), ReservaDePrueba.EDAD_ADULTO);
     }
 
     @Test

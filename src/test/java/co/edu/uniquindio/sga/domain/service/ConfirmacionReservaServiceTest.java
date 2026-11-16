@@ -1,5 +1,7 @@
 package co.edu.uniquindio.sga.domain.service;
 
+import co.edu.uniquindio.sga.testsupport.ReservaDePrueba;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -34,7 +36,7 @@ class ConfirmacionReservaServiceTest {
                 CanalOrigen.PORTAL, new ValorCongelado(List.of(
                         new CargoNoche(LocalDate.of(2026, 12, 10), "ALTA", Dinero.de(porNoche), 1),
                         new CargoNoche(LocalDate.of(2026, 12, 11), "ALTA", Dinero.de(porNoche), 1))),
-                new VersionPolitica(1), AHORA);
+                new VersionPolitica(1), AHORA, ReservaDePrueba.EDAD_ADULTO);
         if (conHoraLlegada) {
             r.indicarHoraEstimadaLlegada(LocalTime.of(16, 0), "Juan", AHORA);
         }

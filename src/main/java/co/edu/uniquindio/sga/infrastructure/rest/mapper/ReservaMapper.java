@@ -34,6 +34,9 @@ public interface ReservaMapper extends ConversionesDominio {
     @Mapping(target = "fechaSalida", source = "estancia.fechaSalida")
     @Mapping(target = "noches", expression = "java(reserva.getEstancia().noches())")
     @Mapping(target = "valorTotal", expression = "java(aPesos(reserva.getValor().total()))")
+    @Mapping(target = "subtotalBruto", expression = "java(aPesos(reserva.getValor().bruto()))")
+    @Mapping(target = "porcentajeDescuento", expression = "java(reserva.getValor().porcentajeDescuento())")
+    @Mapping(target = "descuento", expression = "java(aPesos(reserva.getValor().descuento()))")
     @Mapping(target = "moneda", constant = "COP")
     @Mapping(target = "desglose", source = "valor.detalle")
     @Mapping(target = "versionPolitica", source = "politica.numero")
@@ -62,6 +65,9 @@ public interface ReservaMapper extends ConversionesDominio {
     @Mapping(target = "dormitorios", source = "apartamento.dormitorios")
     @Mapping(target = "capacidad", source = "apartamento.capacidad")
     @Mapping(target = "caracteristicas", source = "apartamento.caracteristicas")
+    @Mapping(target = "subtotalBruto", expression = "java(aPesos(disponible.cotizacion().bruto()))")
+    @Mapping(target = "porcentajeDescuento", expression = "java(disponible.cotizacion().porcentajeDescuento())")
+    @Mapping(target = "descuento", expression = "java(aPesos(disponible.cotizacion().descuento()))")
     @Mapping(target = "total", expression = "java(aPesos(disponible.cotizacion().total()))")
     @Mapping(target = "moneda", constant = "COP")
     @Mapping(target = "desglose", source = "cotizacion.detalle")
@@ -70,6 +76,7 @@ public interface ReservaMapper extends ConversionesDominio {
     default CotizacionResponse aCotizacion(IdentificacionApartamento apartamento, Estancia estancia,
                                            ValorCongelado valor) {
         return new CotizacionResponse(apartamento.valor(), estancia.fechaEntrada(), estancia.fechaSalida(),
-                estancia.noches(), aDesglose(valor.detalle()), aPesos(valor.total()), MONEDA);
+                estancia.noches(), aDesglose(valor.detalle()), aPesos(valor.bruto()), valor.porcentajeDescuento(),
+                aPesos(valor.descuento()), aPesos(valor.total()), MONEDA);
     }
 }

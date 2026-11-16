@@ -22,6 +22,7 @@ import co.edu.uniquindio.sga.domain.valueobject.Cargo;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
 import co.edu.uniquindio.sga.domain.valueobject.Dinero;
 import co.edu.uniquindio.sga.domain.valueobject.DocumentoIdentidad;
+import co.edu.uniquindio.sga.domain.valueobject.EdadAdultoResponsable;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
@@ -53,6 +54,11 @@ class SembradorReservasPrueba {
     private static final LocalTime HORA_CANCELACION = LocalTime.of(12, 0);
     private static final long VALOR_CONSUMO = 25_000;
     private static final long ABONO_DURANTE_LA_ESTANCIA = 100_000;
+    /**
+     * Toda estancia sembrada dura 3 noches: es el mayor mínimo que exige una temporada (RP-01: ALTA=3). Así el sembrado
+     * es válido sea cual sea el día en que arranque la aplicación y la temporada en que caigan las fechas relativas a hoy.
+     */
+    static final int NOCHES = 3;
     private static final int EDAD_DEL_MENOR = 8;
     private static final int EDAD_DE_LOS_ADULTOS = 35;
     // Guía 12: documentos de los huéspedes iniciales (application.properties). Las reservas del portal quedan a su
@@ -111,7 +117,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarPendiente() {
-        ReservaConFolio r = abrir(new Escenario("APT-201", 20, 2, CanalOrigen.PORTAL, HUESPED_1, 0, false));
+        ReservaConFolio r = abrir(new Escenario("APT-201", 20, NOCHES, CanalOrigen.PORTAL, HUESPED_1, 0, false));
         guardar(r);
     }
 
@@ -131,13 +137,13 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarConfirmada() {
-        ReservaConFolio r = abrir(new Escenario("APT-202", 10, 2, CanalOrigen.DIRECTO, "CC-1002", 3, true));
+        ReservaConFolio r = abrir(new Escenario("APT-202", 10, NOCHES, CanalOrigen.DIRECTO, "CC-1002", 3, true));
         pagarAnticipoYConfirmar(r);
         guardar(r);
     }
 
     private void sembrarEnCurso() {
-        ReservaConFolio r = abrir(new Escenario("APT-203", -1, 3, CanalOrigen.EXTERNO, "CC-1003", 6, true));
+        ReservaConFolio r = abrir(new Escenario("APT-203", -1, NOCHES, CanalOrigen.EXTERNO, "CC-1003", 6, true));
         pagarAnticipoYConfirmar(r);
         LocalDateTime llegada = llegadaDe(r.reserva());
         r.reserva().registrarLlegada(AUTOR, llegada);
@@ -150,7 +156,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarFinalizada() {
-        ReservaConFolio r = abrir(new Escenario("APT-201", -30, 3, CanalOrigen.PORTAL, HUESPED_2, 40, true));
+        ReservaConFolio r = abrir(new Escenario("APT-201", -30, NOCHES, CanalOrigen.PORTAL, HUESPED_2, 40, true));
         pagarAnticipoYConfirmar(r);
         LocalDateTime llegada = llegadaDe(r.reserva());
         r.reserva().registrarLlegada(AUTOR, llegada);
@@ -162,7 +168,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarCancelada() {
-        ReservaConFolio r = abrir(new Escenario("APT-202", 1, 2, CanalOrigen.DIRECTO, "CC-1005", 20, true));
+        ReservaConFolio r = abrir(new Escenario("APT-202", 1, NOCHES, CanalOrigen.DIRECTO, "CC-1005", 20, true));
         pagarAnticipoYConfirmar(r);
         LocalDateTime ahora = hoy.minusDays(1).atTime(HORA_CANCELACION);
         PoliticaCancelacion politica = politicaDe(r.reserva());
@@ -172,7 +178,7 @@ class SembradorReservasPrueba {
     }
 
     private void sembrarNoShow() {
-        ReservaConFolio r = abrir(new Escenario("APT-301", -8, 2, CanalOrigen.EXTERNO, "CC-1006", 12, true));
+        ReservaConFolio r = abrir(new Escenario("APT-301", -8, NOCHES, CanalOrigen.EXTERNO, "CC-1006", 12, true));
         pagarAnticipoYConfirmar(r);
         LocalDateTime ahora = r.reserva().getEstancia().fechaEntrada()
                 .atTime(configuracion.horaLimiteNoShow()).plusHours(1);
@@ -192,7 +198,8 @@ class SembradorReservasPrueba {
         LocalDateTime creadaEn = hoy.minusDays(escenario.creadaHaceDias()).atTime(HORA_CREACION);
         CodigoReserva codigo = generador.generar(creadaEn.toLocalDate());
         Reserva reserva = Reserva.crear(codigo, apartamento.getIdentificacion(), estancia, grupo.get(0), grupo,
-                escenario.canal(), identificadorExternoDe(escenario), valor, ultimaPolitica().getVersion(), creadaEn);
+                escenario.canal(), identificadorExternoDe(escenario), valor, ultimaPolitica().getVersion(), creadaEn,
+                new EdadAdultoResponsable(configuracion.edadAdultoResponsableAnios()));
         if (escenario.conHoraDeLlegada()) {
             reserva.indicarHoraEstimadaLlegada(configuracion.horaEntrada().plusHours(1), AUTOR, creadaEn);
         }

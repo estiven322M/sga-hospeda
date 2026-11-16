@@ -54,7 +54,7 @@ infrastructure/
 13. **Paginación de 10 por página** en todos los listados. Reservas ordenadas de la más reciente a la más antigua.
 14. **Dinero:** `BigDecimal`/tipo exacto, COP sin decimales, nunca `float`/`double`. Redondeo al final de cada cargo.
 15. **Fechas:** estancia `[entrada, salida)`; zona horaria de Colombia.
-16. **Lenguaje ubicuo obligatorio** (apartamento, estancia, titular, ocupante facturable, folio, cargo, pago, saldo, bloqueo, canal...). No usar room, booking, user, request.
+16. **Lenguaje ubicuo obligatorio** (apartamento, estancia, titular, ocupante facturable, folio, cargo, pago, saldo, bloqueo, canal, estancia mínima, descuento por estancia larga, adulto responsable...). No usar room, booking, user, request.
 
 ## Documentación exigida
 - `docs/api/openapi.yaml` coherente con lo implementado (un endpoint en Swagger que no esté en el yaml, o al revés, cuenta como incoherencia). Esquema `bearerAuth` global, login y registro con `security: []`, y 401/403 en cada endpoint protegido.

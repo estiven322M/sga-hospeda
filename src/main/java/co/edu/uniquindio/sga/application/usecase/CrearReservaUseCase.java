@@ -20,6 +20,7 @@ import co.edu.uniquindio.sga.domain.repository.RechazoReservaExternaRepository;
 import co.edu.uniquindio.sga.domain.service.RecepcionReservaExternaService;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificadorExterno;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
+import co.edu.uniquindio.sga.domain.repository.ConfiguracionAlojamiento;
 import co.edu.uniquindio.sga.domain.repository.FolioRepository;
 import co.edu.uniquindio.sga.domain.repository.GeneradorCodigoReserva;
 import co.edu.uniquindio.sga.domain.repository.PoliticaCancelacionRepository;
@@ -29,6 +30,7 @@ import co.edu.uniquindio.sga.domain.service.DisponibilidadApartamentoService;
 import co.edu.uniquindio.sga.domain.valueobject.Cargo;
 import co.edu.uniquindio.sga.domain.valueobject.CanalOrigen;
 import co.edu.uniquindio.sga.domain.valueobject.CodigoReserva;
+import co.edu.uniquindio.sga.domain.valueobject.EdadAdultoResponsable;
 import co.edu.uniquindio.sga.domain.valueobject.Estancia;
 import co.edu.uniquindio.sga.domain.valueobject.IdentificacionApartamento;
 import co.edu.uniquindio.sga.domain.valueobject.ValorCongelado;
@@ -59,6 +61,7 @@ public class CrearReservaUseCase {
     private final CotizadorEstancia cotizador;
     private final RecepcionReservaExternaService recepcionExterna;
     private final RechazoReservaExternaRepository rechazoRepository;
+    private final ConfiguracionAlojamiento configuracion;
 
     public CrearReservaUseCase(ApartamentoRepository apartamentoRepository,
                                PoliticaCancelacionRepository politicaRepository,
@@ -68,7 +71,8 @@ public class CrearReservaUseCase {
                                DisponibilidadApartamentoService disponibilidadService,
                                CotizadorEstancia cotizador,
                                RecepcionReservaExternaService recepcionExterna,
-                               RechazoReservaExternaRepository rechazoRepository) {
+                               RechazoReservaExternaRepository rechazoRepository,
+                               ConfiguracionAlojamiento configuracion) {
         this.apartamentoRepository = apartamentoRepository;
         this.politicaRepository = politicaRepository;
         this.reservaRepository = reservaRepository;
@@ -78,6 +82,7 @@ public class CrearReservaUseCase {
         this.cotizador = cotizador;
         this.recepcionExterna = recepcionExterna;
         this.rechazoRepository = rechazoRepository;
+        this.configuracion = configuracion;
     }
 
     /** Reserva de un canal sin identificador externo (PORTAL, DIRECTO). */
@@ -125,7 +130,8 @@ public class CrearReservaUseCase {
         CodigoReserva codigo = generadorCodigo.generar(ahora.toLocalDate());
 
         Reserva reserva = Reserva.crear(codigo, identificacion, estancia, titular, ocupantes, canalOrigen,
-                identificadorExterno, valor, politica.getVersion(), ahora);
+                identificadorExterno, valor, politica.getVersion(), ahora,
+                new EdadAdultoResponsable(configuracion.edadAdultoResponsableAnios()));
         if (horaEstimadaLlegada != null) {
             reserva.indicarHoraEstimadaLlegada(horaEstimadaLlegada, titular.getNombre(), ahora);
         }
