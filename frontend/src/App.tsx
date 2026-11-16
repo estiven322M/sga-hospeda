@@ -50,7 +50,9 @@ const ImagenesApartamento = lazy(() => import('./paginas/administracion/Imagenes
 const Bloqueos = lazy(() => import('./paginas/administracion/Bloqueos'));
 const TemporadasTarifas = lazy(() => import('./paginas/administracion/TemporadasTarifas'));
 const PoliticaCancelacion = lazy(() => import('./paginas/administracion/PoliticaCancelacion'));
-const RechazosExternos = lazy(() => import('./paginas/administracion/RechazosExternos'));
+const Canales = lazy(() => import('./paginas/administracion/Canales'));
+const Conflictos = lazy(() => import('./paginas/administracion/Conflictos'));
+const BitacoraCanal = lazy(() => import('./paginas/administracion/BitacoraCanal'));
 const Usuarios = lazy(() => import('./paginas/administracion/Usuarios'));
 const Notificaciones = lazy(() => import('./paginas/administracion/Notificaciones'));
 
@@ -121,7 +123,9 @@ export default function App() {
           <Route path={PATRONES.bloqueos} element={<Bloqueos />} />
           <Route path={PATRONES.temporadasTarifas} element={<TemporadasTarifas />} />
           <Route path={PATRONES.politicaCancelacion} element={<PoliticaCancelacion />} />
-          <Route path={PATRONES.rechazosExternos} element={<RechazosExternos />} />
+          <Route path={PATRONES.canales} element={<Canales />} />
+          <Route path={PATRONES.conflictosCanal} element={<Conflictos />} />
+          <Route path={PATRONES.bitacoraCanal} element={<BitacoraCanal />} />
           <Route path={PATRONES.usuarios} element={<Usuarios />} />
           <Route path={PATRONES.notificaciones} element={<Notificaciones />} />
         </Route>

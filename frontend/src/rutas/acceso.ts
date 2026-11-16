@@ -23,7 +23,7 @@ export const ROLES_SERVICIO: readonly RolUsuario[] = ['PERSONAL_SERVICIO', 'ADMI
 /** Cualquier usuario con sesión: su perfil y el cambio de su contraseña (GET/PUT /usuarios/yo). */
 export const ROLES_TODOS: readonly RolUsuario[] = ['HUESPED', 'RECEPCIONISTA', 'ADMINISTRADOR', 'PERSONAL_SERVICIO'];
 
-/** Inventario, bloqueos, temporadas, tarifas, política de cancelación, rechazos del canal externo, usuarios y notificaciones. */
+/** Inventario, bloqueos, temporadas, tarifas, política de cancelación, canales de venta, conflictos y bitácora del canal externo, usuarios y notificaciones. */
 export const ROLES_ADMINISTRACION: readonly RolUsuario[] = ['ADMINISTRADOR'];
 
 interface ReglaDeAcceso {
@@ -56,7 +56,9 @@ const REGLAS: readonly ReglaDeAcceso[] = [
   { patron: PATRONES.bloqueos, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.temporadasTarifas, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.politicaCancelacion, roles: ROLES_ADMINISTRACION },
-  { patron: PATRONES.rechazosExternos, roles: ROLES_ADMINISTRACION },
+  { patron: PATRONES.canales, roles: ROLES_ADMINISTRACION },
+  { patron: PATRONES.conflictosCanal, roles: ROLES_ADMINISTRACION },
+  { patron: PATRONES.bitacoraCanal, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.usuarios, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.notificaciones, roles: ROLES_ADMINISTRACION },
 ];

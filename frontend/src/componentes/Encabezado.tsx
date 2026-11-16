@@ -24,7 +24,9 @@ const OPCIONES_ADMINISTRACION = [
   { etiqueta: 'Bloqueos', ruta: RUTAS.bloqueos },
   { etiqueta: 'Temporadas y tarifas', ruta: RUTAS.temporadasTarifas },
   { etiqueta: 'Política de cancelación', ruta: RUTAS.politicaCancelacion },
-  { etiqueta: 'Rechazos externos', ruta: RUTAS.rechazosExternos },
+  { etiqueta: 'Canales', ruta: RUTAS.canales },
+  { etiqueta: 'Conflictos', ruta: RUTAS.conflictosCanal },
+  { etiqueta: 'Bitácora del canal', ruta: RUTAS.bitacoraCanal },
   { etiqueta: 'Usuarios', ruta: RUTAS.usuarios },
   { etiqueta: 'Notificaciones', ruta: RUTAS.notificaciones },
 ] as const;

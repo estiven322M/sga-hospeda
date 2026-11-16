@@ -5930,3 +5930,541 @@ Authorization: Bearer {{tokenAdmin}}
         client.assert(response.body.contenido.some(u => u.correo === "huesped1@sga.local" && u.fotoUrl === client.global.get("fotoHuesped")), "huesped1 con su foto");
     });
 %}
+
+# =====================================================================================================
+# PARTE 12 · CANAL EXTERNO COMPLETO: CREDENCIAL, API DEL CANAL, CANCELACIÓN, BITÁCORA Y CONFLICTOS (J9: 7.8, 10.3.1, RN-18, RN-19)
+#   El administrador crea el canal (la credencial se muestra UNA vez y se guarda en la variable credencialCanal); el canal usa la
+#   API /api/canal/** con el encabezado X-Canal-Credencial, sin JWT. Se cubren las tres operaciones del contrato 10.3.1, el mismo
+#   mensaje dos veces (RN-19), el conflicto con una reserva vigente (RN-18), la cancelación idempotente, la bitácora y su filtro, la
+#   resolución del conflicto por el administrador y la baja lógica del canal. Cada 401 de canal lleva el mismo mensaje.
+# =====================================================================================================
+
+### 12.1 [7.8] Crear un canal: 201, Location y credencial en claro (única vez)
+POST {{host}}/api/canales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"codigo":"colec12","nombre":"Agencia de la colección","tipo":"AGENCIA_DE_VIAJES"}
+
+> {%
+    client.test("12.1 [7.8] Crear un canal: 201, Location y credencial en claro (única vez)", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.headers.valueOf("Location").endsWith("/api/canales/COLEC12"), "Location: " + response.headers.valueOf("Location"));
+        client.assert(response.body.codigo === "COLEC12" && response.body.activo === true, "código en mayúsculas y activo");
+        client.assert(response.body.credencial.startsWith("sgc_") && response.body.credencial.length >= 40, "credencial aleatoria");
+        client.global.set("credencialCanal", response.body.credencial);
+    });
+%}
+
+### 12.2 [7.8] El listado de canales nunca devuelve la credencial ni su hash
+GET {{host}}/api/canales
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.2 [7.8] El listado de canales nunca devuelve la credencial ni su hash", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.some(c => c.codigo === "COLEC12") || response.body.totalElementos > 10, "el canal creado figura");
+        client.assert(JSON.stringify(response.body).indexOf("credencial") < 0 && JSON.stringify(response.body).indexOf("hash") < 0, "no se vuelve a mostrar la credencial");
+    });
+%}
+
+### 12.3 [7.8 · 409] El código del canal es único
+POST {{host}}/api/canales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"codigo":"COLEC12","nombre":"Otro","tipo":"OTRO"}
+
+> {%
+    client.test("12.3 [7.8 · 409] El código del canal es único", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje.indexOf("Ya existe un canal con el código COLEC12") >= 0, "mensaje de la regla: " + response.body.mensaje);
+        client.assert(response.body.errores === null || response.body.errores === undefined, "errores debe ser nulo en un 409");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.4 [400 · canal] Faltan campos
+POST {{host}}/api/canales
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("12.4 [400 · canal] Faltan campos", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.errores.codigo && response.body.errores.nombre && response.body.errores.tipo, "errores por campo: " + JSON.stringify(response.body.errores));
+    });
+%}
+
+### 12.5 [403 · canal] Recepción no gestiona canales
+POST {{host}}/api/canales
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"codigo":"NOPE","nombre":"N","tipo":"OTRO"}
+
+> {%
+    client.test("12.5 [403 · canal] Recepción no gestiona canales", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo");
+    });
+%}
+
+### 12.6 [401 · canal] Sin token no se gestionan canales
+GET {{host}}/api/canales
+
+> {%
+    client.test("12.6 [401 · canal] Sin token no se gestionan canales", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.7 [403 · bitácora] El huésped no ve la bitácora
+GET {{host}}/api/canales/bitacora
+Authorization: Bearer {{tokenHuesped1}}
+
+> {%
+    client.test("12.7 [403 · bitácora] El huésped no ve la bitácora", function () {
+        client.assert(response.status === 403, "código " + response.status);
+    });
+%}
+
+### 12.8 [10.3.1 · operación 1] El canal consulta la disponibilidad con su credencial
+POST {{host}}/api/canal/disponibilidad
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{"fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.8 [10.3.1 · operación 1] El canal consulta la disponibilidad con su credencial", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.length > 0 && response.body.contenido[0].moneda === "COP", "hay apartamentos libres en COP");
+    });
+%}
+
+### 12.9 [401 · canal] Sin credencial
+POST {{host}}/api/canal/disponibilidad
+Content-Type: application/json
+
+{"fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.9 [401 · canal] Sin credencial", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.mensaje === "Credencial del canal inválida o canal desactivado: envíe una credencial vigente en el encabezado X-Canal-Credencial", "mensaje: " + response.body.mensaje);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.10 [401 · canal] Credencial desconocida: el mismo mensaje
+POST {{host}}/api/canal/disponibilidad
+X-Canal-Credencial: sgc_inventada
+Content-Type: application/json
+
+{"fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.10 [401 · canal] Credencial desconocida: el mismo mensaje", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.mensaje === "Credencial del canal inválida o canal desactivado: envíe una credencial vigente en el encabezado X-Canal-Credencial", "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 12.11 [401 · canal] Un token JWT no sirve en la API del canal
+POST {{host}}/api/canal/disponibilidad
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.11 [401 · canal] Un token JWT no sirve en la API del canal", function () {
+        client.assert(response.status === 401, "código " + response.status);
+    });
+%}
+
+### 12.12 [401 · canal] La credencial del canal no sirve en el resto de la API
+GET {{host}}/api/reservas
+X-Canal-Credencial: {{credencialCanal}}
+
+> {%
+    client.test("12.12 [401 · canal] La credencial del canal no sirve en el resto de la API", function () {
+        client.assert(response.status === 401, "código " + response.status);
+    });
+%}
+
+### 12.13 [400 · canal] Consulta de disponibilidad mal armada
+POST {{host}}/api/canal/disponibilidad
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("12.13 [400 · canal] Consulta de disponibilidad mal armada", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.errores.fechaEntrada && response.body.errores.ocupantes, "errores por campo");
+    });
+%}
+
+### 12.14 [10.3.1 · operación 2] Crear una reserva con el identificador del canal -> 201 PENDIENTE
+POST {{host}}/api/canal/reservas
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{"identificadorExterno":"RES-9001","identificacionApartamento":"APT-101","fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","correoTitular":"paula@correo.com","titular":{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"},"ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.14 [10.3.1 · operación 2] Crear una reserva con el identificador del canal -> 201 PENDIENTE", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.headers.valueOf("Location").endsWith("/api/canal/reservas/RES-9001"), "Location: " + response.headers.valueOf("Location"));
+        client.assert(response.body.identificadorExterno === "RES-9001" && response.body.estado === "PENDIENTE" && response.body.moneda === "COP", "cuerpo: " + JSON.stringify(response.body));
+        client.assert(response.body.valorTotal > 0, "valorTotal");
+        client.global.set("codigoReservaCanal", response.body.codigoReserva);
+    });
+%}
+
+### 12.15 [RN-19 · 409] El mismo mensaje dos veces no duplica la reserva
+POST {{host}}/api/canal/reservas
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{"identificadorExterno":"RES-9001","identificacionApartamento":"APT-101","fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","correoTitular":"paula@correo.com","titular":{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"},"ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.15 [RN-19 · 409] El mismo mensaje dos veces no duplica la reserva", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje.indexOf("El mensaje ya fue recibido") >= 0, "mensaje de la regla: " + response.body.mensaje);
+        client.assert(response.body.errores === null || response.body.errores === undefined, "errores debe ser nulo en un 409");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.16 [RN-18 · 409] Un conflicto con una reserva vigente se rechaza y no la sobrescribe
+POST {{host}}/api/canal/reservas
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{"identificadorExterno":"CHOCA","identificacionApartamento":"APT-101","fechaEntrada":"2029-03-06","fechaSalida":"2029-03-09","titular":{"documento":"CC-9802","nombre":"Mario Rojas","fechaNacimiento":"1983-08-08"},"ocupantes":[{"documento":"CC-9802","nombre":"Mario Rojas","fechaNacimiento":"1983-08-08"}]}
+
+> {%
+    client.test("12.16 [RN-18 · 409] Un conflicto con una reserva vigente se rechaza y no la sobrescribe", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje.indexOf("solapa") >= 0, "mensaje de la regla: " + response.body.mensaje);
+        client.assert(response.body.errores === null || response.body.errores === undefined, "errores debe ser nulo en un 409");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.17 [7.8] La reserva vigente sigue intacta
+GET {{host}}/api/reservas/{{codigoReservaCanal}}
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("12.17 [7.8] La reserva vigente sigue intacta", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "PENDIENTE" && response.body.canalOrigen === "EXTERNO", "la vigente no se tocó");
+    });
+%}
+
+### 12.18 [10.3.1] El canal consulta SU reserva por su identificador
+GET {{host}}/api/canal/reservas/RES-9001
+X-Canal-Credencial: {{credencialCanal}}
+
+> {%
+    client.test("12.18 [10.3.1] El canal consulta SU reserva por su identificador", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.codigoReserva === client.global.get("codigoReservaCanal"), "mismo código");
+    });
+%}
+
+### 12.19 [400 · canal] Reserva externa mal armada
+POST {{host}}/api/canal/reservas
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("12.19 [400 · canal] Reserva externa mal armada", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.errores.identificadorExterno && response.body.errores.titular, "errores por campo");
+    });
+%}
+
+### 12.20 [404 · canal] Apartamento inexistente
+POST {{host}}/api/canal/reservas
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{"identificadorExterno":"RES-404","identificacionApartamento":"APT-999","fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","titular":{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"},"ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.20 [404 · canal] Apartamento inexistente", function () {
+        client.assert(response.status === 404, "código " + response.status);
+    });
+%}
+
+### 12.21 [10.3.1 · operación 3] El canal cancela su reserva -> 200 CANCELADA
+PUT {{host}}/api/canal/reservas/RES-9001/cancelar
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{"motivo":"El viajero cambió de planes"}
+
+> {%
+    client.test("12.21 [10.3.1 · operación 3] El canal cancela su reserva -> 200 CANCELADA", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CANCELADA" && response.body.identificadorExterno === "RES-9001", "cuerpo: " + JSON.stringify(response.body));
+    });
+%}
+
+### 12.22 [10.3.1] Cancelar de nuevo es idempotente -> 200
+PUT {{host}}/api/canal/reservas/RES-9001/cancelar
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("12.22 [10.3.1] Cancelar de nuevo es idempotente -> 200", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.estado === "CANCELADA", "sigue cancelada");
+    });
+%}
+
+### 12.23 [404 · canal] Cancelar una reserva que no existe (o es de otro canal)
+PUT {{host}}/api/canal/reservas/NO-EXISTE/cancelar
+X-Canal-Credencial: {{credencialCanal}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("12.23 [404 · canal] Cancelar una reserva que no existe (o es de otro canal)", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo");
+    });
+%}
+
+### 12.24 [7.8] Bitácora: cada mensaje con su resultado y código HTTP
+GET {{host}}/api/canales/bitacora?canal=COLEC12
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.24 [7.8] Bitácora: cada mensaje con su resultado y código HTTP", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const r = response.body.contenido.map(e => e.operacion + ":" + e.resultado + ":" + e.codigoHttp);
+        client.assert(r.indexOf("CREAR_RESERVA:ACEPTADA:201") >= 0 && r.indexOf("CREAR_RESERVA:REPETIDA:409") >= 0 && r.indexOf("CREAR_RESERVA:RECHAZADA:409") >= 0, "creación, repetida y rechazada: " + r);
+        client.assert(r.indexOf("CANCELAR_RESERVA:ACEPTADA:200") >= 0 && r.indexOf("CANCELAR_RESERVA:NO_ENCONTRADA:404") >= 0 && r.indexOf("CREAR_RESERVA:INVALIDA:400") >= 0, "cancelaciones e inválida: " + r);
+        client.assert(JSON.stringify(response.body).indexOf(client.global.get("credencialCanal")) < 0, "la credencial nunca aparece en la bitácora");
+    });
+%}
+
+### 12.25 [7.8] Bitácora con rango de fechas imposible -> 409
+GET {{host}}/api/canales/bitacora?desde=2030-01-02&hasta=2030-01-01
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.25 [7.8] Bitácora con rango de fechas imposible -> 409", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje.indexOf("La fecha final no puede ser anterior a la inicial") >= 0, "mensaje de la regla: " + response.body.mensaje);
+        client.assert(response.body.errores === null || response.body.errores === undefined, "errores debe ser nulo en un 409");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.26 [7.8] Conflictos pendientes del canal
+GET {{host}}/api/reservas-externas/rechazos?revisado=false
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.26 [7.8] Conflictos pendientes del canal", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        const c = response.body.contenido.filter(x => x.identificadorExterno === "COLEC12:CHOCA");
+        client.assert(c.length === 1 && c[0].canal === "COLEC12" && c[0].revisado === false, "conflicto registrado: " + JSON.stringify(c));
+        client.global.set("idConflicto", c[0].id);
+    });
+%}
+
+### 12.27 [400 · resolver] La nota es obligatoria
+PUT {{host}}/api/reservas-externas/rechazos/{{idConflicto}}/resolver
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{}
+
+> {%
+    client.test("12.27 [400 · resolver] La nota es obligatoria", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.errores.nota, "errores.nota");
+    });
+%}
+
+### 12.28 [403 · resolver] Recepción no resuelve conflictos
+PUT {{host}}/api/reservas-externas/rechazos/{{idConflicto}}/resolver
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"nota":"x"}
+
+> {%
+    client.test("12.28 [403 · resolver] Recepción no resuelve conflictos", function () {
+        client.assert(response.status === 403, "código " + response.status);
+    });
+%}
+
+### 12.29 [7.8] El administrador resuelve el conflicto con una nota -> 200
+PUT {{host}}/api/reservas-externas/rechazos/{{idConflicto}}/resolver
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"nota":"Se habló con la agencia; reservará otras fechas."}
+
+> {%
+    client.test("12.29 [7.8] El administrador resuelve el conflicto con una nota -> 200", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.revisado === true && response.body.notaRevision === "Se habló con la agencia; reservará otras fechas." && response.body.revisadoPor && response.body.revisadoEn, "revisión: " + JSON.stringify(response.body));
+    });
+%}
+
+### 12.30 [409 · resolver] Un conflicto se revisa una sola vez
+PUT {{host}}/api/reservas-externas/rechazos/{{idConflicto}}/resolver
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"nota":"otra vez"}
+
+> {%
+    client.test("12.30 [409 · resolver] Un conflicto se revisa una sola vez", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje.indexOf("El conflicto ya fue revisado") >= 0, "mensaje de la regla: " + response.body.mensaje);
+        client.assert(response.body.errores === null || response.body.errores === undefined, "errores debe ser nulo en un 409");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.31 [404 · resolver] El conflicto no existe
+PUT {{host}}/api/reservas-externas/rechazos/999999/resolver
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"nota":"x"}
+
+> {%
+    client.test("12.31 [404 · resolver] El conflicto no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+    });
+%}
+
+### 12.32 [7.8] Los conflictos revisados se filtran aparte
+GET {{host}}/api/reservas-externas/rechazos?revisado=true
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.32 [7.8] Los conflictos revisados se filtran aparte", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido.some(x => x.identificadorExterno === "COLEC12:CHOCA" && x.revisado), "figura como revisado");
+    });
+%}
+
+### 12.33 [7.8] Desactivar el canal es una baja lógica -> 200
+PUT {{host}}/api/canales/COLEC12/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.33 [7.8] Desactivar el canal es una baja lógica -> 200", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.activo === false, "activo=false");
+    });
+%}
+
+### 12.34 [409 · canal] Desactivar un canal ya desactivado
+PUT {{host}}/api/canales/COLEC12/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.34 [409 · canal] Desactivar un canal ya desactivado", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje.indexOf("ya está desactivado") >= 0, "mensaje de la regla: " + response.body.mensaje);
+        client.assert(response.body.errores === null || response.body.errores === undefined, "errores debe ser nulo en un 409");
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 12.35 [401 · canal] Un canal desactivado no entra
+GET {{host}}/api/canal/reservas/RES-9001
+X-Canal-Credencial: {{credencialCanal}}
+
+> {%
+    client.test("12.35 [401 · canal] Un canal desactivado no entra", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.mensaje === "Credencial del canal inválida o canal desactivado: envíe una credencial vigente en el encabezado X-Canal-Credencial", "mismo mensaje que una credencial desconocida");
+    });
+%}
+
+### 12.36 [7.8] El intento del canal desactivado quedó en la bitácora como NO_AUTORIZADA
+GET {{host}}/api/canales/bitacora?canal=COLEC12
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.36 [7.8] El intento del canal desactivado quedó en la bitácora como NO_AUTORIZADA", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.contenido[0].resultado === "NO_AUTORIZADA" && response.body.contenido[0].codigoHttp === 401, "primer evento: " + JSON.stringify(response.body.contenido[0]));
+    });
+%}
+
+### 12.37 [7.8] Activar de nuevo -> 200 y su credencial vuelve a servir
+PUT {{host}}/api/canales/COLEC12/activar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.37 [7.8] Activar de nuevo -> 200 y su credencial vuelve a servir", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.activo === true, "activo=true");
+    });
+%}
+
+### 12.38 [7.8] La credencial vuelve a servir
+GET {{host}}/api/canal/reservas/RES-9001
+X-Canal-Credencial: {{credencialCanal}}
+
+> {%
+    client.test("12.38 [7.8] La credencial vuelve a servir", function () {
+        client.assert(response.status === 200, "código " + response.status);
+    });
+%}
+
+### 12.39 [404 · canal] Activar un canal que no existe
+PUT {{host}}/api/canales/NOEXISTE/activar
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("12.39 [404 · canal] Activar un canal que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+    });
+%}
+
+### 12.40 [7.8] El canal de demostración sembrado funciona con su credencial documentada
+POST {{host}}/api/canal/disponibilidad
+X-Canal-Credencial: sgc_demo_simulador_canal_2026_no_usar_en_produccion
+Content-Type: application/json
+
+{"fechaEntrada":"2029-03-05","fechaSalida":"2029-03-08","ocupantes":[{"documento":"CC-9801","nombre":"Paula Nieto","fechaNacimiento":"1985-04-04"}]}
+
+> {%
+    client.test("12.40 [7.8] El canal de demostración sembrado funciona con su credencial documentada", function () {
+        client.assert(response.status === 200, "código " + response.status);
+    });
+%}

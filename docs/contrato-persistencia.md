@@ -55,6 +55,24 @@ Optional<PoliticaCancelacion> porVersion(VersionPolitica version);
 CodigoReserva generar(LocalDate fecha);                             // formato RES-AAAA-NNNNN; único y seguro con hilos
 ```
 
+**Canal externo (J9, 7.8).** Tres puertos nuevos, con adaptador JPA:
+
+```java
+// CanalVentaRepository  (tabla canal_venta; credencial_hash único)
+CanalVenta guardar(CanalVenta canal);                                // crea o actualiza (desactivar/activar); nunca borra
+Optional<CanalVenta> buscarPorCodigo(String codigo);                 // sin distinguir mayúsculas
+Optional<CanalVenta> buscarPorCredencialHash(String hash);           // encuentra también al canal desactivado
+Pagina<CanalVenta> listar(SolicitudPagina pagina);                   // de 10 en 10, por código
+// BitacoraCanalRepository  (tabla evento_canal; solo se agrega)
+void registrar(EventoCanal evento);                                  // en su propia transacción (REQUIRES_NEW): sobrevive al rollback del mensaje rechazado
+Pagina<EventoCanal> listar(String canal, LocalDate desde, LocalDate hasta, SolicitudPagina pagina);   // del más reciente al más antiguo; filtros opcionales, fechas inclusivas
+// RechazoReservaExternaRepository  (ya existía; J9 le suma la revisión)
+Optional<RechazoReservaExterna> buscarPorId(long id);
+Pagina<RechazoReservaExterna> listar(Boolean revisado, SolicitudPagina pagina);   // null = todos
+```
+
+`rechazo_reserva_externa` gana `revisado`, `nota_revision`, `revisado_por` y `revisado_en` (los rechazos anteriores quedan sin revisar). El identificador externo de una reserva de canal se guarda como `CODIGO:idPropio` (el límite de 55 caracteres del identificador no cambia).
+
 `ConfiguracionAlojamiento` **no lo implementas tú**: lo implementa `DomainServiceConfig` leyendo `application.properties`.
 
 ## 2. Semántica que los casos de uso suponen

@@ -211,6 +211,12 @@ public class DomainServiceConfig {
     }
 
     @Bean
+    public co.edu.uniquindio.sga.domain.service.RegistroCanalVentaService registroCanalVentaService(
+            co.edu.uniquindio.sga.domain.repository.CanalVentaRepository canales) {
+        return new co.edu.uniquindio.sga.domain.service.RegistroCanalVentaService(canales);
+    }
+
+    @Bean
     public BajaUsuarioService bajaUsuarioService(ReservaRepository reservaRepository) {
         return new BajaUsuarioService(reservaRepository);
     }

@@ -1,7 +1,16 @@
-# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 3, paso J8)
+# Diagrama de clases del dominio - SGA Hospeda (actualizado en la Entrega 3, paso J9)
 
 El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencian entre sí **solo por identificador**
 (`Reserva` guarda `IdentificacionApartamento`; `Folio` guarda `CodigoReserva`).
+
+**Cambios del paso J9 (Entrega 3)** (marcados con `«nuevo J9»`):
+- `CanalVenta` (entidad, identidad por código): código único de 2 a 12 caracteres, nombre, `TipoCanalVenta`, hash de su `CredencialCanal` y `activo`. `desactivar()`/`activar()` son
+  transiciones de negocio (409 si ya está en ese estado) y la baja es lógica. `identificadorPara(propio)` arma el identificador guardado (`CODIGO:propio`) y `esDeEsteCanal` reconoce el suyo.
+- `CredencialCanal` (objeto de valor): `generar()` crea 256 bits aleatorios con prefijo `sgc_`; solo se guarda `hash` (SHA-256) y `toString()` no muestra el valor.
+- `EventoCanal` (registro inmutable de la bitácora) con `OperacionCanal` y `ResultadoCanal`; `RegistroCanalVentaService` (servicio de dominio) hace único el código.
+- `RechazoReservaExterna` gana identidad (`id`) y `RevisionRechazo` (nota obligatoria de a lo sumo 500 caracteres, quién y cuándo): `resolver(nota, por, ahora)` solo se puede una vez y **no toca ninguna reserva**.
+- `MensajeRepetidoException` (subtipo de `ReglaDominioException`): RN-19 distingue "mismo mensaje" de "conflicto" para que la bitácora diga REPETIDA o RECHAZADA.
+- Puertos `CanalVentaRepository` y `BitacoraCanalRepository`; `RechazoReservaExternaRepository` suma `buscarPorId` y `listar(revisado, pagina)`.
 
 **Cambios del paso J8 (Entrega 3)** (marcados con `«nuevo J8»`):
 - `Apartamento` tiene sus imágenes (7.3): `ImagenApartamento` (id, url, referencia en el almacén, `principal`, `retirada`). Reglas del agregado: a lo sumo 10 sin retirar;

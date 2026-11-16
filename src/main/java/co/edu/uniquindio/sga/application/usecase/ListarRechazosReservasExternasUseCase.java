@@ -22,4 +22,10 @@ public class ListarRechazosReservasExternasUseCase {
     public Pagina<RechazoReservaExterna> ejecutar(SolicitudPagina pagina) {
         return rechazoRepository.listar(pagina);
     }
+
+    /** Con el filtro de revisión (7.8): nulo = todos, true = los ya revisados, false = los pendientes. */
+    @Transactional(readOnly = true)
+    public Pagina<RechazoReservaExterna> ejecutar(Boolean revisado, SolicitudPagina pagina) {
+        return rechazoRepository.listar(revisado, pagina);
+    }
 }
