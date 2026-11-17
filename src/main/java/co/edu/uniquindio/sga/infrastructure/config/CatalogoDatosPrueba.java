@@ -111,6 +111,23 @@ final class CatalogoDatosPrueba {
     static final int BLOQUEO_NOCHES = 4;
     static final String BLOQUEO_MOTIVO = "Mantenimiento de tuberías";
 
+    /** Novedad de ejemplo (7.6): se registra a las 9:00 de hace {@code haceDias} días. */
+    record NovedadSemilla(String apartamento, int haceDias, String autor, String descripcion,
+                          co.edu.uniquindio.sga.domain.valueobject.GravedadNovedad gravedad) {
+    }
+
+    static final int HORA_NOVEDADES = 9;
+    static final List<NovedadSemilla> NOVEDADES = List.of(
+            new NovedadSemilla("APT-302", 3, "Personal de Servicio",
+                    "Fuga de agua bajo el lavaplatos de la kitchenette; se cerró la llave de paso.",
+                    co.edu.uniquindio.sga.domain.valueobject.GravedadNovedad.CRITICA),
+            new NovedadSemilla("APT-302", 2, "Administrador SGA",
+                    "El plomero revisó la fuga: hay que cambiar el sifón. Queda fuera de servicio hasta la reparación.",
+                    co.edu.uniquindio.sga.domain.valueobject.GravedadNovedad.ALTA),
+            new NovedadSemilla("APT-101", 1, "Personal de Servicio",
+                    "Falta una de las dos llaves del balcón.",
+                    co.edu.uniquindio.sga.domain.valueobject.GravedadNovedad.BAJA));
+
     private CatalogoDatosPrueba() {
     }
 }

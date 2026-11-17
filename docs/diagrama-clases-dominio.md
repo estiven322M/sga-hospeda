@@ -3,6 +3,11 @@
 El dominio es Java puro (sin Spring, JPA ni Lombok). Los agregados se referencian entre sí **solo por identificador**
 (`Reserva` guarda `IdentificacionApartamento`; `Folio` guarda `CodigoReserva`).
 
+**Cambios del paso M1 (Entrega 3)** (preparación y novedades, 7.6):
+- `Novedad` (registro inmutable): `apartamento` (solo por `IdentificacionApartamento`), `fecha`, `autor`, `descripcion` (obligatoria, máximo 500 caracteres) y `GravedadNovedad`
+  (enum cerrado: BAJA, MEDIA, ALTA, CRITICA). Valida en su constructor; no se edita ni se borra y no cambia el estado operativo del apartamento.
+- `NovedadRepository` (puerto): `registrar(Novedad)` y `listarPorApartamento(apartamento, pagina)` (de la más reciente a la más antigua, de 10 en 10).
+
 **Cambios del paso J9 (Entrega 3)** (marcados con `«nuevo J9»`):
 - `CanalVenta` (entidad, identidad por código): código único de 2 a 12 caracteres, nombre, `TipoCanalVenta`, hash de su `CredencialCanal` y `activo`. `desactivar()`/`activar()` son
   transiciones de negocio (409 si ya está en ese estado) y la baja es lógica. `identificadorPara(propio)` arma el identificador guardado (`CODIGO:propio`) y `esDeEsteCanal` reconoce el suyo.

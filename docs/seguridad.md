@@ -52,6 +52,7 @@ usuarios.
 | `PUT .../estado-operativo/declarar-fuera-de-servicio`, `.../reincorporar` | ✘ | ✘ | ✔ | ✘ |
 | `POST /api/apartamentos/{id}/bloqueos` | ✘ | ✘ | ✔ | ✘ |
 | `GET /api/apartamentos/{id}/bloqueos` | ✘ | ✔ | ✔ | ✘ |
+| `POST /api/apartamentos/{id}/novedades`, `GET /api/apartamentos/{id}/novedades` (el autor de la novedad es el claim `nombre` del token) | ✘ | ✔ | ✔ | ✔ |
 | `POST /api/temporadas`, `PUT .../tarifas/{temporada}`, `POST /api/politicas-cancelacion` | ✘ | ✘ | ✔ | ✘ |
 | `GET /api/temporadas`, `GET .../tarifas` | ✘ | ✔ | ✔ | ✘ |
 | `GET /api/politicas-cancelacion/vigente`, `GET .../{version}` | ✔ | ✔ | ✔ | ✘ |

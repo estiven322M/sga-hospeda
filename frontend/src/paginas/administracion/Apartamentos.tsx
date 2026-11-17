@@ -5,6 +5,7 @@ import { Cargando } from '../../componentes/Cargando';
 import { CampoSelect } from '../../componentes/CampoSelect';
 import { EstadoOperativoBadge } from '../../componentes/EstadoOperativoBadge';
 import { EtiquetasCaracteristicas } from '../../componentes/EtiquetasCaracteristicas';
+import { HistorialNovedades } from '../../componentes/HistorialNovedades';
 import { Paginacion } from '../../componentes/Paginacion';
 import { SelectorCaracteristicas } from '../../componentes/SelectorCaracteristicas';
 import { useConsulta } from '../../hooks/useConsulta';
@@ -28,6 +29,8 @@ export default function Apartamentos() {
   const [estadoOperativo, setEstadoOperativo] = useState<EstadoOperativo | ''>('');
   const [caracteristicas, setCaracteristicas] = useState<Caracteristica[]>([]);
   const [pagina, setPagina] = useState(0);
+  // Apartamento cuyo historial de novedades (7.6) está abierto; null si ninguno
+  const [historialDe, setHistorialDe] = useState<string | null>(null);
 
   const clave = JSON.stringify([estadoOperativo, caracteristicas, pagina]);
   const { resultado, cargando, recargar } = useConsulta(clave, (signal) =>
@@ -96,6 +99,19 @@ export default function Apartamentos() {
                       <div className="mt-3">
                         <AccionesApartamento apartamento={apartamento} alTerminar={recargar} />
                       </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-link px-0 mt-2"
+                        aria-expanded={historialDe === apartamento.identificacion}
+                        onClick={() => setHistorialDe(historialDe === apartamento.identificacion ? null : apartamento.identificacion)}
+                      >
+                        {historialDe === apartamento.identificacion ? 'Ocultar historial de novedades' : 'Historial de novedades'}
+                      </button>
+                      {historialDe === apartamento.identificacion && (
+                        <div className="border-top mt-2 pt-3">
+                          <HistorialNovedades identificacion={apartamento.identificacion} />
+                        </div>
+                      )}
                     </div>
                   </article>
                 ))}
