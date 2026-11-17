@@ -61,6 +61,7 @@ const REGLAS: readonly ReglaDeAcceso[] = [
   { patron: PATRONES.bitacoraCanal, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.usuarios, roles: ROLES_ADMINISTRACION },
   { patron: PATRONES.notificaciones, roles: ROLES_ADMINISTRACION },
+  { patron: PATRONES.reportes, roles: ROLES_ADMINISTRACION },
 ];
 
 /** ¿Puede alguno de estos roles abrir esta ruta? Una ruta sin regla (inicio, login...) es de acceso libre. */

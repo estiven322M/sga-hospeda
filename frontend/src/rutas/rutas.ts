@@ -40,6 +40,7 @@ export const RUTAS = {
   bitacoraCanal: '/administracion/bitacora-canal',
   usuarios: '/administracion/usuarios',
   notificaciones: '/administracion/notificaciones',
+  reportes: '/administracion/reportes',
 } as const;
 
 /** Patrones de ruta para <Route path=...>, relativos a la raíz (sin "/" inicial). Los parámetros llevan ":". */
@@ -73,4 +74,5 @@ export const PATRONES = {
   bitacoraCanal: 'administracion/bitacora-canal',
   usuarios: 'administracion/usuarios',
   notificaciones: 'administracion/notificaciones',
+  reportes: 'administracion/reportes',
 } as const;

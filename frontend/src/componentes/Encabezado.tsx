@@ -29,6 +29,7 @@ const OPCIONES_ADMINISTRACION = [
   { etiqueta: 'Bitácora del canal', ruta: RUTAS.bitacoraCanal },
   { etiqueta: 'Usuarios', ruta: RUTAS.usuarios },
   { etiqueta: 'Notificaciones', ruta: RUTAS.notificaciones },
+  { etiqueta: 'Reportes', ruta: RUTAS.reportes },
 ] as const;
 
 const OPCIONES_USUARIO = [{ etiqueta: 'Mi perfil', ruta: RUTAS.perfil }] as const;

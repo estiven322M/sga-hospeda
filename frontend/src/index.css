@@ -67,3 +67,18 @@ main {
 .hospeda-hero {
   background: linear-gradient(135deg, var(--hospeda-verde) 0%, var(--hospeda-verde-oscuro) 100%);
 }
+
+/* Barras de los reportes (7.9): solo CSS, el ancho del relleno es el porcentaje */
+.barra-reporte {
+  height: 0.9rem;
+  background-color: var(--bs-secondary-bg);
+  border-radius: 0.45rem;
+  overflow: hidden;
+}
+
+.barra-reporte__relleno {
+  height: 100%;
+  background-color: var(--bs-primary);
+  border-radius: 0.45rem;
+  transition: width 0.3s ease;
+}

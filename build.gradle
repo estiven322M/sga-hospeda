@@ -50,6 +50,9 @@ dependencies {
     // Correo (10.3.2-A): cliente SMTP del adaptador NotificadorCorreoSmtp. Solo se usa con sga.notificaciones.proveedor=smtp
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
+    // Apache POI: exportación de los reportes a Excel (L-23)
+    implementation 'org.apache.poi:poi-ooxml:5.4.1'
+
     // MapStruct: genera en compilación los mappers DTO <-> dominio y JPA <-> dominio
     implementation 'org.mapstruct:mapstruct:1.6.3'
 

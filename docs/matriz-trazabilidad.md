@@ -70,11 +70,11 @@ solo ofrece los endpoints para gestionarlas. Los **parámetros** viven en `appli
 | L-16 | Mascotas | `Alojamiento.politicaMascotas`: decisión explícita y obligatoria (hoy "No se aceptan mascotas", propiedad `sga.alojamiento.politica-mascotas`); el administrador la edita | `GET/PUT /api/alojamiento` | `AlojamientoTest.exigeNombreDescripcionCiudadDireccionNormasYPoliticaDeMascotas`; HTTP 9.1, 9.4, 9.5 | Implementada |
 | L-17 | Servicios adicionales y su cargo | `ServicioAdicional` (genera cargo ⇒ valor > 0; cortesía ⇒ valor 0; baja lógica), `RegistroServicioAdicionalService` (código único) y `CargoServicioAdicionalService` (folio abierto, servicio activo que genera cargo, reserva CONFIRMADA o EN_CURSO); 4 servicios sembrados | `POST/GET /api/servicios-adicionales`, `PUT .../{codigo}`, `PUT .../baja`, `PUT .../activar`, `POST /api/reservas/{codigo}/folio/cargos` | `ServicioAdicionalTest`, `RegistroServicioAdicionalServiceTest`, `CargoServicioAdicionalServiceTest` (cada regla y su caso que falla); `AlojamientoServiciosIntegracionTest.servicios_*` y `.cargo_*`; HTTP 9.12 a 9.37, 9.46 a 9.48 | Implementada |
 | L-18 | Medios de pago (mínimo 2) | `RegistroPagoService` rechaza un medio fuera de `ConfiguracionAlojamiento.mediosPagoAceptados()` (propiedad `sga.alojamiento.medios-pago`, al menos dos; si hay menos el sistema no arranca); la lista sale en `GET /api/alojamiento` | `POST .../folio/pagos` (409 con un medio no aceptado), `GET /api/alojamiento` | `RegistroPagoServiceTest`, `DomainServiceConfigTest.losMediosDePagoSeNormalizanYExigenAlMenosDos`, `ConfirmarYPagarUseCaseTest.admiteVariosPagosConMediosDistintos`; `AlojamientoServiciosIntegracionTest.pago_*`; HTTP 9.25, 9.26 | Implementada |
-| L-19 | Reportes adicionales | - | - | - | Pendiente |
+| L-19 | Reportes (7.9): ocupación, ingresos y reservas por canal | `ReportesService` (servicio de dominio puro con las tres fórmulas: ocupación = noches vendidas / (apartamentos activos × noches del periodo), con dos decimales, mitad hacia arriba; ingresos = pagos del periodo por medio de pago, sin los cargos no pagados; reservas creadas en el periodo por canal, incluidas canceladas y no-show), `Periodo` (rango obligatorio e inclusivo; un rango invertido es 409), objetos de valor `ReporteOcupacion`, `ReporteIngresos`, `ReporteReservasPorCanal`; puerto `DatosReportesRepository` | `GET /api/reportes/ocupacion`, `GET /api/reportes/ingresos`, `GET /api/reportes/reservas-por-canal` (solo ADMINISTRADOR; `desde` y `hasta` obligatorios) | `ReportesServiceTest` (12: cada fórmula, noches dentro del periodo, redondeo del porcentaje, periodo sin datos, rango invertido); `ReportesIntegracionTest` (cuerpos, 400, 401, 403 y 409); `OpenApiCoherenciaTest`; HTTP 14.1 a 14.7 | Implementada. Noche vendida = reserva CONFIRMADA, EN_CURSO o FINALIZADA (las PENDIENTES no están vendidas). Frontend: `paginas/administracion/Reportes.tsx` |
 | L-20 | Tres reglas propias aprobadas por el docente | RP-01 `EstanciaMinimaPorTemporada` + `CotizadorEstancia`; RP-02 `PoliticaDescuentoEstanciaLarga` + `ValorCongelado`; RP-03 `EdadAdultoResponsable` + `Ocupante.esAdultoEn` + `Reserva`. Detalle en la sección 2.1 | `POST /api/cotizaciones`, `POST /api/reservas`, `PUT /api/reservas/{codigo}/modificar`, `POST /api/disponibilidad` | Sección 2.1 | **Implementada - aprobación del docente solicitada el 15-nov-2026** |
 | L-21 | Caso de uso del modelo de IA (no bloqueante) | - | - | - | Pendiente |
 | L-22 | Integración externa | `RecepcionReservaExternaService`, `RechazoReservaExterna` | `POST /api/reservas`, `GET /api/reservas-externas/rechazos` | 3.26 a 3.32 | Implementada (ver RN-18, RN-19) |
-| L-23 | Funcionalidad opcional elegida | - | - | - | Pendiente |
+| L-23 | Funcionalidad opcional elegida: exportación de los reportes a Excel (sección 11, opción 8) | `ExportadorReportesExcel` (infraestructura, Apache POI): no calcula, escribe lo que entrega `ReportesService` con título, encabezados y fila de totales | `GET /api/reportes/{tipo}/exportar?desde&hasta&formato=xlsx` (solo ADMINISTRADOR; tipo o formato desconocido 400; rango invertido 409) | `ReportesIntegracionTest.exportar_entregaUnExcelConEncabezadosYTotales` (abre el archivo y comprueba encabezados y totales), `.exportar_unTipoOUnFormatoDesconocidoResponde400`; HTTP 14.8 | Implementada. Botones "Descargar Excel" en `Reportes.tsx` |
 
 ---
 
@@ -187,7 +187,7 @@ Decisiones que se dejaron anotadas:
 Sigue pendiente (acotado, sin bloquear el frontend):
 - Verificar automáticamente que los **esquemas** del yaml (campos de cada request y response) coincidan con los records del código; hoy se
   comprueban las operaciones y los 401/403, y los esquemas se revisan a mano.
-- Los pendientes de la Ficha que no son de este paso: L-19, L-21 y L-23 (ver la sección 2).
+- El pendiente de la Ficha que no es de este paso: L-21 (ver la sección 2). L-19 y L-23 quedaron implementadas en el paso M2.
 
 ---
 
@@ -211,7 +211,7 @@ aún no figura en `docs/http/resultado-corrida.md` (falta volver a correr la col
 
 | Paso | Tema | Decisión de la Ficha | Estado |
 |---|---|---|---|
-| M2 | Reportes de ocupación, ingresos y reservas por canal; exportación a Excel opcional (7.9) | L-19, L-23 | Pendiente |
+| M2 | Reportes de ocupación, ingresos y reservas por canal; exportación a Excel opcional (7.9) | L-19, L-23 | Implementado (ver L-19 y L-23 en la sección 2; PARTE 14 de `sga.http`, aún sin correr en `resultado-corrida.md`) |
 | M3 | Sugerencia de gravedad de novedades con IA no bloqueante (10.2): botón "Sugerir gravedad con IA" en `FormularioNovedad` (el lugar está marcado en el componente), detrás de un puerto del dominio con adaptador local (I-01 a I-08) | L-21 | Pendiente |
 
 ---
