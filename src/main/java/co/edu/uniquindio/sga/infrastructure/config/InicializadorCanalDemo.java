@@ -18,7 +18,7 @@ import co.edu.uniquindio.sga.domain.valueobject.TipoCanalVenta;
 /**
  * Siembra el canal externo de DEMOSTRACIÓN (regla 12 y 10.3.1) con una credencial pública y documentada en el README, para poder
  * ejecutar el simulador de canal sin pasos previos. Solo corre con los datos de prueba habilitados
- * ({@code sga.datos-prueba.habilitado=true}); un despliegue real los desactiva y no queda ninguna credencial conocida. Es idempotente:
+ * ({@code sga.datos-prueba.habilitado=true}); un despliegue real los desactiva y no queda ninguna credencial conocida. Con {@code sga.canal-demo.habilitado=false} (el valor en prod) no siembra nada. Es idempotente:
  * si el canal ya existe no lo toca (ni su estado ni su credencial). En la base solo se guarda el HASH de la credencial.
  */
 @Component
@@ -32,9 +32,12 @@ class InicializadorCanalDemo implements ApplicationRunner {
     private final String codigo;
     private final String nombre;
     private final String credencial;
+    private final boolean habilitado;
 
     InicializadorCanalDemo(CanalVentaRepository canales, @Value("${sga.canal-demo.codigo}") String codigo,
-                           @Value("${sga.canal-demo.nombre}") String nombre, @Value("${sga.canal-demo.credencial}") String credencial) {
+                           @Value("${sga.canal-demo.nombre}") String nombre, @Value("${sga.canal-demo.credencial}") String credencial,
+                           @Value("${sga.canal-demo.habilitado:true}") boolean habilitado) {
+        this.habilitado = habilitado;
         this.canales = canales;
         this.codigo = codigo;
         this.nombre = nombre;
@@ -44,6 +47,10 @@ class InicializadorCanalDemo implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments argumentos) {
+        if (!habilitado) {
+            log.info("Canal externo de demostración desactivado (sga.canal-demo.habilitado=false).");
+            return;
+        }
         if (canales.buscarPorCodigo(codigo).isPresent()) {
             return;
         }

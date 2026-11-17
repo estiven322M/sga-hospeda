@@ -32,7 +32,9 @@ class OpenApiCoherenciaTest {
     private static final Set<String> METODOS_HTTP = Set.of("get", "post", "put", "patch", "delete");
     private static final String PAQUETE_CONTROLLERS = "co.edu.uniquindio.sga.infrastructure.rest.controller";
 
-    @Autowired private RequestMappingHandlerMapping mapeos;
+    // Con Actuator hay un segundo mapeo (el de sus endpoints): se pide el de los controllers de la API por nombre
+    @Autowired @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping mapeos;
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> paths() throws IOException {

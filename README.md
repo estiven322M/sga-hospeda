@@ -132,7 +132,21 @@ El frontend muestra la ubicación del alojamiento (latitud y longitud de `GET /a
 
 ---
 
-## 6. Documentación
+## 6. Despliegue
+
+El backend se despliega en **Render** (Docker, plan gratuito) y el frontend en **Vercel**. La guía paso a paso y la tabla de variables de entorno están en [`docs/despliegue.md`](docs/despliegue.md).
+
+| Parte | URL |
+|---|---|
+| Aplicación (frontend, Vercel) | _pendiente_ |
+| API (backend, Render) | _pendiente_ |
+| Estado del API (`/actuator/health`) | _pendiente_ |
+
+> **Plan gratuito:** Render duerme el API tras **15 minutos** sin tráfico; la primera petición después tarda hasta un minuto (arranque en frío). La base es H2 en memoria: **los datos vuelven al estado inicial en cada reinicio** (usuarios y datos de prueba se siembran de nuevo). Las credenciales de los usuarios de la demostración se entregan aparte, no están en el repositorio.
+
+---
+
+## 7. Documentación
 
 - `docs/matriz-trazabilidad.md`: regla de negocio, su implementación, su prueba y el endpoint que la expone.
 - `docs/diagrama-clases-dominio.md`: diagrama de clases del dominio.
@@ -143,6 +157,6 @@ El frontend muestra la ubicación del alojamiento (latitud y longitud de `GET /a
 
 ---
 
-## 7. Alcance de esta entrega
+## 8. Alcance de esta entrega
 
 Con la Guía 12 el backend incorpora **seguridad con JWT** (Spring Security 7, HS256): todo endpoint exige token salvo el login y el registro público, cada endpoint se protege por rol y un huésped solo accede a sus propias reservas y folios (propietario del recurso). Respuestas `401` (sin token, token inválido o vencido, credenciales erradas) y `403` (rol o propietario). Detalle en `docs/seguridad.md`.

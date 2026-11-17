@@ -44,6 +44,9 @@ dependencies {
     // En Spring Boot 4 se llama 'security-oauth2-resource-server' (antes 'oauth2-resource-server')
     implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 
+    // Actuator: solo se expone /actuator/health (comprobación de salud de Render)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     // Correo (10.3.2-A): cliente SMTP del adaptador NotificadorCorreoSmtp. Solo se usa con sga.notificaciones.proveedor=smtp
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
@@ -82,6 +85,16 @@ dependencies {
 
     // Procesador de anotaciones para Lombok durante la compilación de las clases de prueba
     testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+// El archivo de secretos nunca entra al jar
+tasks.named('processResources') {
+	exclude 'application-secrets.properties'
+}
+
+// Nombre fijo del jar ejecutable (lo copia el Dockerfile)
+tasks.named('bootJar') {
+	archiveFileName = 'app.jar'
 }
 
 tasks.named('test') {

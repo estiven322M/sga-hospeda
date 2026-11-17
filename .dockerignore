@@ -1,0 +1,16 @@
+.git/
+frontend/
+node_modules/
+build/
+.gradle/
+imagenes/
+data/
+.idea/
+.vscode/
+*.iml
+*.mv.db
+HELP.md
+application-secrets.properties
+.vercel
+docs/
+simulador-canal/

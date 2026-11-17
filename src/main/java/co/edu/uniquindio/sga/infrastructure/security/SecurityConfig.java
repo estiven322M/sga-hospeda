@@ -48,7 +48,9 @@ public class SecurityConfig {
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
-            "/h2-console/**"
+            "/h2-console/**",
+            "/actuator/health",
+            "/actuator/health/**"
     };
 
     private final JwtDecoder jwtDecoder;
@@ -121,7 +123,7 @@ public class SecurityConfig {
      * propiedad {@code sga.cors.origenes-permitidos} (separados por comas): nunca "*", porque el token viaja en un
      * encabezado.
      * <ul>
-     *   <li>Métodos: GET, POST, PUT y OPTIONS (el preflight). No hay DELETE: la eliminación es lógica.</li>
+     *   <li>Métodos: GET, POST, PUT y OPTIONS (el preflight). La API solo usa esos: no hay PATCH ni DELETE (la eliminación es lógica).</li>
      *   <li>Encabezados que puede enviar el cliente: Authorization (el JWT) y Content-Type (el cuerpo JSON).</li>
      *   <li>Encabezado que puede leer el cliente: Location (la URL de lo recién creado, 201).</li>
      *   <li>Sin credenciales (cookies): el token no va en una cookie.</li>
@@ -130,7 +132,7 @@ public class SecurityConfig {
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${sga.cors.origenes-permitidos}") List<String> origenesPermitidos) {
+            @Value("${sga.cors.origenes-permitidos:}") List<String> origenesPermitidos) {
         CorsConfiguration configuracion = new CorsConfiguration();
         configuracion.setAllowedOrigins(origenesPermitidos.stream().map(String::trim).filter(o -> !o.isEmpty()).toList());
         configuracion.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
