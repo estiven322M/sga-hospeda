@@ -6634,3 +6634,106 @@ GET {{host}}/api/apartamentos/APT-302/novedades
         client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
     });
 %}
+
+# =====================================================================================================
+# PARTE 14 · REPORTES Y EXPORTACIÓN A EXCEL (M2: 7.9, L-19, L-23)
+# Requiere la PARTE 0 (tokens) y la PARTE 2: el pago de 2.6 (TRANSFERENCIA, 2026-11-02) y la cancelación de 2.10
+# (reserva A, canal PORTAL) son los que se comprueban en 14.2 y 14.3.
+# =====================================================================================================
+
+### 14.1 [L-19] Reporte de ocupación del periodo -> 200
+GET {{host}}/api/reportes/ocupacion?desde=2026-11-01&hasta=2026-11-30
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("14.1 [L-19] Reporte de ocupación del periodo", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.nochesPeriodo === 30, "nochesPeriodo: " + response.body.nochesPeriodo);
+        client.assert(response.body.nochesDisponibles === response.body.apartamentosActivos * 30, "nochesDisponibles: " + response.body.nochesDisponibles);
+        client.assert(typeof response.body.nochesVendidas === "number", "nochesVendidas debe ser número");
+        client.assert(response.body.porcentajeOcupacion >= 0, "porcentajeOcupacion: " + response.body.porcentajeOcupacion);
+    });
+%}
+
+### 14.2 [L-19] Ingresos: el pago registrado en 2.6 aparece con su medio de pago -> 200
+GET {{host}}/api/reportes/ingresos?desde=2026-11-01&hasta=2026-11-30
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("14.2 [L-19] Ingresos: el pago registrado en 2.6 aparece con su medio de pago", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.moneda === "COP", "moneda: " + response.body.moneda);
+        client.assert(response.body.porMedio.some(function (fila) { return fila.medio === "TRANSFERENCIA" && fila.total > 0; }), "falta el pago por TRANSFERENCIA de 2.6");
+        client.assert(response.body.total === response.body.porMedio.reduce(function (suma, fila) { return suma + fila.total; }, 0), "el total debe ser la suma por medio");
+    });
+%}
+
+### 14.3 [L-19] Reservas por canal: incluye las canceladas (reserva A de 2.10) y los no-show -> 200
+GET {{host}}/api/reportes/reservas-por-canal?desde=2020-01-01&hasta=2035-12-31
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("14.3 [L-19] Reservas por canal: incluye las canceladas (reserva A de 2.10) y los no-show", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.canales.length === 3, "debe traer una fila por canal");
+        client.assert(response.body.canales.some(function (fila) { return fila.canal === "PORTAL" && fila.canceladas >= 1; }), "falta la reserva cancelada del PORTAL");
+        client.assert(response.body.canceladas >= 1 && response.body.noShow >= 1, "canceladas " + response.body.canceladas + ", noShow " + response.body.noShow);
+        client.assert(response.body.total === response.body.canales.reduce(function (suma, fila) { return suma + fila.total; }, 0), "el total debe ser la suma por canal");
+    });
+%}
+
+### 14.4 [409 · L-19] El fin del periodo no puede ser anterior a su inicio -> 409
+GET {{host}}/api/reportes/ocupacion?desde=2026-11-30&hasta=2026-11-01
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("14.4 [409 · L-19] El fin del periodo no puede ser anterior a su inicio", function () {
+        client.assert(response.status === 409, "código " + response.status);
+        client.assert(response.body.status === 409, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.mensaje === "El fin del periodo no puede ser anterior a su inicio", "mensaje: " + response.body.mensaje);
+        client.assert(response.body.errores === null || response.body.errores === undefined, "errores debe ser nulo");
+    });
+%}
+
+### 14.5 [400 · L-19] El rango de fechas es obligatorio -> 400
+GET {{host}}/api/reportes/ingresos?desde=2026-11-01
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("14.5 [400 · L-19] El rango de fechas es obligatorio", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 14.6 [403 · L-19] Recepción NO consulta los reportes -> 403
+GET {{host}}/api/reportes/ingresos?desde=2020-01-01&hasta=2035-12-31
+Authorization: Bearer {{tokenRecepcion}}
+
+> {%
+    client.test("14.6 [403 · L-19] Recepción NO consulta los reportes", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 14.7 [401 · L-19] Los reportes sin token -> 401
+GET {{host}}/api/reportes/ocupacion?desde=2020-01-01&hasta=2035-12-31
+
+> {%
+    client.test("14.7 [401 · L-19] Los reportes sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 14.8 [L-23] Exportar el reporte de ingresos a Excel -> 200 (archivo xlsx)
+GET {{host}}/api/reportes/ingresos/exportar?desde=2026-11-01&hasta=2026-11-30&formato=xlsx
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("14.8 [L-23] Exportar el reporte de ingresos a Excel", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.contentType.mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "tipo: " + response.contentType.mimeType);
+    });
+%}

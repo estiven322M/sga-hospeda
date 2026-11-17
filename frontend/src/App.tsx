@@ -55,6 +55,7 @@ const Conflictos = lazy(() => import('./paginas/administracion/Conflictos'));
 const BitacoraCanal = lazy(() => import('./paginas/administracion/BitacoraCanal'));
 const Usuarios = lazy(() => import('./paginas/administracion/Usuarios'));
 const Notificaciones = lazy(() => import('./paginas/administracion/Notificaciones'));
+const Reportes = lazy(() => import('./paginas/administracion/Reportes'));
 
 /**
  * Todas las rutas de la aplicación, declaradas desde el paso J1 para que nadie tenga que editar este archivo:
@@ -128,6 +129,7 @@ export default function App() {
           <Route path={PATRONES.bitacoraCanal} element={<BitacoraCanal />} />
           <Route path={PATRONES.usuarios} element={<Usuarios />} />
           <Route path={PATRONES.notificaciones} element={<Notificaciones />} />
+          <Route path={PATRONES.reportes} element={<Reportes />} />
         </Route>
 
         <Route path="*" element={<NoEncontrada />} />

@@ -137,6 +137,12 @@ public class DomainServiceConfig {
         return new RegistroPagoService(configuracion);
     }
 
+    /** 7.9, L-19: las fórmulas de los reportes (ocupación, ingresos y reservas por canal). */
+    @Bean
+    public co.edu.uniquindio.sga.domain.service.ReportesService reportesService() {
+        return new co.edu.uniquindio.sga.domain.service.ReportesService();
+    }
+
     @Bean
     public CalendarioOcupacionService calendarioOcupacionService(ReservaRepository reservaRepository,
                                                                 BloqueoRepository bloqueoRepository,

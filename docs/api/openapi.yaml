@@ -80,6 +80,8 @@ tags:
     description: Servicios que el alojamiento ofrece y pueden generar un cargo en el folio (L-17)
   - name: Calendario
     description: Estado de cada noche de un apartamento (libre, reservada o bloqueada)
+  - name: Reportes
+    description: Ocupación, ingresos y reservas por canal de un periodo, y su exportación a Excel (7.9, L-19, L-23)
   - name: Usuarios
     description: Gestión de usuarios y roles (administrador), perfil propio y cambio de contraseña
   - name: Notificaciones
@@ -2183,6 +2185,151 @@ paths:
           $ref: '#/components/responses/SinPermiso'
 
 
+  # ==================== REPORTES (7.9, L-19, L-23) ====================
+
+  /api/reportes/ocupacion:
+    get:
+      tags: [Reportes]
+      summary: Reporte de ocupación del periodo
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Noches vendidas y porcentaje de ocupación del periodo `[desde, hasta]` (ambas fechas incluidas):
+        `porcentaje = noches vendidas / (apartamentos activos × noches del periodo)`, redondeado a dos decimales. Una noche
+        está vendida si pertenece a una reserva CONFIRMADA, EN_CURSO o FINALIZADA. Regla del dominio (409): la fecha `hasta`
+        no puede ser anterior a `desde`. Sin alguna de las dos fechas responde 400.
+        Mapea a: `ConsultarReporteOcupacionUseCase`
+      operationId: reporteOcupacion
+      parameters:
+        - $ref: '#/components/parameters/ReporteDesde'
+        - $ref: '#/components/parameters/ReporteHasta'
+      responses:
+        '200':
+          description: Ocupación del periodo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteOcupacionResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/reportes/ingresos:
+    get:
+      tags: [Reportes]
+      summary: Reporte de ingresos del periodo por medio de pago
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Suma de los PAGOS registrados en los folios cuya fecha cae en el periodo `[desde, hasta]`, discriminada por medio de
+        pago. Los cargos que no se han pagado no cuentan. Regla del dominio (409): la fecha `hasta` no puede ser anterior a
+        `desde`.
+        Mapea a: `ConsultarReporteIngresosUseCase`
+      operationId: reporteIngresos
+      parameters:
+        - $ref: '#/components/parameters/ReporteDesde'
+        - $ref: '#/components/parameters/ReporteHasta'
+      responses:
+        '200':
+          description: Ingresos del periodo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteIngresosResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/reportes/reservas-por-canal:
+    get:
+      tags: [Reportes]
+      summary: Reporte de reservas por canal de origen
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Reservas creadas en el periodo `[desde, hasta]` por canal de origen (PORTAL, DIRECTO, EXTERNO), en cualquier estado:
+        el total de cada canal incluye las canceladas y los no-show, que además se informan aparte. Siempre trae una fila
+        por canal, aunque esté en cero. Regla del dominio (409): la fecha `hasta` no puede ser anterior a `desde`.
+        Mapea a: `ConsultarReporteReservasPorCanalUseCase`
+      operationId: reporteReservasPorCanal
+      parameters:
+        - $ref: '#/components/parameters/ReporteDesde'
+        - $ref: '#/components/parameters/ReporteHasta'
+      responses:
+        '200':
+          description: Reservas por canal del periodo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteReservasPorCanalResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  /api/reportes/{tipo}/exportar:
+    get:
+      tags: [Reportes]
+      summary: Exportar un reporte a Excel
+      description: |
+        **Roles:** ADMINISTRADOR.
+
+        Funcionalidad opcional (L-23): el mismo reporte como archivo `.xlsx` (Apache POI) con título, encabezados y fila de
+        totales. Un tipo o un formato desconocido responde 400; un rango invertido, 409.
+      operationId: exportarReporte
+      parameters:
+        - name: tipo
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [ocupacion, ingresos, reservas-por-canal]
+        - $ref: '#/components/parameters/ReporteDesde'
+        - $ref: '#/components/parameters/ReporteHasta'
+        - name: formato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [xlsx]
+            default: xlsx
+      responses:
+        '200':
+          description: Archivo de Excel del reporte
+          headers:
+            Content-Disposition:
+              description: Nombre sugerido del archivo
+              schema:
+                type: string
+                example: attachment; filename="reporte-ingresos-2026-11-01-a-2026-11-30.xlsx"
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
   /api/auth/recuperacion/solicitar:
     post:
       tags: [Autenticación]
@@ -2937,6 +3084,22 @@ components:
       description: 'Credencial de un canal externo (7.8): se muestra UNA sola vez al crear el canal (POST /api/canales) y el sistema solo guarda su hash. Solo sirve en /api/canal/**, que tiene su propia cadena de seguridad (no acepta JWT); el JWT y la credencial no son intercambiables. Una credencial ausente, desconocida o de un canal desactivado responde 401 (el mismo mensaje en los tres casos).'
 
   parameters:
+    ReporteDesde:
+      name: desde
+      in: query
+      required: true
+      description: Primer día del periodo del reporte (incluido)
+      schema:
+        type: string
+        format: date
+    ReporteHasta:
+      name: hasta
+      in: query
+      required: true
+      description: Último día del periodo del reporte (incluido); no puede ser anterior a `desde` (409)
+      schema:
+        type: string
+        format: date
     Pagina:
       name: pagina
       in: query
@@ -4289,6 +4452,91 @@ components:
           type: integer
           minimum: 1
           maximum: 100
+    ReporteOcupacionResponse:
+      type: object
+      description: Ocupación del periodo. porcentajeOcupacion = nochesVendidas / nochesDisponibles × 100, con dos decimales.
+      required: [desde, hasta, apartamentosActivos, nochesPeriodo, nochesDisponibles, nochesVendidas, porcentajeOcupacion]
+      properties:
+        desde:
+          type: string
+          format: date
+        hasta:
+          type: string
+          format: date
+        apartamentosActivos:
+          type: integer
+        nochesPeriodo:
+          type: integer
+          description: Días del periodo, con ambas fechas incluidas
+        nochesDisponibles:
+          type: integer
+          description: apartamentosActivos × nochesPeriodo
+        nochesVendidas:
+          type: integer
+        porcentajeOcupacion:
+          type: number
+          example: 12.5
+    ReporteIngresosResponse:
+      type: object
+      description: Pagos registrados en el periodo por medio de pago. Valores en pesos COP sin decimales.
+      required: [desde, hasta, porMedio, total, moneda]
+      properties:
+        desde:
+          type: string
+          format: date
+        hasta:
+          type: string
+          format: date
+        porMedio:
+          type: array
+          items:
+            type: object
+            required: [medio, total]
+            properties:
+              medio:
+                type: string
+                example: EFECTIVO
+              total:
+                type: integer
+                format: int64
+        total:
+          type: integer
+          format: int64
+        moneda:
+          type: string
+          example: COP
+    ReporteReservasPorCanalResponse:
+      type: object
+      description: Reservas creadas en el periodo por canal de origen. Los totales incluyen canceladas y no-show.
+      required: [desde, hasta, canales, total, canceladas, noShow]
+      properties:
+        desde:
+          type: string
+          format: date
+        hasta:
+          type: string
+          format: date
+        canales:
+          type: array
+          items:
+            type: object
+            required: [canal, total, canceladas, noShow]
+            properties:
+              canal:
+                type: string
+                enum: [PORTAL, DIRECTO, EXTERNO]
+              total:
+                type: integer
+              canceladas:
+                type: integer
+              noShow:
+                type: integer
+        total:
+          type: integer
+        canceladas:
+          type: integer
+        noShow:
+          type: integer
     CalendarioResponse:
       type: object
       required: [identificacionApartamento, desde, hasta, noches]
