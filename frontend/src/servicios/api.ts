@@ -3,14 +3,15 @@ import { obtenerToken } from './sesion';
 
 /**
  * Cliente HTTP ÚNICO de la aplicación: todos los servicios lo usan, nadie crea otra instancia de Axios ni escribe
- * el encabezado Authorization a mano. La URL no está escrita aquí: Vite la toma de .env.development o
- * .env.production (VITE_API_URL, con /api), así que los servicios escriben rutas relativas (/reservas, /auth/login...).
+ * el encabezado Authorization a mano. La URL no está escrita aquí: Vite la toma de VITE_API_URL (con /api; en Vercel se
+ * define como variable del proyecto). Sin ella se usa '/api', que en desarrollo atiende el proxy de vite.config.ts. Así que los servicios escriben rutas relativas (/reservas, /auth/login...).
  * Sin 'Content-Type' fijo: Axios pone application/json para objetos y deja que el navegador arme multipart/form-data
  * si algún día se sube un archivo.
  */
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  timeout: 10_000,
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+  // 70 s: el plan gratuito de Render duerme el API y su arranque en frío puede tardar más de un minuto
+  timeout: 70_000,
 });
 
 /** El login y el registro son públicos: no llevan token (uno vencido haría que el backend los rechazara con 401). */

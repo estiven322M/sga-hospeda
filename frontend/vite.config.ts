@@ -6,5 +6,13 @@ import { defineConfig } from 'vite';
 // porque con otro origen el navegador bloquearía todas las llamadas a la API.
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5173, strictPort: true },
+  server: {
+    port: 5173,
+    strictPort: true,
+    // Sin VITE_API_URL el cliente llama a /api (y /imagenes): en desarrollo el proxy las reenvía al backend local
+    proxy: {
+      '/api': 'http://localhost:8080',
+      '/imagenes': 'http://localhost:8080',
+    },
+  },
 });
