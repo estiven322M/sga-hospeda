@@ -3,7 +3,9 @@ package co.edu.uniquindio.sga.infrastructure.config;
 import co.edu.uniquindio.sga.domain.entity.Apartamento;
 import co.edu.uniquindio.sga.domain.entity.Temporada;
 import co.edu.uniquindio.sga.domain.repository.ApartamentoRepository;
+import co.edu.uniquindio.sga.domain.entity.Novedad;
 import co.edu.uniquindio.sga.domain.repository.BloqueoRepository;
+import co.edu.uniquindio.sga.domain.repository.NovedadRepository;
 import co.edu.uniquindio.sga.domain.repository.PoliticaCancelacionRepository;
 import co.edu.uniquindio.sga.domain.repository.ServicioAdicionalRepository;
 import co.edu.uniquindio.sga.domain.repository.SolicitudPagina;
@@ -61,6 +63,7 @@ public class CargadorDatosPrueba implements ApplicationRunner {
     private final ServicioAdicionalRepository servicios;
     private final RegistroServicioAdicionalService registroServicio;
     private final SembradorImagenesPrueba sembradorImagenes;
+    private final NovedadRepository novedades;
 
     CargadorDatosPrueba(Clock reloj, TemporadaRepository temporadas, ApartamentoRepository apartamentos,
                         TarifarioRepository tarifario, PoliticaCancelacionRepository politicas,
@@ -68,7 +71,9 @@ public class CargadorDatosPrueba implements ApplicationRunner {
                         RegistroTarifaService registroTarifa, ActivacionApartamentoService activacion,
                         RegistroPoliticaCancelacionService registroPolitica, RegistroBloqueoService registroBloqueo,
                         SembradorReservasPrueba sembradorReservas, ServicioAdicionalRepository servicios,
-                        RegistroServicioAdicionalService registroServicio, SembradorImagenesPrueba sembradorImagenes) {
+                        RegistroServicioAdicionalService registroServicio, SembradorImagenesPrueba sembradorImagenes,
+                        NovedadRepository novedades) {
+        this.novedades = novedades;
         this.sembradorImagenes = sembradorImagenes;
         this.servicios = servicios;
         this.registroServicio = registroServicio;
@@ -100,6 +105,7 @@ public class CargadorDatosPrueba implements ApplicationRunner {
         }
         cargarPoliticaDeCancelacion();
         cargarBloqueo();
+        cargarNovedades();
         sembradorReservas.sembrar();
         REGISTRO.info("Datos de prueba cargados.");
     }
@@ -153,6 +159,14 @@ public class CargadorDatosPrueba implements ApplicationRunner {
         politicas.guardar(registroPolitica.crearNuevaVersion(
                 hoy.minusDays(CatalogoDatosPrueba.DIAS_DE_VIGENCIA_PREVIA_POLITICA),
                 CatalogoDatosPrueba.TRAMOS_POLITICA));
+    }
+
+    /** 7.6: novedades de ejemplo para que el historial no arranque vacío. */
+    private void cargarNovedades() {
+        CatalogoDatosPrueba.NOVEDADES.forEach(semilla -> novedades.registrar(new Novedad(
+                new IdentificacionApartamento(semilla.apartamento()),
+                hoy.minusDays(semilla.haceDias()).atTime(CatalogoDatosPrueba.HORA_NOVEDADES, 0),
+                semilla.autor(), semilla.descripcion(), semilla.gravedad())));
     }
 
     private void cargarBloqueo() {

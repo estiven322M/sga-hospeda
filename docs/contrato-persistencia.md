@@ -66,6 +66,9 @@ Pagina<CanalVenta> listar(SolicitudPagina pagina);                   // de 10 en
 // BitacoraCanalRepository  (tabla evento_canal; solo se agrega)
 void registrar(EventoCanal evento);                                  // en su propia transacción (REQUIRES_NEW): sobrevive al rollback del mensaje rechazado
 Pagina<EventoCanal> listar(String canal, LocalDate desde, LocalDate hasta, SolicitudPagina pagina);   // del más reciente al más antiguo; filtros opcionales, fechas inclusivas
+// NovedadRepository  (M1; tabla novedad; solo se agrega)
+Novedad registrar(Novedad novedad);
+Pagina<Novedad> listarPorApartamento(IdentificacionApartamento apartamento, SolicitudPagina pagina);   // de la más reciente a la más antigua (fecha y, si empatan, id)
 // RechazoReservaExternaRepository  (ya existía; J9 le suma la revisión)
 Optional<RechazoReservaExterna> buscarPorId(long id);
 Pagina<RechazoReservaExterna> listar(Boolean revisado, SolicitudPagina pagina);   // null = todos

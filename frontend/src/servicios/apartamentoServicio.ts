@@ -134,6 +134,18 @@ export async function darDeBajaApartamento(identificacion: string): Promise<Apar
   return respuesta.data;
 }
 
+/** PUT .../estado-operativo/iniciar-preparacion (CU-10): de PENDIENTE_PREPARACION a EN_PREPARACION; 409 desde otro estado. */
+export async function iniciarPreparacion(identificacion: string): Promise<ApartamentoResponse> {
+  const respuesta = await api.put<ApartamentoResponse>(`${ruta(identificacion)}/estado-operativo/iniciar-preparacion`, null);
+  return respuesta.data;
+}
+
+/** PUT .../estado-operativo/marcar-preparado (CU-10): de EN_PREPARACION a PREPARADO; 409 desde otro estado. */
+export async function marcarPreparado(identificacion: string): Promise<ApartamentoResponse> {
+  const respuesta = await api.put<ApartamentoResponse>(`${ruta(identificacion)}/estado-operativo/marcar-preparado`, null);
+  return respuesta.data;
+}
+
 /** PUT .../estado-operativo/declarar-fuera-de-servicio: decisión administrativa, desde cualquier estado no ocupado. */
 export async function declararFueraDeServicio(identificacion: string): Promise<ApartamentoResponse> {
   const respuesta = await api.put<ApartamentoResponse>(`${ruta(identificacion)}/estado-operativo/declarar-fuera-de-servicio`, null);

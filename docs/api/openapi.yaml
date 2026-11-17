@@ -50,6 +50,8 @@ tags:
     description: Inventario de apartamentos (baja lógica; nacen inactivos hasta tener tarifas completas)
   - name: Bloqueos
     description: Decisiones administrativas que impiden vender un apartamento en un rango de fechas
+  - name: Novedades
+    description: Novedades que el personal reporta sobre un apartamento (fecha, autor, descripción y gravedad) y su historial
   - name: Temporadas
     description: Calendario de temporadas, con una temporada base obligatoria
   - name: Tarifas
@@ -695,6 +697,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginaBloqueoResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+
+  # ==================== NOVEDADES (7.6) ====================
+
+  /api/apartamentos/{identificacion}/novedades:
+    post:
+      tags: [Novedades]
+      summary: Registrar una novedad sobre un apartamento (el autor sale del token)
+      description: |
+        **Roles:** PERSONAL_SERVICIO, RECEPCIONISTA, ADMINISTRADOR.
+
+        Deja constancia de una novedad del apartamento (un daño, un faltante, algo que revisar) con su gravedad (7.6).
+        El **autor** es el nombre de quien inició sesión (claim `nombre` del JWT) y la **fecha** la pone el servidor:
+        ninguno de los dos viaja en el cuerpo. Una novedad no se edita ni se borra, y registrarla NO cambia el estado
+        operativo del apartamento (declararlo fuera de servicio es decisión del administrador).
+        Mapea a: `RegistrarNovedadUseCase`
+      operationId: registrarNovedad
+      parameters:
+        - $ref: '#/components/parameters/IdentificacionApartamento'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrarNovedadRequest'
+            example:
+              descripcion: Fuga de agua bajo el lavaplatos
+              gravedad: ALTA
+      responses:
+        '201':
+          description: Novedad registrada
+          headers:
+            Location:
+              description: URL del historial de novedades del apartamento (la novedad no tiene identificador propio)
+              schema:
+                type: string
+                example: http://localhost:8080/api/apartamentos/APT-101/novedades
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NovedadResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/ReglaDeNegocio'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+    get:
+      tags: [Novedades]
+      summary: Historial de novedades de un apartamento, de 10 en 10, de la más reciente a la más antigua
+      description: |
+        **Roles:** PERSONAL_SERVICIO, RECEPCIONISTA, ADMINISTRADOR.
+
+        Mapea a: `ListarNovedadesUseCase`
+      operationId: listarNovedades
+      parameters:
+        - $ref: '#/components/parameters/IdentificacionApartamento'
+        - $ref: '#/components/parameters/Pagina'
+      responses:
+        '200':
+          description: Página del historial de novedades
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaNovedadResponse'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
         '404':
@@ -3053,6 +3131,10 @@ components:
     EstadoOperativo:
       type: string
       enum: [PREPARADO, OCUPADO, PENDIENTE_PREPARACION, EN_PREPARACION, FUERA_DE_SERVICIO]
+    GravedadNovedad:
+      type: string
+      description: Gravedad de una novedad (7.6), de menor a mayor. Catálogo cerrado.
+      enum: [BAJA, MEDIA, ALTA, CRITICA]
     Caracteristica:
       type: string
       description: Característica diferenciadora de un apartamento (L-06). Catálogo cerrado.
@@ -3191,6 +3273,16 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/BloqueoResponse'
+    PaginaNovedadResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginaBase'
+        - type: object
+          required: [contenido]
+          properties:
+            contenido:
+              type: array
+              items:
+                $ref: '#/components/schemas/NovedadResponse'
     PaginaRechazoReservaExternaResponse:
       allOf:
         - $ref: '#/components/schemas/PaginaBase'
@@ -3334,6 +3426,16 @@ components:
           description: Exclusiva, igual que la fecha de salida de una estancia
         motivo:
           type: string
+    RegistrarNovedadRequest:
+      type: object
+      required: [descripcion, gravedad]
+      properties:
+        descripcion:
+          type: string
+          maxLength: 500
+          description: Obligatoria, máximo 500 caracteres
+        gravedad:
+          $ref: '#/components/schemas/GravedadNovedad'
     RegistrarTemporadaRequest:
       type: object
       required: [nombre, base]
@@ -3600,6 +3702,23 @@ components:
           format: date
         motivo:
           type: string
+    NovedadResponse:
+      type: object
+      description: Una novedad del historial de un apartamento (7.6)
+      properties:
+        identificacionApartamento:
+          type: string
+        fecha:
+          type: string
+          format: date-time
+          description: Fecha y hora en que se registró (hora de Colombia, la pone el servidor)
+        autor:
+          type: string
+          description: Nombre de quien la registró (sale del token)
+        descripcion:
+          type: string
+        gravedad:
+          $ref: '#/components/schemas/GravedadNovedad'
     RechazoReservaExternaResponse:
       type: object
       description: Constancia de una reserva externa rechazada por violar una regla (RN-18), con su revisión (7.8)

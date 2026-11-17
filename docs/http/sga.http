@@ -6468,3 +6468,169 @@ Content-Type: application/json
         client.assert(response.status === 200, "código " + response.status);
     });
 %}
+
+# =====================================================================================================
+# PARTE 13 · PREPARACIÓN Y NOVEDADES DEL PERSONAL DE SERVICIO (M1: 7.1, 7.6)
+#   El personal de servicio consulta los apartamentos pendientes de preparación, registra novedades (el autor sale del token y la
+#   fecha la pone el servidor) y consulta el historial por apartamento (de 10 en 10, la más reciente primero). NO puede declarar
+#   fuera de servicio ni registrar bloqueos. APT-302 trae dos novedades sembradas. El ciclo iniciar-preparacion / marcar-preparado
+#   está en 5.11 a 5.18.
+# =====================================================================================================
+
+### 13.1 [7.6] El personal de servicio lista los apartamentos pendientes de preparación -> 200
+GET {{host}}/api/apartamentos?estadoOperativo=PENDIENTE_PREPARACION
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("13.1 [7.6] El personal de servicio lista los apartamentos pendientes de preparación", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.tamanio === 10, "tamanio: " + response.body.tamanio);
+        client.assert(Array.isArray(response.body.contenido), "contenido debe ser una lista");
+        client.assert(response.body.contenido.every(a => a.estadoOperativo === "PENDIENTE_PREPARACION"), "solo llegan los pendientes de preparación");
+    });
+%}
+
+### 13.2 [7.6] El personal de servicio registra una novedad: el autor sale del token -> 201
+POST {{host}}/api/apartamentos/APT-302/novedades
+Authorization: Bearer {{tokenServicio}}
+Content-Type: application/json
+
+{"descripcion": "Gotea la llave del lavamanos", "gravedad": "MEDIA"}
+
+> {%
+    client.test("13.2 [7.6] El personal de servicio registra una novedad: el autor sale del token", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.identificacionApartamento === "APT-302", "identificacionApartamento: " + response.body.identificacionApartamento);
+        client.assert(response.body.autor === "Personal de Servicio", "autor: " + response.body.autor);
+        client.assert(response.body.descripcion === "Gotea la llave del lavamanos", "descripcion: " + response.body.descripcion);
+        client.assert(response.body.gravedad === "MEDIA", "gravedad: " + response.body.gravedad);
+        client.assert(typeof response.body.fecha === "string" && response.body.fecha.length >= 16, "fecha: " + response.body.fecha);
+    });
+%}
+
+### 13.3 [7.6] Recepción también registra novedades y firma con su nombre -> 201
+POST {{host}}/api/apartamentos/APT-302/novedades
+Authorization: Bearer {{tokenRecepcion}}
+Content-Type: application/json
+
+{"descripcion": "El huésped anterior reportó ruido en la nevera", "gravedad": "BAJA"}
+
+> {%
+    client.test("13.3 [7.6] Recepción también registra novedades y firma con su nombre", function () {
+        client.assert(response.status === 201, "código " + response.status);
+        client.assert(response.body.autor === "Recepcion Hospeda", "autor: " + response.body.autor);
+        client.assert(response.body.gravedad === "BAJA", "gravedad: " + response.body.gravedad);
+    });
+%}
+
+### 13.4 [7.6] Historial de novedades del apartamento: de 10 en 10, la más reciente primero -> 200
+GET {{host}}/api/apartamentos/APT-302/novedades
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("13.4 [7.6] Historial de novedades del apartamento: de 10 en 10, la más reciente primero", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.pagina === 0 && response.body.tamanio === 10, "pagina y tamanio: " + response.body.pagina + ", " + response.body.tamanio);
+        client.assert(response.body.totalElementos >= 4, "las dos sembradas más las de 13.2 y 13.3: " + response.body.totalElementos);
+        client.assert(response.body.contenido.length <= 10, "a lo sumo 10 por página");
+        client.assert(response.body.contenido[0].descripcion === "El huésped anterior reportó ruido en la nevera", "la más reciente va primero: " + response.body.contenido[0].descripcion);
+        client.assert(response.body.contenido[1].descripcion === "Gotea la llave del lavamanos", "luego la anterior: " + response.body.contenido[1].descripcion);
+        const fechas = response.body.contenido.map(n => n.fecha);
+        client.assert(fechas.every((f, i) => i === 0 || fechas[i - 1] >= f), "ordenadas de la más reciente a la más antigua");
+        client.assert(response.body.contenido.every(n => n.identificacionApartamento === "APT-302"), "solo las de este apartamento");
+        client.assert(response.body.contenido.every(n => ["BAJA", "MEDIA", "ALTA", "CRITICA"].includes(n.gravedad)), "gravedad del catálogo");
+    });
+%}
+
+### 13.5 [400 · novedad] La descripción es obligatoria -> 400 con el campo en "errores"
+POST {{host}}/api/apartamentos/APT-302/novedades
+Authorization: Bearer {{tokenServicio}}
+Content-Type: application/json
+
+{"descripcion": "   ", "gravedad": "ALTA"}
+
+> {%
+    client.test("13.5 [400 · novedad] La descripción es obligatoria", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.errores && response.body.errores["descripcion"] === "La descripción de la novedad es obligatoria", "error de descripcion: " + JSON.stringify(response.body.errores));
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 13.6 [400 · novedad] Una gravedad fuera del catálogo (BAJA, MEDIA, ALTA, CRITICA) -> 400
+POST {{host}}/api/apartamentos/APT-302/novedades
+Authorization: Bearer {{tokenServicio}}
+Content-Type: application/json
+
+{"descripcion": "Fuga de agua", "gravedad": "URGENTE"}
+
+> {%
+    client.test("13.6 [400 · novedad] Una gravedad fuera del catálogo", function () {
+        client.assert(response.status === 400, "código " + response.status);
+        client.assert(response.body.status === 400, "status del cuerpo: " + response.body.status);
+        client.assert(response.body.trace === undefined && JSON.stringify(response.body).toLowerCase().indexOf("exception") < 0, "no debe devolver trazas técnicas");
+    });
+%}
+
+### 13.7 [404 · novedad] Novedad sobre un apartamento que no existe -> 404
+POST {{host}}/api/apartamentos/NO-EXISTE/novedades
+Authorization: Bearer {{tokenServicio}}
+Content-Type: application/json
+
+{"descripcion": "Fuga de agua", "gravedad": "ALTA"}
+
+> {%
+    client.test("13.7 [404 · novedad] Novedad sobre un apartamento que no existe", function () {
+        client.assert(response.status === 404, "código " + response.status);
+        client.assert(response.body.status === 404, "status del cuerpo: " + response.body.status);
+        client.assert(typeof response.body.mensaje === "string" && response.body.mensaje.length > 0, "mensaje: " + response.body.mensaje);
+    });
+%}
+
+### 13.8 [7.6] El administrador consulta el historial de novedades -> 200
+GET {{host}}/api/apartamentos/APT-101/novedades
+Authorization: Bearer {{tokenAdmin}}
+
+> {%
+    client.test("13.8 [7.6] El administrador consulta el historial de novedades", function () {
+        client.assert(response.status === 200, "código " + response.status);
+        client.assert(response.body.totalElementos >= 1, "APT-101 trae una novedad sembrada: " + response.body.totalElementos);
+        client.assert(response.body.contenido.some(n => n.descripcion === "Falta una de las dos llaves del balcón." && n.gravedad === "BAJA"), "la novedad sembrada de APT-101");
+    });
+%}
+
+### 13.9 [403 · 7.6] El personal de servicio NO declara un apartamento fuera de servicio -> 403
+PUT {{host}}/api/apartamentos/APT-203/estado-operativo/declarar-fuera-de-servicio
+Authorization: Bearer {{tokenServicio}}
+
+> {%
+    client.test("13.9 [403 · 7.6] El personal de servicio NO declara un apartamento fuera de servicio", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 13.10 [403 · 7.6] El personal de servicio NO registra bloqueos -> 403
+POST {{host}}/api/apartamentos/APT-203/bloqueos
+Authorization: Bearer {{tokenServicio}}
+Content-Type: application/json
+
+{"fechaInicio": "2029-06-01", "fechaFin": "2029-06-03", "motivo": "Pintura"}
+
+> {%
+    client.test("13.10 [403 · 7.6] El personal de servicio NO registra bloqueos", function () {
+        client.assert(response.status === 403, "código " + response.status);
+        client.assert(response.body.status === 403, "status del cuerpo: " + response.body.status);
+    });
+%}
+
+### 13.11 [401 · novedad] El historial de novedades sin token -> 401
+GET {{host}}/api/apartamentos/APT-302/novedades
+
+> {%
+    client.test("13.11 [401 · novedad] El historial de novedades sin token", function () {
+        client.assert(response.status === 401, "código " + response.status);
+        client.assert(response.body.status === 401, "status del cuerpo: " + response.body.status);
+    });
+%}

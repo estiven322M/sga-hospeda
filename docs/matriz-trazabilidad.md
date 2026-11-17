@@ -191,6 +191,31 @@ Sigue pendiente (acotado, sin bloquear el frontend):
 
 ---
 
+## Preparación de apartamentos y novedades del personal de servicio (7.1, 7.6) — M1
+
+| ID | Regla | Responsable | Endpoint que la expone | Pruebas (evidencia) | Prueba HTTP | Estado |
+|---|---|---|---|---|---|---|
+| N-01 | El personal de servicio consulta los apartamentos pendientes de preparación y en preparación (de 10 en 10, filtrados por el servidor) | `ListarApartamentosUseCase`, `FiltroApartamentos` | `GET /api/apartamentos?estadoOperativo=PENDIENTE_PREPARACION` (o `EN_PREPARACION`) | `RecorridoNovedadesIntegracionTest.elPersonalDeServicioPreparaUnApartamentoPendienteYRegistraUnaNovedad`, `SoporteFrontendIntegracionTest` | 13.1 | Implementada |
+| N-02 | El estado operativo solo avanza PENDIENTE_PREPARACION → EN_PREPARACION → PREPARADO con operaciones de negocio; cualquier otra transición se rechaza (409) | `Apartamento.iniciarPreparacion`, `Apartamento.marcarPreparado`, `EstadoOperativo` | `PUT /api/apartamentos/{id}/estado-operativo/iniciar-preparacion` y `/marcar-preparado` (PERSONAL_SERVICIO, ADMINISTRADOR) | `EstadoOperativoTest`, `ApartamentoTest`, `OperacionDiariaUseCasesTest`, `RecorridoNovedadesIntegracionTest` | 5.11, 5.12, 5.17, 5.18 | Implementada |
+| N-03 | El personal de servicio NO declara un apartamento fuera de servicio, NO lo reincorpora y NO registra bloqueos (403) | `@PreAuthorize` de `EstadoOperativoController` y `BloqueoController` | `PUT .../estado-operativo/declarar-fuera-de-servicio`, `.../reincorporar`, `POST .../bloqueos` | `RecorridoNovedadesIntegracionTest.elPersonalDeServicioNoDeclaraFueraDeServicioNiRegistraBloqueos` | 13.9, 13.10 | Implementada |
+| N-04 | Una novedad tiene apartamento (por identificación), fecha, autor, descripción obligatoria de máximo 500 caracteres y gravedad (BAJA, MEDIA, ALTA o CRITICA); es una constancia que no se edita ni se borra | `Novedad`, `GravedadNovedad` | `POST /api/apartamentos/{id}/novedades` (400 si la forma no es válida; 404 si el apartamento no existe) | `NovedadTest` (incluye descripción vacía, de 501 caracteres, sin gravedad y sin autor), `NovedadUseCasesTest`, `RecorridoNovedadesIntegracionTest.unaNovedadMalFormadaEs400YUnApartamentoInexistenteEs404` | 13.2, 13.5, 13.6, 13.7 | Implementada |
+| N-05 | El autor de la novedad es quien inició sesión (claim `nombre` del JWT) y la fecha la pone el reloj del servidor: no viajan en el cuerpo. Registrar una novedad no cambia el estado operativo | `NovedadController`, `RegistrarNovedadUseCase` | `POST /api/apartamentos/{id}/novedades` (PERSONAL_SERVICIO, RECEPCIONISTA, ADMINISTRADOR) | `NovedadUseCasesTest.registraLaNovedadConLaFechaDelRelojYElAutorRecibido`, `RecorridoNovedadesIntegracionTest.elHistorialSePaginaDe10YCadaRolAutorizadoFirmaConSuNombre` | 13.2, 13.3 | Implementada |
+| N-06 | El historial de novedades se consulta por apartamento, de 10 en 10 y de la más reciente a la más antigua; el huésped no lo ve (403) | `ListarNovedadesUseCase`, `NovedadRepository`, `NovedadJpaRepository` | `GET /api/apartamentos/{id}/novedades` (PERSONAL_SERVICIO, RECEPCIONISTA, ADMINISTRADOR) | `NovedadUseCasesTest`, `RecorridoNovedadesIntegracionTest.elHistorialSePaginaDe10YCadaRolAutorizadoFirmaConSuNombre`, `.soloElPersonalAutorizadoRegistraYConsultaNovedades` | 13.4, 13.8, 13.11 | Implementada |
+
+Datos de prueba: `CargadorDatosPrueba` siembra tres novedades (dos en APT-302, el apartamento fuera de servicio, y una en APT-101).
+Frontend: `paginas/servicio/Preparacion.tsx` (listas paginadas de pendientes y en preparación, transiciones con confirmación, registrar
+novedad e historial) y el historial de novedades en `paginas/administracion/Apartamentos.tsx`. La PARTE 13 de `sga.http` es nueva y
+aún no figura en `docs/http/resultado-corrida.md` (falta volver a correr la colección).
+
+### Pasos siguientes de Miguel (pendientes)
+
+| Paso | Tema | Decisión de la Ficha | Estado |
+|---|---|---|---|
+| M2 | Reportes de ocupación, ingresos y reservas por canal; exportación a Excel opcional (7.9) | L-19, L-23 | Pendiente |
+| M3 | Sugerencia de gravedad de novedades con IA no bloqueante (10.2): botón "Sugerir gravedad con IA" en `FormularioNovedad` (el lugar está marcado en el componente), detrás de un puerto del dominio con adaptador local (I-01 a I-08) | L-21 | Pendiente |
+
+---
+
 ## Canal externo completo (7.8, 10.3.1) y notificaciones por Brevo — J9
 
 ### Reglas del canal externo
