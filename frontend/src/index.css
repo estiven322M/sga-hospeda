@@ -1,18 +1,57 @@
-/* Estilos globales: afectan a toda la aplicación. */
+/* Estilos globales: afectan a toda la aplicación.
+   Tema visual de Hospeda: verde de montaña (Salento) con un acento cálido de café. Solo presentación:
+   no cambia ninguna lógica. Bootstrap toma estas variables. */
 
-/* Identidad de Hospeda: un verde de montaña (Salento). Bootstrap toma estas variables. */
 :root {
-  --hospeda-verde: #2f6f5e;
-  --hospeda-verde-oscuro: #245648;
+  /* Paleta tomada del logo: verde de monte, café, teja y crema */
+  --hospeda-verde: #497232;
+  --hospeda-verde-oscuro: #3a5c28;
+  --hospeda-verde-profundo: #2c4a1e;
+  --hospeda-verde-suave: #eef3e6;
+  --hospeda-cafe: #43220b;
+  --hospeda-cafe-oscuro: #2b1608;
+  --hospeda-acento: #b85a24;
+  --hospeda-acento-oscuro: #9a4a1c;
+  --hospeda-fondo: #fcf7f1;
+  --hospeda-texto: #3a2312;
+  --hospeda-sombra: 0 1px 2px rgba(67, 34, 11, 0.06), 0 6px 18px rgba(67, 34, 11, 0.07);
+  --hospeda-sombra-alta: 0 4px 10px rgba(67, 34, 11, 0.08), 0 16px 36px rgba(67, 34, 11, 0.16);
+
   --bs-primary: var(--hospeda-verde);
-  --bs-primary-rgb: 47, 111, 94;
+  --bs-primary-rgb: 73, 114, 50;
   --bs-link-color: var(--hospeda-verde);
-  --bs-link-color-rgb: 47, 111, 94;
+  --bs-link-color-rgb: 73, 114, 50;
   --bs-link-hover-color: var(--hospeda-verde-oscuro);
-  --bs-link-hover-color-rgb: 36, 86, 72;
+  --bs-link-hover-color-rgb: 58, 92, 40;
+  --bs-body-font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --bs-body-color: var(--hospeda-texto);
+  --bs-body-bg: var(--hospeda-fondo);
+  --bs-border-radius: 0.6rem;
+  --bs-border-radius-lg: 0.9rem;
+  --bs-border-color: #e8dfd1;
+  --bs-focus-ring-color: rgba(73, 114, 50, 0.25);
+}
+
+/* Títulos con una tipografía propia */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6,
+.display-1, .display-2, .display-3, .display-4, .display-5, .display-6 {
+  font-family: 'Poppins', var(--bs-body-font-family);
+  letter-spacing: -0.01em;
+  color: var(--hospeda-cafe);
 }
 
 /* Los botones de Bootstrap no leen --bs-primary: sus colores se fijan por clase. */
+.btn {
+  border-radius: 0.65rem;
+  font-weight: 500;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
 .btn-primary {
   --bs-btn-bg: var(--hospeda-verde);
   --bs-btn-border-color: var(--hospeda-verde);
@@ -22,6 +61,27 @@
   --bs-btn-active-border-color: var(--hospeda-verde-oscuro);
   --bs-btn-disabled-bg: var(--hospeda-verde);
   --bs-btn-disabled-border-color: var(--hospeda-verde);
+  box-shadow: 0 2px 6px rgba(73, 114, 50, 0.25);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--hospeda-verde);
+  --bs-btn-border-color: var(--hospeda-verde);
+  --bs-btn-hover-bg: var(--hospeda-verde);
+  --bs-btn-hover-border-color: var(--hospeda-verde);
+  --bs-btn-active-bg: var(--hospeda-verde-oscuro);
+  --bs-btn-active-border-color: var(--hospeda-verde-oscuro);
+}
+
+/* Botón cálido para la acción principal de la portada */
+.btn-acento {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--hospeda-acento);
+  --bs-btn-border-color: var(--hospeda-acento);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--hospeda-acento-oscuro);
+  --bs-btn-hover-border-color: var(--hospeda-acento-oscuro);
+  box-shadow: 0 4px 12px rgba(184, 90, 36, 0.4);
 }
 
 .text-bg-primary {
@@ -33,11 +93,23 @@
   border-color: var(--hospeda-verde);
 }
 
+.page-link {
+  color: var(--hospeda-verde);
+  border-radius: 0.5rem;
+  margin: 0 0.1rem;
+}
+
 /* Selector de elemento: el pie de página siempre queda abajo */
 body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(73, 114, 50, 0.07) 0, transparent 40%),
+    radial-gradient(circle at 100% 30%, rgba(184, 90, 36, 0.06) 0, transparent 35%),
+    var(--hospeda-fondo);
+  background-attachment: fixed;
 }
 
 #root {
@@ -50,11 +122,64 @@ main {
   flex: 1;
 }
 
+/* ---------- Encabezado ---------- */
+.hospeda-navbar {
+  background-color: rgba(252, 247, 241, 0.9) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--bs-border-color) !important;
+  box-shadow: 0 1px 12px rgba(67, 34, 11, 0.06);
+}
+
 /* Selector de ID: el nombre de la marca en el encabezado */
 #marca {
-  letter-spacing: 0.04em;
+  font-family: 'Poppins', var(--bs-body-font-family);
+  letter-spacing: 0.02em;
   font-weight: 600;
   color: var(--hospeda-verde);
+}
+
+.marca-emblema {
+  width: auto;
+  height: 52px;
+}
+
+.marca-titulo {
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.marca-subtitulo {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--hospeda-acento);
+}
+
+@media (max-width: 575.98px) {
+  .marca-titulo {
+    font-size: 0.85rem;
+  }
+}
+
+.hospeda-navbar .nav-link {
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.8rem;
+  color: #5a4030;
+  font-weight: 500;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.hospeda-navbar .nav-link:hover {
+  background-color: var(--hospeda-verde-suave);
+  color: var(--hospeda-verde-oscuro);
+}
+
+.hospeda-navbar .nav-link.active {
+  background-color: var(--hospeda-verde-suave);
+  color: var(--hospeda-verde-oscuro);
 }
 
 /* El botón del menú desplegable se ve como un enlace más de la barra */
@@ -63,22 +188,762 @@ main {
   border: 0;
 }
 
-/* Portada de la página de inicio */
-.hospeda-hero {
-  background: linear-gradient(135deg, var(--hospeda-verde) 0%, var(--hospeda-verde-oscuro) 100%);
+.dropdown-menu {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.8rem;
+  box-shadow: var(--hospeda-sombra-alta);
+  padding: 0.4rem;
 }
 
-/* Barras de los reportes (7.9): solo CSS, el ancho del relleno es el porcentaje */
+.dropdown-item {
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.8rem;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: var(--hospeda-verde-suave);
+  color: var(--hospeda-verde-oscuro);
+}
+
+/* ---------- Portada ---------- */
+.hospeda-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 26rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: 1.4rem !important;
+  /* Capa verde a la izquierda (donde va el texto) que se desvanece para dejar ver la foto */
+  background:
+    linear-gradient(90deg, rgba(31, 52, 21, 0.92) 0%, rgba(31, 52, 21, 0.78) 40%, rgba(31, 52, 21, 0.15) 75%, rgba(31, 52, 21, 0) 100%),
+    url('/fotos/valle-cocora.jpg') center 65% / cover no-repeat,
+    var(--hospeda-verde-profundo);
+  box-shadow: var(--hospeda-sombra-alta);
+}
+
+/* En pantallas angostas el texto ocupa todo el ancho: la capa cubre toda la foto */
+@media (max-width: 991.98px) {
+  .hospeda-hero {
+    background:
+      linear-gradient(180deg, rgba(31, 52, 21, 0.86) 0%, rgba(31, 52, 21, 0.72) 100%),
+      url('/fotos/valle-cocora.jpg') center / cover no-repeat,
+      var(--hospeda-verde-profundo);
+  }
+}
+
+/* Va con el selector ".hospeda-hero > ..." para ganarle a la regla ".hospeda-hero > *" (que pone position: relative) */
+.hospeda-hero > .hospeda-hero__lugar {
+  position: absolute;
+  z-index: 2;
+  right: 1.25rem;
+  bottom: 1rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+  font-size: 0.75rem;
+  color: #fff;
+}
+
+.hospeda-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hospeda-hero h1 {
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.hospeda-subtitulo {
+  font-family: 'Poppins', var(--bs-body-font-family);
+  font-size: 1.4rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #f4c58d;
+}
+
+.hospeda-hero .lead {
+  max-width: 40rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Tarjetas de ventajas de la portada */
+.hospeda-ventaja {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 0.9rem;
+  background-color: var(--hospeda-verde-suave);
+  color: var(--hospeda-verde);
+  margin-bottom: 0.8rem;
+}
+
+/* ---------- Tarjetas, formularios y tablas ---------- */
+.card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  box-shadow: var(--hospeda-sombra);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+a.card:hover,
+article.card:hover,
+.card.tarjeta-elevable:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--hospeda-sombra-alta);
+}
+
+.card-header {
+  background-color: var(--hospeda-verde-suave);
+  border-bottom: 1px solid var(--bs-border-color);
+  font-weight: 600;
+}
+
+.form-control,
+.form-select {
+  border-radius: 0.65rem;
+  border-color: #ddd0bd;
+  padding: 0.55rem 0.8rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--hospeda-verde);
+  box-shadow: 0 0 0 0.22rem rgba(73, 114, 50, 0.18);
+}
+
+.form-label {
+  font-weight: 500;
+  color: #4a3220;
+}
+
+.form-check-input:checked {
+  background-color: var(--hospeda-verde);
+  border-color: var(--hospeda-verde);
+}
+
+.table {
+  --bs-table-bg: #fff;
+  --bs-table-hover-bg: var(--hospeda-verde-suave);
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+
+.table > thead {
+  background-color: var(--hospeda-verde-suave);
+}
+
+.table > thead th {
+  color: var(--hospeda-verde-oscuro);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.table-responsive {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.9rem;
+  box-shadow: var(--hospeda-sombra);
+  background: #fff;
+}
+
+.table-responsive > .table {
+  margin-bottom: 0;
+}
+
+.badge {
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 0.4em 0.75em;
+}
+
+.alert {
+  border-radius: 0.8rem;
+  border-width: 1px;
+}
+
+.list-group-item:first-child {
+  border-top-left-radius: 0.8rem;
+  border-top-right-radius: 0.8rem;
+}
+
+.list-group-item:last-child {
+  border-bottom-left-radius: 0.8rem;
+  border-bottom-right-radius: 0.8rem;
+}
+
+/* ---------- Acceso (ingresar, crear cuenta, recuperar): panel de marca + formulario ---------- */
+.panel-acceso {
+  max-width: 62rem;
+  margin-top: 0.5rem;
+  background: #fff;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1.4rem;
+  box-shadow: var(--hospeda-sombra-alta);
+  overflow: hidden;
+}
+
+.panel-acceso__marca {
+  min-height: 34rem;
+  padding: 2rem;
+  background:
+    linear-gradient(180deg, rgba(31, 52, 21, 0.05) 0%, rgba(31, 52, 21, 0.2) 55%, rgba(31, 52, 21, 0.88) 100%),
+    url('/fotos/cascada.jpg') center / cover no-repeat,
+    var(--hospeda-verde-profundo);
+}
+
+.panel-acceso__tarjeta-logo {
+  background: rgba(252, 247, 241, 0.94);
+  border-radius: 1.1rem;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.panel-acceso__logo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.panel-acceso__lema {
+  font-family: 'Poppins', var(--bs-body-font-family);
+  font-size: 1.15rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.panel-acceso__formulario {
+  padding: 2.5rem 2.25rem;
+}
+
+@media (max-width: 575.98px) {
+  .panel-acceso__formulario {
+    padding: 1.75rem 1.25rem;
+  }
+}
+
+/* ---------- Pie de página ---------- */
+.hospeda-pie {
+  background: var(--hospeda-cafe-oscuro);
+  color: rgba(255, 255, 255, 0.72);
+  border-top: 4px solid var(--hospeda-acento);
+}
+
+.hospeda-pie__marca {
+  font-family: 'Poppins', var(--bs-body-font-family);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.hospeda-pie__titulo {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hospeda-acento);
+  margin-bottom: 0.6rem;
+}
+
+.hospeda-pie__creditos {
+  opacity: 0.6;
+}
+
+.hospeda-pie__linea {
+  border-color: rgba(255, 255, 255, 0.18);
+  opacity: 1;
+  margin: 2rem 0 1.25rem;
+}
+
+/* ---------- Portada: ilustración, pasos y llamado final ---------- */
+.seccion-titulo {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.seccion-titulo::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--bs-border-color), transparent);
+}
+
+.paso {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  padding: 1.1rem 1.25rem 1.1rem 4.1rem;
+  box-shadow: var(--hospeda-sombra);
+}
+
+.paso__numero {
+  position: absolute;
+  left: 1.1rem;
+  top: 1.1rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hospeda-acento);
+  color: #fff;
+  font-family: 'Poppins', var(--bs-body-font-family);
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgba(184, 90, 36, 0.4);
+}
+
+.llamado-final {
+  border-radius: 1.4rem;
+  padding: 2.5rem 2rem;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(184, 90, 36, 0.1) 0, transparent 40%),
+    #fff;
+  border: 1px solid var(--bs-border-color);
+  box-shadow: var(--hospeda-sombra-alta);
+}
+
+.llamado-final__logo {
+  width: 100%;
+  max-width: 20rem;
+  height: auto;
+}
+
+/* ---------- Títulos de página y entrada suave ---------- */
+main h1.h3 {
+  position: relative;
+  padding-left: 1rem;
+  font-weight: 700;
+}
+
+main h1.h3::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.18em;
+  bottom: 0.18em;
+  width: 5px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--hospeda-verde), var(--hospeda-acento));
+}
+
+/* El título del panel de acceso lleva su propio diseño */
+.panel-acceso h1.h3 {
+  padding-left: 0;
+}
+
+.panel-acceso h1.h3::before {
+  display: none;
+}
+
+@keyframes hospeda-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+main > * {
+  animation: hospeda-aparecer 0.35s ease both;
+}
+
+/* ---------- Búsqueda de apartamentos: panel de filtros, características y estado vacío ---------- */
+.panel-filtros {
+  background: #fff;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1.1rem;
+  box-shadow: var(--hospeda-sombra);
+  padding: 1.25rem 1.25rem 0.75rem;
+}
+
+.panel-filtros__titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  font-family: 'Poppins', var(--bs-body-font-family);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--hospeda-cafe);
+  margin: 0 0 0.75rem;
+  padding: 0;
+  float: none;
+}
+
+.panel-filtros__numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--hospeda-verde-suave);
+  color: var(--hospeda-verde);
+  font-size: 0.8rem;
+}
+
+.panel-filtros__nota {
+  font-family: var(--bs-body-font-family);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--bs-secondary-color);
+}
+
+.panel-filtros__opcional {
+  border-top: 1px dashed var(--bs-border-color);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+/* La sección de ocupantes (componente compartido): su título lo pone esta página */
+.panel-filtros fieldset > legend.h6 {
+  display: none;
+}
+
+.panel-filtros fieldset .border.rounded {
+  border-color: var(--bs-border-color) !important;
+  border-radius: 0.8rem !important;
+  background: var(--hospeda-fondo);
+  padding: 0.75rem !important;
+}
+
+.panel-filtros .form-label {
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+
+.panel-filtros .mb-3 {
+  margin-bottom: 0.75rem !important;
+}
+
+/* La búsqueda valida apenas carga (así arma la lista de lo que falta): los avisos se ven suaves, sin alarmar */
+.panel-filtros .form-control.is-invalid {
+  border-color: #e6c2b3;
+  background-image: none;
+  padding-right: 0.8rem;
+}
+
+.panel-filtros .form-control.is-invalid:focus {
+  border-color: var(--hospeda-acento);
+  box-shadow: 0 0 0 0.22rem rgba(184, 90, 36, 0.15);
+}
+
+.panel-filtros .invalid-feedback {
+  color: #a8572f;
+  font-size: 0.76rem;
+}
+
+/* Las características se ven como etiquetas que se marcan */
+.chips-caracteristicas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chips-caracteristicas .form-check {
+  padding: 0;
+  margin: 0;
+}
+
+.chips-caracteristicas .form-check-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chips-caracteristicas .form-check-label {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.chips-caracteristicas .form-check-label:hover {
+  border-color: var(--hospeda-verde);
+}
+
+.chips-caracteristicas .form-check-input:checked + .form-check-label {
+  background: var(--hospeda-verde);
+  border-color: var(--hospeda-verde);
+  color: #fff;
+}
+
+.chips-caracteristicas .form-check-input:focus-visible + .form-check-label {
+  box-shadow: 0 0 0 0.22rem rgba(73, 114, 50, 0.25);
+}
+
+.estado-vacio {
+  background: #fff;
+  border: 1px dashed #d9cbb6;
+  border-radius: 1.2rem;
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.estado-vacio__icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: var(--hospeda-verde-suave);
+  color: var(--hospeda-verde);
+  margin-bottom: 1rem;
+}
+
+.estado-vacio__lista {
+  display: inline-block;
+  text-align: left;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.estado-vacio__lista li {
+  position: relative;
+  padding: 0.3rem 0 0.3rem 1.75rem;
+  color: #5a4030;
+}
+
+.estado-vacio__lista li::before {
+  content: '';
+  position: absolute;
+  left: 0.2rem;
+  top: 0.55rem;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--hospeda-acento);
+  border-radius: 50%;
+}
+
+.resultados-conteo {
+  font-weight: 500;
+  color: var(--hospeda-verde-oscuro);
+  margin-bottom: 1rem;
+}
+
+/* ---------- Tarjeta de apartamento (resultados de búsqueda) ---------- */
+.tarjeta-apartamento .card-body {
+  align-items: stretch;
+}
+
+.tarjeta-apartamento__imagen {
+  width: 260px;
+  height: 180px;
+  border-radius: 0.8rem !important;
+}
+
+.tarjeta-apartamento .card-title {
+  font-size: 1.2rem;
+}
+
+.tarjeta-apartamento__precio {
+  min-width: 10rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-left: 1px solid var(--bs-border-color);
+  padding-left: 1.25rem;
+}
+
+@media (max-width: 767.98px) {
+  .tarjeta-apartamento__imagen {
+    width: 100%;
+    height: 200px;
+  }
+
+  .tarjeta-apartamento__precio {
+    border-left: 0;
+    border-top: 1px solid var(--bs-border-color);
+    padding: 0.75rem 0 0;
+  }
+}
+
+/* ---------- Detalle del apartamento: galería a la izquierda, datos a la derecha ---------- */
+.galeria__principal {
+  height: 380px;
+  max-height: 55vh;
+  border-radius: 0.9rem !important;
+}
+
+@media (max-width: 767.98px) {
+  .galeria__principal {
+    height: 240px;
+  }
+}
+
+.imagen-administracion {
+  height: 170px;
+}
+
+.detalle-apartamento__datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.detalle-apartamento__datos li {
+  background: var(--hospeda-verde-suave);
+  color: var(--hospeda-verde-oscuro);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.detalle-apartamento__dotacion {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 1rem;
+}
+
+.detalle-apartamento__dotacion li {
+  position: relative;
+  padding-left: 1.4rem;
+}
+
+.detalle-apartamento__dotacion li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--hospeda-verde);
+  font-weight: 700;
+}
+
+/* ---------- Temporadas y tarifas ---------- */
+.temporada {
+  border-left: 5px solid var(--hospeda-acento);
+}
+
+.temporada[data-temporada='alta'] {
+  border-left-color: #b8322a;
+}
+
+.temporada[data-temporada='media'] {
+  border-left-color: #d9962b;
+}
+
+.temporada--base {
+  border-left-color: var(--hospeda-verde);
+}
+
+.temporada__nombre {
+  font-family: 'Poppins', var(--bs-body-font-family);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--hospeda-cafe);
+}
+
+.temporada__conteo {
+  font-size: 0.78rem;
+  color: var(--bs-secondary-color);
+  background: var(--hospeda-fondo);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  white-space: nowrap;
+}
+
+.periodos-temporada {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.periodos-temporada__anio {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.periodos-temporada__etiqueta-anio {
+  flex-shrink: 0;
+  width: 3rem;
+  padding-top: 0.15rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--hospeda-verde-oscuro);
+}
+
+.periodos-temporada__lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.periodos-temporada__periodo {
+  font-size: 0.78rem;
+  background: var(--hospeda-fondo);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.5rem;
+  padding: 0.15rem 0.55rem;
+  white-space: nowrap;
+  color: #5a4030;
+}
+
+.fila-tarifa .periodos-temporada__etiqueta-anio {
+  width: 2.6rem;
+}
+
+/* ---------- Barras de los reportes (7.9): solo CSS, el ancho del relleno es el porcentaje ---------- */
 .barra-reporte {
   height: 0.9rem;
-  background-color: var(--bs-secondary-bg);
+  background-color: var(--hospeda-verde-suave);
   border-radius: 0.45rem;
   overflow: hidden;
 }
 
 .barra-reporte__relleno {
   height: 100%;
-  background-color: var(--bs-primary);
+  background: linear-gradient(90deg, var(--hospeda-verde), #4a9a83);
   border-radius: 0.45rem;
   transition: width 0.3s ease;
+}
+
+/* Respeta a quien prefiere menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .card,
+  .barra-reporte__relleno {
+    transition: none;
+  }
+
+  main > * {
+    animation: none;
+  }
+
+  .btn:not(:disabled):hover,
+  a.card:hover,
+  article.card:hover {
+    transform: none;
+  }
 }

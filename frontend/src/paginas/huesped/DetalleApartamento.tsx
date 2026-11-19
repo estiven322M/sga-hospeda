@@ -105,16 +105,19 @@ export default function DetalleApartamento() {
   const { apartamento } = carga;
   return (
     <section>
-      <h1 className="h3">Detalle del apartamento</h1>
-      <div className="card mb-4">
-        <div className="card-body">
-          <GaleriaApartamento imagenes={apartamento.imagenes} nombre={apartamento.nombre} />
+      <h1 className="h3 mb-3">Detalle del apartamento</h1>
+      <div className="card mb-4 detalle-apartamento">
+        <div className="card-body row g-4">
+          <div className="col-12 col-lg-7">
+            <GaleriaApartamento imagenes={apartamento.imagenes} nombre={apartamento.nombre} />
+          </div>
+          <div className="col-12 col-lg-5">
           <div className="d-flex flex-wrap justify-content-between align-items-start gap-2">
             <h2 className="h4 card-title mb-0">{apartamento.nombre}</h2>
             <EstadoOperativoBadge estado={apartamento.estadoOperativo} />
           </div>
           <p className="mt-2">{apartamento.descripcion}</p>
-          <ul className="list-unstyled small text-body-secondary mb-2">
+          <ul className="list-unstyled detalle-apartamento__datos mb-3">
             <li>Identificación: {apartamento.identificacion}</li>
             <li>Dormitorios: {apartamento.dormitorios}</li>
             <li>Capacidad: {apartamento.capacidad} personas</li>
@@ -122,7 +125,7 @@ export default function DetalleApartamento() {
           {apartamento.dotacion.length > 0 && (
             <>
               <h3 className="h6">Dotación</h3>
-              <ul className="mb-3">
+              <ul className="mb-3 detalle-apartamento__dotacion">
                 {apartamento.dotacion.map((elemento) => (
                   <li key={elemento}>{elemento}</li>
                 ))}
@@ -135,11 +138,12 @@ export default function DetalleApartamento() {
               <EtiquetasCaracteristicas caracteristicas={apartamento.caracteristicas} />
             </>
           )}
+          </div>
         </div>
       </div>
 
-      <h2 className="h5">Disponibilidad</h2>
-      <div className="mb-4">
+      <div className="panel-filtros mb-4">
+        <h2 className="h5">Disponibilidad</h2>
         <CalendarioDisponibilidad identificacion={identificacion} />
       </div>
 
@@ -151,7 +155,7 @@ export default function DetalleApartamento() {
         <InformacionAlojamiento />
       </div>
 
-      <h2 className="h5">Cotización</h2>
+      <h2 className="h5 seccion-titulo">Cotización</h2>
       {!estancia.success ? (
         <div className="alert alert-info">
           Para cotizar, elija primero las fechas y los ocupantes en la <Link to={RUTAS.buscar}>búsqueda</Link>.

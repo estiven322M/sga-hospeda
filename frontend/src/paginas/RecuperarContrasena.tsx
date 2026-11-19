@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
 import { Campo } from '../componentes/Campo';
+import { PanelAcceso } from '../componentes/PanelAcceso';
 import {
   esquemaConfirmarRecuperacion,
   esquemaSolicitarRecuperacion,
@@ -132,9 +133,7 @@ export default function RecuperarContrasena() {
   const [aviso, setAviso] = useState<string | null>(null);
 
   return (
-    <section className="row justify-content-center">
-      <div className="col-12 col-md-8 col-lg-5">
-        <h1 className="h3 mb-3">Recuperar la contraseña</h1>
+    <PanelAcceso titulo="Recuperar la contraseña" subtitulo="Le enviaremos un código a su correo para crear una contraseña nueva.">
 
         {paso === 'solicitar' ? (
           <>
@@ -158,7 +157,6 @@ export default function RecuperarContrasena() {
         <p className="mt-3 text-center">
           <Link to={RUTAS.login}>Volver a ingresar</Link>
         </p>
-      </div>
-    </section>
+    </PanelAcceso>
   );
 }

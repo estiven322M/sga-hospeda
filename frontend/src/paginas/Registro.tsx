@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
 import { Campo } from '../componentes/Campo';
+import { PanelAcceso } from '../componentes/PanelAcceso';
 import { esquemaRegistro, type FormularioRegistro } from '../esquemas/registro';
 import { useAuth } from '../hooks/useAuth';
 import type { RegistroUsuarioRequest } from '../modelos/auth';
@@ -59,9 +60,7 @@ export default function Registro() {
   }
 
   return (
-    <section className="row justify-content-center">
-      <div className="col-12 col-md-10 col-lg-6">
-        <h1 className="h3 mb-3">Crear cuenta</h1>
+    <PanelAcceso titulo="Crear cuenta" subtitulo="Regístrese como huésped para reservar en línea.">
 
         {errorServidor && (
           <div className="alert alert-danger" role="alert">
@@ -133,7 +132,6 @@ export default function Registro() {
         <p className="mt-3 text-center">
           ¿Ya tiene cuenta? <Link to={RUTAS.login}>Ingrese</Link>
         </p>
-      </div>
-    </section>
+    </PanelAcceso>
   );
 }

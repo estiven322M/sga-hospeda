@@ -170,7 +170,7 @@ export default function ImagenesApartamento() {
           {imagenes.map((imagen, posicion) => (
             <div key={imagen.id} className="col-12 col-sm-6 col-lg-4">
               <article className={`card h-100 ${imagen.principal ? 'border-success border-2' : ''}`} aria-label={`Imagen ${posicion + 1}`}>
-                <Imagen src={imagen.url} alt={`${apartamento.nombre}: imagen ${posicion + 1}`} className="card-img-top object-fit-cover" />
+                <Imagen src={imagen.url} alt={`${apartamento.nombre}: imagen ${posicion + 1}`} className="card-img-top object-fit-cover imagen-administracion" />
                 <div className="card-body">
                   {imagen.principal && <span className="badge text-bg-success mb-2">Principal</span>}
                   <div className="d-flex flex-wrap gap-2">

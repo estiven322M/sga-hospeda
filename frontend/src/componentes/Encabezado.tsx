@@ -78,15 +78,15 @@ export function Encabezado({ nombreAlojamiento }: EncabezadoProps) {
 
   return (
     <header>
-      <nav className="navbar navbar-expand-lg bg-body-tertiary border-bottom">
+      <nav className="navbar navbar-expand-lg sticky-top hospeda-navbar">
         <div className="container">
           <Link to={RUTAS.inicio} id="marca" className="navbar-brand d-flex align-items-center gap-2">
-            <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
-              <rect width="64" height="64" rx="14" fill="var(--hospeda-verde)" />
-              <path d="M12 32 32 14l20 18v18a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2z" fill="#fff" />
-              <path d="M26 52V38h12v14z" fill="var(--hospeda-verde)" />
-            </svg>
-            {nombreAlojamiento}
+            <img src="/emblema-sga.png" alt="" height="52" className="marca-emblema" />
+            {/* Título del sistema y, debajo, el nombre del alojamiento (viene de VITE_NOMBRE_ALOJAMIENTO) */}
+            <span className="d-flex flex-column">
+              <span className="marca-titulo">Sistema de Gestión de Alojamiento</span>
+              <span className="marca-subtitulo">{nombreAlojamiento}</span>
+            </span>
           </Link>
 
           <button

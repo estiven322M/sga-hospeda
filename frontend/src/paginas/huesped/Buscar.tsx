@@ -114,12 +114,25 @@ export default function Buscar() {
 
   return (
     <section>
-      <h1 className="h3 mb-3">Buscar apartamento</h1>
+      <div className="mb-4">
+        <h1 className="h3 mb-1">Buscar apartamento</h1>
+        <p className="text-body-secondary mb-0">
+          Indique sus fechas y quiénes viajan: los resultados se actualizan solos.
+        </p>
+      </div>
       <div className="row g-4">
         <div className="col-12 col-lg-4">
           <FormProvider {...formulario}>
-            <form noValidate onSubmit={(evento) => evento.preventDefault()} aria-label="Filtros de búsqueda">
-              <div className="row">
+            <form
+              noValidate
+              onSubmit={(evento) => evento.preventDefault()}
+              aria-label="Filtros de búsqueda"
+              className="panel-filtros"
+            >
+              <div className="panel-filtros__titulo">
+                <span className="panel-filtros__numero">1</span> Fechas de la estancia
+              </div>
+              <div className="row g-2">
                 <div className="col-6">
                   <Campo
                     id="fechaEntrada"
@@ -142,10 +155,15 @@ export default function Buscar() {
                 </div>
               </div>
 
+              <div className="panel-filtros__titulo">
+                <span className="panel-filtros__numero">2</span> Quiénes viajan
+              </div>
               <CamposOcupantes />
 
-              <fieldset className="mt-3">
-                <legend className="h6">Filtros</legend>
+              <fieldset className="panel-filtros__opcional">
+                <legend className="panel-filtros__titulo">
+                  <span className="panel-filtros__numero">3</span> Filtros <span className="panel-filtros__nota">opcionales</span>
+                </legend>
                 <Campo
                   id="capacidadMinima"
                   type="number"
@@ -154,7 +172,7 @@ export default function Buscar() {
                   error={errors.capacidadMinima?.message}
                   {...register('capacidadMinima')}
                 />
-                <div className="row">
+                <div className="row g-2">
                   <div className="col-6">
                     <Campo
                       id="precioMinimo"
@@ -178,10 +196,11 @@ export default function Buscar() {
                 </div>
                 <div className="form-text mb-2">El precio es el total de la estancia, en pesos.</div>
 
-                <div className="mb-2">
+                <div className="mb-1">
                   <div className="form-label">Características (debe tener todas)</div>
                   {errorCatalogo && <div className="text-danger small">{errorCatalogo}</div>}
                   {!catalogo && !errorCatalogo && <div className="text-body-secondary small">Cargando características…</div>}
+                  <div className="chips-caracteristicas">
                   {catalogo?.map((caracteristica) => (
                     <CampoCasilla
                       key={caracteristica}
@@ -191,21 +210,30 @@ export default function Buscar() {
                       {...register('caracteristicas')}
                     />
                   ))}
+                  </div>
                 </div>
               </fieldset>
             </form>
           </FormProvider>
           {/* 7.5: el mapa con la ubicación del alojamiento; sin internet se ve la dirección con las coordenadas */}
-          <div className="mt-4">
+          <div className="panel-filtros mt-4">
+            <div className="panel-filtros__titulo mb-2">Ubicación del alojamiento</div>
             <MapaDelAlojamiento />
           </div>
         </div>
 
         <div className="col-12 col-lg-8" aria-live="polite">
           {!solicitud ? (
-            <div className="alert alert-info" role="status">
-              <p className="mb-1">Para ver los apartamentos disponibles falta:</p>
-              <ul className="mb-0">
+            <div className="estado-vacio" role="status">
+              <span className="estado-vacio__icono" aria-hidden="true">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-4-4" />
+                </svg>
+              </span>
+              <h2 className="h5 mb-1">Encuentre su apartamento ideal</h2>
+              <p className="text-body-secondary mb-3">Para ver los apartamentos disponibles falta:</p>
+              <ul className="estado-vacio__lista">
                 {faltantes.map((faltante) => (
                   <li key={faltante}>{faltante}</li>
                 ))}
@@ -222,7 +250,7 @@ export default function Buscar() {
             <div className="alert alert-secondary">No hay apartamentos disponibles con esos filtros para esas fechas.</div>
           ) : (
             <>
-              <p className="text-body-secondary small">
+              <p className="resultados-conteo">
                 {consulta.pagina.totalElementos}{' '}
                 {consulta.pagina.totalElementos === 1 ? 'apartamento disponible' : 'apartamentos disponibles'}, del más económico al más costoso
               </p>
