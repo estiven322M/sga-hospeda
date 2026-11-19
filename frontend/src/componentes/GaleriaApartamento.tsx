@@ -18,7 +18,7 @@ export function GaleriaApartamento({ imagenes, nombre }: GaleriaApartamentoProps
   const [indice, setIndice] = useState(0);
 
   if (ordenadas.length === 0) {
-    return <Imagen src={null} alt={`Imagen de ${nombre}`} textoSinImagen="Este apartamento aún no tiene imágenes" className="w-100 rounded" />;
+    return <Imagen src={null} alt={`Imagen de ${nombre}`} textoSinImagen="Este apartamento aún no tiene imágenes" className="w-100 rounded galeria__principal" />;
   }
 
   const actual = Math.min(indice, ordenadas.length - 1);
@@ -38,7 +38,7 @@ export function GaleriaApartamento({ imagenes, nombre }: GaleriaApartamentoProps
         <Imagen
           src={imagen?.url}
           alt={`${nombre}: imagen ${actual + 1} de ${total}${imagen?.principal ? ' (principal)' : ''}`}
-          className="w-100 rounded object-fit-cover"
+          className="w-100 rounded object-fit-cover galeria__principal"
         />
         {total > 1 && (
           <>

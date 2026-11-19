@@ -13,13 +13,13 @@ export function TarjetaApartamento({ apartamento }: { apartamento: ApartamentoDi
   const conDescuento = apartamento.porcentajeDescuento > 0;
 
   return (
-    <article className="card mb-3">
+    <article className="card mb-3 tarjeta-apartamento">
       <div className="card-body d-flex flex-column flex-md-row justify-content-between gap-3">
         {/* 7.5: la tarjeta muestra la imagen principal; si no hay o no carga, un marcador del mismo tamaño */}
         <Imagen
           src={apartamento.imagenPrincipal}
           alt={`Imagen principal de ${apartamento.nombre}`}
-          className="rounded object-fit-cover flex-shrink-0"
+          className="rounded object-fit-cover flex-shrink-0 tarjeta-apartamento__imagen"
         />
         <div className="flex-grow-1">
           <h2 className="h5 card-title mb-1">{apartamento.nombre}</h2>
@@ -29,7 +29,7 @@ export function TarjetaApartamento({ apartamento }: { apartamento: ApartamentoDi
           </p>
           <EtiquetasCaracteristicas caracteristicas={apartamento.caracteristicas} />
         </div>
-        <div className="text-md-end">
+        <div className="text-md-end tarjeta-apartamento__precio">
           <div className="small text-body-secondary">Total estimado</div>
           <div className="fs-4 fw-semibold">{formatearPesos(apartamento.total)}</div>
           {conDescuento && (

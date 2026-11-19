@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router';
 import { Campo } from '../componentes/Campo';
+import { PanelAcceso } from '../componentes/PanelAcceso';
 import { esquemaLogin, type FormularioLogin } from '../esquemas/login';
 import { useAuth } from '../hooks/useAuth';
 import { RUTAS } from '../rutas/rutas';
@@ -33,9 +34,7 @@ export default function Login() {
   }
 
   return (
-    <section className="row justify-content-center">
-      <div className="col-12 col-md-8 col-lg-5">
-        <h1 className="h3 mb-3">Ingresar</h1>
+    <PanelAcceso titulo="Bienvenido de nuevo" subtitulo="Ingrese con su cuenta para continuar.">
 
         {errorServidor && (
           <div className="alert alert-danger" role="alert">
@@ -71,7 +70,6 @@ export default function Login() {
         <p className="text-center">
           ¿Aún no tiene cuenta? <Link to={RUTAS.registro}>Regístrese</Link>
         </p>
-      </div>
-    </section>
+    </PanelAcceso>
   );
 }

@@ -4,10 +4,10 @@ import { Cargando } from '../../componentes/Cargando';
 import { FormularioTemporadaNueva } from '../../componentes/FormularioTemporada';
 import { Paginacion } from '../../componentes/Paginacion';
 import { PanelTarifas } from '../../componentes/PanelTarifas';
+import { PeriodosTemporada } from '../../componentes/PeriodosTemporada';
 import { useApartamentos } from '../../hooks/useApartamentos';
 import { useConsulta } from '../../hooks/useConsulta';
 import { listarTemporadas, listarTodasLasTemporadas } from '../../servicios/temporadaServicio';
-import { formatearFecha } from '../../utilidades/formato';
 
 /**
  * Temporadas y tarifas (7.4). Arriba, las temporadas (de 10 en 10) y el formulario para registrar una; abajo, las
@@ -30,11 +30,16 @@ export default function TemporadasTarifas() {
 
   return (
     <section>
-      <h1 className="h3 mb-3">Temporadas y tarifas</h1>
+      <div className="mb-4">
+        <h1 className="h3 mb-1">Temporadas y tarifas</h1>
+        <p className="text-body-secondary mb-0">
+          Las temporadas definen qué tarifa se cobra cada noche; cada apartamento necesita tarifa en todas.
+        </p>
+      </div>
 
       <div className="row g-4 mb-5">
         <div className="col-12 col-lg-7" aria-live="polite">
-          <h2 className="h5">Temporadas</h2>
+          <h2 className="h5 seccion-titulo">Temporadas</h2>
           {visibles.cargando && <Cargando />}
           {visibles.resultado?.tipo === 'error' && <div className="alert alert-danger" role="alert">{visibles.resultado.mensaje}</div>}
           {visibles.resultado?.tipo === 'datos' &&
@@ -43,16 +48,23 @@ export default function TemporadasTarifas() {
             ) : (
               <>
                 {visibles.resultado.datos.contenido.map((temporada) => (
-                  <article key={temporada.nombre} className="card mb-2">
-                    <div className="card-body py-2">
-                      <div className="fw-semibold">
-                        {temporada.nombre} {temporada.base && <span className="badge text-bg-light border">Base</span>}
+                  <article
+                    key={temporada.nombre}
+                    className={`card mb-3 temporada ${temporada.base ? 'temporada--base' : ''}`}
+                    data-temporada={temporada.nombre.toLowerCase()}
+                  >
+                    <div className="card-body">
+                      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <div className="temporada__nombre">
+                          {temporada.nombre} {temporada.base && <span className="badge text-bg-light border">Base</span>}
+                        </div>
+                        {temporada.periodos.length > 0 && (
+                          <span className="temporada__conteo">
+                            {temporada.periodos.length} {temporada.periodos.length === 1 ? 'periodo' : 'periodos'}
+                          </span>
+                        )}
                       </div>
-                      <div className="small text-body-secondary">
-                        {temporada.periodos.length === 0
-                          ? 'Cubre el resto del año'
-                          : temporada.periodos.map((p) => `${formatearFecha(p.desde)} → ${formatearFecha(p.hasta)}`).join(' · ')}
-                      </div>
+                      <PeriodosTemporada periodos={temporada.periodos} textoSinPeriodos="Cubre el resto del año" />
                     </div>
                   </article>
                 ))}
@@ -65,12 +77,14 @@ export default function TemporadasTarifas() {
             ))}
         </div>
         <div className="col-12 col-lg-5">
-          <h2 className="h5">Registrar una temporada</h2>
-          <FormularioTemporadaNueva alRegistrar={temporadaRegistrada} />
+          <div className="panel-filtros">
+            <h2 className="h5 mb-3">Registrar una temporada</h2>
+            <FormularioTemporadaNueva alRegistrar={temporadaRegistrada} />
+          </div>
         </div>
       </div>
 
-      <h2 className="h5">Tarifas de un apartamento</h2>
+      <h2 className="h5 seccion-titulo">Tarifas de un apartamento</h2>
       <div className="row">
         <div className="col-12 col-md-6">
           <CampoSelect id="tarifas-apartamento" etiqueta="Apartamento" value={apartamento} onChange={(evento) => setApartamento(evento.target.value)}>

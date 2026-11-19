@@ -6,10 +6,11 @@ import { useConsulta } from '../hooks/useConsulta';
 import type { TarifaResponse, TemporadaResponse } from '../modelos/tarifario';
 import { listarTodasLasTarifas, registrarTarifa } from '../servicios/temporadaServicio';
 import { mensajeDeError } from '../utilidades/errores';
-import { formatearFecha, formatearPesos } from '../utilidades/formato';
+import { formatearPesos } from '../utilidades/formato';
 import { notificarExito } from '../utilidades/notificaciones';
 import { Campo } from './Campo';
 import { Cargando } from './Cargando';
+import { PeriodosTemporada } from './PeriodosTemporada';
 
 interface FilaTarifaProps {
   identificacion: string;
@@ -46,18 +47,14 @@ function FilaTarifa({ identificacion, temporada, tarifa, alGuardar }: FilaTarifa
   }
 
   return (
-    <article className={`card mb-2 ${tarifa ? '' : 'border-warning'}`}>
-      <div className="card-body py-2">
+    <article className={`card mb-2 fila-tarifa ${tarifa ? '' : 'border-warning'}`}>
+      <div className="card-body">
         <div className="row align-items-center g-2">
           <div className="col-12 col-md-4">
             <div className="fw-semibold">
               {temporada.nombre} {temporada.base && <span className="badge text-bg-light border">Base</span>}
             </div>
-            <div className="small text-body-secondary">
-              {temporada.periodos.length === 0
-                ? 'Resto del año'
-                : temporada.periodos.map((p) => `${formatearFecha(p.desde)} → ${formatearFecha(p.hasta)}`).join(' · ')}
-            </div>
+            <PeriodosTemporada periodos={temporada.periodos} textoSinPeriodos="Resto del año" />
           </div>
           <div className="col-12 col-md-3">
             {tarifa ? (
